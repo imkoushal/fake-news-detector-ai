@@ -1,4 +1,4 @@
-<![CDATA[# 📰 Fake News Detection API
+# 📰 Fake News Detection API
 
 An AI-powered backend system that classifies news articles as **REAL or FAKE** using a machine learning pipeline built with FastAPI.
 
@@ -159,4 +159,4 @@ GNEWS_API_KEY=your_key_here
 ## 📝 License
 
 MIT © [imkoushal](https://github.com/imkoushal)
-]]>
+
