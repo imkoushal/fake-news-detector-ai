@@ -1,0 +1,13 @@
+{
+  "accuracy": 0.9646089423206808,
+  "precision": 0.9584110903758998,
+  "recall": 0.9713590921372602,
+  "f1_score": 0.9648416532474503,
+  "real_accuracy": 0.9578606158833063,
+  "fake_accuracy": 0.9713590921372602,
+  "threshold": 0.5,
+  "model_type": "Advanced Ensemble (LR+SGD+SVC+RF+GB)",
+  "total_training_samples": 44415,
+  "total_datasets": 4,
+  "tfidf_features": 8000
+}

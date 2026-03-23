@@ -1,0 +1,45 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Large data files
+data/*.csv
+data_new/*.csv
+data_new/*.h5
+data_new/liar/*.tsv
+*.h5
+*.csv
+
+# Keep only structure
+!data/.gitkeep
+!data_new/.gitkeep
+
+# Model files (keep lightweight ones)
+models/*.keras
+models/*.joblib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak

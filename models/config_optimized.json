@@ -1,0 +1,17 @@
+{
+  "accuracy": 1.0,
+  "fake_detection_rate": 1.0,
+  "real_detection_rate": 1.0,
+  "bias_score": 0.0,
+  "cv_accuracy": 1.0,
+  "training_date": "2025-11-21 23:39:48.913403",
+  "model_type": "4-model_ensemble_optimized",
+  "features": "TF-IDF (8000) + Advanced Features (15)",
+  "total_features": 8015,
+  "confusion_matrix": {
+    "true_fake": 7000,
+    "false_positive": 0,
+    "false_negative": 0,
+    "true_real": 7000
+  }
+}

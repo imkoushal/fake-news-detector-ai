@@ -1,0 +1,187 @@
+==================================================
+TEST NEWS SAMPLES FOR HYBRID FAKE NEWS DETECTOR
+==================================================
+
+Copy and paste these articles into the Streamlit app to test the model.
+Each article is labeled with its actual classification.
+
+==================================================
+SAMPLE 1 - REAL NEWS
+Label: REAL
+Source: Reuters (example)
+==================================================
+
+Washington (Reuters) - The Federal Reserve held interest rates steady on Wednesday and said it would be patient before adjusting them again as it seeks to make sure the recent slowdown in inflation is temporary and an uncertain global backdrop poses no threat to the U.S. economy.
+
+In a statement following a two-day policy meeting, the U.S. central bank gave no signal it plans to move in either direction anytime soon on rates, repeating a pledge to be patient and noting that economic growth had slowed from its strong pace in the fourth quarter.
+
+Fed Chairman Jerome Powell, at a news conference after the end of the meeting, emphasized that patience is the appropriate stance right now as the central bank assesses whether the current 2.25 percent to 2.50 percent target range for its benchmark overnight lending rate is the right level.
+
+The Fed had been expected to leave rates unchanged after raising them four times last year. Markets had been focused on what signals the central bank would give about its next move.
+
+"We think our policy stance is appropriate right now," Powell said. "We don't see a strong case for moving in either direction."
+
+The decision was unanimous.
+
+==================================================
+SAMPLE 2 - FAKE NEWS
+Label: FAKE
+Source: Conspiracy website (example)
+==================================================
+
+DOCTORS DON'T WANT YOU TO KNOW: Ancient Himalayan Herb Cures Diabetes in 3 Days!
+
+Big Pharma is trying to CENSOR this article! Share before it's deleted!
+
+A revolutionary discovery from the remote mountains of Tibet has sent shockwaves through the medical establishment. Scientists have confirmed that a simple herb, known to Tibetan monks for centuries, can completely reverse Type 2 diabetes in just 72 hours.
+
+Mainstream media won't report this because pharmaceutical companies stand to lose BILLIONS! One weird trick that doctors HATE has been suppressing this information for years.
+
+The secret ingredient, found only in the highest peaks of the Himalayas, works by naturally resetting your pancreas to its original state. Clinical trials (that Big Pharma tried to bury) show 98% success rate with ZERO side effects.
+
+Wake up sheeple! The government and medical industry don't want you healthy - they profit from your sickness. This ancient remedy threatens their entire corrupt system.
+
+CLICK HERE before this miracle cure is banned forever! Share with everyone you know before the Illuminati takes this down!
+
+==================================================
+SAMPLE 3 - REAL NEWS
+Label: REAL
+Source: BBC (example)
+==================================================
+
+London - Climate scientists have published new research showing that global temperatures in 2024 were the warmest on record, according to data from the World Meteorological Organization.
+
+The findings, published in the journal Nature Climate Change, indicate that average temperatures were 1.3 degrees Celsius above pre-industrial levels, marking the tenth consecutive year of above-average warming.
+
+Dr. Sarah Mitchell, lead researcher at the UK Met Office, explained that the trend is consistent with climate model predictions. "We're seeing the effects of continued greenhouse gas emissions combined with natural climate variability," she said.
+
+The study analyzed data from weather stations, satellite measurements, and ocean buoys across the globe. Researchers noted that Arctic regions experienced the most dramatic warming, with some areas seeing temperature increases of up to 3 degrees Celsius.
+
+The European Union's climate monitoring service confirmed the findings independently. According to their analysis, extreme weather events including heatwaves, droughts, and flooding have increased in frequency and intensity over the past decade.
+
+Scientists emphasize that reducing carbon emissions remains critical to limiting future warming and its associated impacts on ecosystems, agriculture, and human communities worldwide.
+
+==================================================
+SAMPLE 4 - FAKE NEWS
+Label: FAKE
+Source: Tabloid clickbait (example)
+==================================================
+
+SHOCKING: Celebrities Secretly Controlling World Economy from Underground Bunker!
+
+You won't BELIEVE what Hollywood doesn't want you to know! Leaked documents reveal EXPLOSIVE truth about secret celebrity government.
+
+Anonymous whistleblower exposes that A-list celebrities including [names redacted] have been meeting in a hidden facility beneath Los Angeles to manipulate stock markets and control global currency.
+
+BREAKING: This explains EVERYTHING about recent economic crashes! Mainstream media is covering this up because they're all part of the conspiracy!
+
+The underground complex, reportedly built in the 1960s by the deep state, contains supercomputers that can hack any financial system in seconds. Celebrities use their influence to distract the masses while pulling strings behind the scenes.
+
+One insider who worked at the facility (before mysteriously disappearing) revealed: "They decide who becomes rich and who loses everything. It's all rigged!"
+
+Unbelievable surveillance footage shows famous actors entering secret elevator hidden inside Walmart. The truth is finally coming out and they're TERRIFIED!
+
+SHARE IMMEDIATELY before the government censors this! The elite don't want you connecting the dots!
+
+==================================================
+SAMPLE 5 - REAL NEWS
+Label: REAL
+Source: Associated Press (example)
+==================================================
+
+Tokyo - Japan's space agency JAXA announced Tuesday that its asteroid probe Hayabusa2 has successfully collected samples from the asteroid Ryugu and begun its journey back to Earth.
+
+The spacecraft touched down on the asteroid's surface twice over the past year, using a specialized sampler to gather rock and soil specimens. According to JAXA officials, the mission aims to provide insights into the formation of the solar system and the origins of water on Earth.
+
+"This represents a significant achievement in planetary science," said Dr. Yuichi Tsuda, project manager for the mission. "The samples we've collected could contain organic materials that predate Earth's formation."
+
+Hayabusa2 departed from Ryugu in November and is expected to return to Earth in late 2020. The spacecraft will release a capsule containing the asteroid samples, which will land in the Australian outback.
+
+The mission, which launched in 2014, has been remarkably successful despite the challenges of navigating and landing on a small, distant object. International space agencies have praised Japan's technical capabilities and scientific contributions.
+
+Scientists are particularly interested in analyzing the samples for amino acids and other building blocks of life, which could help explain how organic compounds arrived on early Earth.
+
+==================================================
+SAMPLE 6 - FAKE NEWS
+Label: FAKE
+Source: Fringe health blog (example)
+==================================================
+
+WARNING: 5G Towers Causing Brain Cancer - Government Study Covered Up!
+
+URGENT: Stop using your phone RIGHT NOW! Secret CDC documents leaked proving 5G radiation is KILLING us!
+
+Hidden study conducted by [unnamed agency] shows that 5G towers emit dangerous frequencies that penetrate your skull and literally cook your brain cells. Big Tech is suppressing this information to protect their profits!
+
+Symptoms include: headaches, fatigue, anxiety, insomnia, memory loss (basically everything = 5G poisoning!)
+
+One simple trick to protect yourself: wrap your entire house in aluminum foil! Scientists (who can't reveal their names due to death threats) confirm this blocks 99% of harmful radiation.
+
+Neighborhoods near 5G towers report SKYROCKETING cancer rates that mainstream medicine refuses to acknowledge. They're calling it a coincidence - WE KNOW THE TRUTH!
+
+The same corporations that poisoned us with fluoride and chemtrails are now weaponizing cellular technology. Connect the dots!
+
+SHARE BEFORE DELETED! Your family's lives depend on spreading this information! The telecommunications industry has billions riding on keeping you ignorant!
+
+P.S. - Click here to buy our special anti-radiation crystals (only $299.99) that neutralize 5G waves! Government doesn't want you to have these!
+
+==================================================
+SAMPLE 7 - REAL NEWS
+Label: REAL
+Source: The Guardian (example)
+==================================================
+
+Geneva - The World Health Organization reported on Monday that a new malaria vaccine has shown promising results in clinical trials conducted across several African nations.
+
+The vaccine, developed by researchers at Oxford University in collaboration with the Serum Institute of India, demonstrated 77% efficacy in preventing malaria among children aged 5-17 months during phase 2b trials involving 4,800 participants.
+
+"This is a significant breakthrough in our fight against malaria," said Dr. Tedros Adhanom Ghebreyesus, WHO Director-General. "Malaria remains one of the leading causes of childhood mortality in Africa, claiming hundreds of thousands of lives annually."
+
+The vaccine works by targeting multiple stages of the malaria parasite's lifecycle, offering broader protection than previous candidates. Researchers noted minimal side effects during the trial period.
+
+Phase 3 trials are scheduled to begin next year across multiple sites in sub-Saharan Africa, where malaria burden is highest. If successful, the vaccine could be approved for widespread use by 2025.
+
+Public health experts emphasized that the vaccine would complement existing malaria prevention methods, including insecticide-treated bed nets and antimalarial medications, rather than replacing them.
+
+The research was published in The Lancet medical journal and peer-reviewed by independent scientists.
+
+==================================================
+SAMPLE 8 - FAKE NEWS  
+Label: FAKE
+Source: Conspiracy theory website (example)
+==================================================
+
+BREAKING: Tap Water Contains Mind Control Chemicals - CIA Whistleblower Exposes All!
+
+Former CIA operative reveals SHOCKING truth about fluoride! It's not for your teeth - it's for CONTROLLING YOUR MIND!
+
+Declassified documents prove that the government has been adding secret compounds to municipal water supplies since 1962. These chemicals make you docile, obedient, and unable to question authority!
+
+Ever wonder why you feel tired and unmotivated? IT'S THE WATER! Fluoride calcifies your pineal gland (the seat of consciousness) making you a zombie slave to the New World Order!
+
+Soviet Russia used the same technique in concentration camps! Now it's in YOUR tap water! They're literally poisoning us to death while calling it "public health."
+
+WAKE UP! Independent lab tests (mainstream science won't touch this) show that fluoride also contains trace amounts of [made up chemical] which alters DNA and causes autism, ADHD, and every disease imaginable!
+
+Only drink distilled water purified through our patented 17-stage filtration system (link in bio - use code TRUTH for 50% off). This is the ONLY way to detox from years of government poisoning!
+
+Share this before Big Brother shuts us down! The elite fear an awakened population! Don't let them win!
+
+==================================================
+
+TESTING INSTRUCTIONS:
+1. Copy any article above
+2. Paste into the Streamlit app at http://localhost:8501
+3. Click "Analyze"
+4. Compare the prediction with the actual label
+5. Check confidence scores and red flags
+6. View Gemini AI analysis and web sources
+
+Expected Results:
+- REAL news should predict REAL with high confidence (>70%)
+- FAKE news should predict FAKE with high confidence (>80%)
+- FAKE samples should trigger multiple red flags
+- Gemini should identify manipulation tactics in FAKE news
+- GNews may find corroboration for REAL news
+
+==================================================
