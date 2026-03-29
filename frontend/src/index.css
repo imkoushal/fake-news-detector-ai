@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #0f172a;
+  color: white;
+}
+
+body {
+  background: radial-gradient(circle at top, #1e293b, #020617);
+}
+
+html {
+  scroll-behavior: smooth;
+}

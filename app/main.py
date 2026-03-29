@@ -1,9 +1,18 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from app.core import analyze_article   # IMPORTANT (absolute import)
+from app.core import analyze_article   
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+app = FastAPI(title="Fake News Detection API", version="1.0")
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 class AnalyzeRequest(BaseModel):
     text: str
 
