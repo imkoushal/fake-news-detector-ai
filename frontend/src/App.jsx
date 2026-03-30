@@ -2,6 +2,7 @@ import Navbar from "./components/Navbar";
 import Hero from "./sections/Hero";
 import Analyze from "./sections/Analyze";
 import Features from "./sections/Features";
+import History from "./sections/History";
 
 function App() {
   return (
@@ -9,6 +10,7 @@ function App() {
       <Navbar />
       <Hero />
       <Analyze />
+      <History />
       <Features />
     </div>
   );

@@ -10,6 +10,7 @@ export default function Navbar() {
         <div className="space-x-6 text-sm">
           <a href="#home" className="hover:text-purple-400">Home</a>
           <a href="#analyze" className="hover:text-purple-400">Analyze</a>
+          <a href="#history" className="hover:text-purple-400">History</a>
           <a href="#features" className="hover:text-purple-400">Features</a>
         </div>
 

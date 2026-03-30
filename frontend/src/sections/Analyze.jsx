@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { analyzeText } from "../api/analyze";
+import { addToHistory } from "../utils/history";
 
 export default function Analyze() {
   const [inputText, setInputText] = useState("");
@@ -16,6 +17,12 @@ export default function Analyze() {
     try {
       const data = await analyzeText(inputText);
       setResult(data);
+      addToHistory({
+        text: inputText,
+        prediction: data.prediction,
+        confidence: data.confidence,
+      });
+      window.dispatchEvent(new Event("history-updated"));
     } catch (err) {
       setError(
         err.response?.data?.detail ||
@@ -26,10 +33,20 @@ export default function Analyze() {
     }
   };
 
-  const isReal = result?.prediction === "REAL";
+  const prediction = result?.prediction;
+  const isReal = prediction === "REAL";
+  const isFake = prediction === "FAKE";
+  const isUncertain = prediction === "UNCERTAIN";
   const confidencePercent = result
     ? (result.confidence * 100).toFixed(1)
     : null;
+
+  // Color scheme per prediction
+  const resultStyle = isReal
+    ? { bg: "bg-emerald-500/10 border-emerald-500/30", text: "text-emerald-400", bar: "bg-gradient-to-r from-emerald-500 to-emerald-400", sub: "text-emerald-300", icon: "✅", label: "REAL NEWS" }
+    : isFake
+    ? { bg: "bg-red-500/10 border-red-500/30", text: "text-red-400", bar: "bg-gradient-to-r from-red-500 to-red-400", sub: "text-red-300", icon: "🚨", label: "FAKE NEWS" }
+    : { bg: "bg-amber-500/10 border-amber-500/30", text: "text-amber-400", bar: "bg-gradient-to-r from-amber-500 to-amber-400", sub: "text-amber-300", icon: "⚠️", label: "UNCERTAIN" };
 
   return (
     <section
@@ -125,11 +142,7 @@ export default function Analyze() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
               transition={{ type: "spring", stiffness: 300, damping: 24 }}
-              className={`mt-6 p-6 rounded-2xl border text-center ${
-                isReal
-                  ? "bg-emerald-500/10 border-emerald-500/30"
-                  : "bg-red-500/10 border-red-500/30"
-              }`}
+              className={`mt-6 p-6 rounded-2xl border text-center ${resultStyle.bg}`}
             >
               {/* Icon */}
               <motion.div
@@ -143,7 +156,7 @@ export default function Analyze() {
                 }}
                 className="text-5xl mb-3"
               >
-                {isReal ? "✅" : "🚨"}
+                {resultStyle.icon}
               </motion.div>
 
               {/* Prediction label */}
@@ -151,41 +164,45 @@ export default function Analyze() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.25 }}
-                className={`text-2xl font-extrabold tracking-wide ${
-                  isReal ? "text-emerald-400" : "text-red-400"
-                }`}
+                className={`text-2xl font-extrabold tracking-wide ${resultStyle.text}`}
               >
-                {isReal ? "REAL NEWS" : "FAKE NEWS"}
+                {resultStyle.label}
               </motion.p>
 
-              {/* Confidence bar */}
-              <div className="mt-4">
-                <p className="text-sm text-slate-400 mb-2">
-                  Confidence
-                </p>
-                <div className="w-full h-3 rounded-full bg-slate-700/60 overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${confidencePercent}%` }}
-                    transition={{ duration: 0.8, ease: "easeOut", delay: 0.3 }}
-                    className={`h-full rounded-full ${
-                      isReal
-                        ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
-                        : "bg-gradient-to-r from-red-500 to-red-400"
-                    }`}
-                  />
-                </div>
+              {/* Uncertain hint */}
+              {isUncertain && (
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className={`text-lg font-bold mt-2 ${
-                    isReal ? "text-emerald-300" : "text-red-300"
-                  }`}
+                  transition={{ delay: 0.35 }}
+                  className="text-sm text-amber-300/70 mt-1"
                 >
-                  {confidencePercent}%
+                  The model isn't confident enough to classify this text.
                 </motion.p>
-              </div>
+              )}
+
+              {/* Confidence bar */}
+              {!isUncertain && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-400 mb-2">Confidence</p>
+                  <div className="w-full h-3 rounded-full bg-slate-700/60 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${confidencePercent}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut", delay: 0.3 }}
+                      className={`h-full rounded-full ${resultStyle.bar}`}
+                    />
+                  </div>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className={`text-lg font-bold mt-2 ${resultStyle.sub}`}
+                  >
+                    {confidencePercent}%
+                  </motion.p>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
