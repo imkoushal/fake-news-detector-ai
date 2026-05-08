@@ -26,8 +26,8 @@ except ImportError:
 MODEL_PATH = 'models/pipeline.joblib'
 CONFIG_PATH = 'models/config.json'
 # NOTE: In production, use st.secrets or environment variables
-GNEWS_API_KEY = "84750e988d2d3e69c1c5e94293393433"
-GEMINI_API_KEY = "AIzaSyBa8Txd9gDph1tMP4h7A8iNkWiNN5UrQ3Q"
+GNEWS_API_KEY = os.getenv("GNEWS_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # Initialize optional features
 try:
