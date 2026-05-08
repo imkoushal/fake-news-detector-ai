@@ -6,10 +6,6 @@ import requests
 import re
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # Import new modules
 from ui_components import render_header, render_sidebar_metrics, render_api_status
@@ -26,17 +22,12 @@ except ImportError:
     st.error("❌ Critical Error: utils.py not found. Please ensure all files are present.")
     st.stop()
 
-# Configuration - Load from environment variables
-MODEL_PATH = os.getenv('MODEL_PATH', 'models/pipeline.joblib')
-TFIDF_PATH = os.getenv('TFIDF_PATH', 'models/tfidf.joblib')
-CONFIG_PATH = os.getenv('CONFIG_PATH', 'models/config.json')
-MODEL_VERSION = os.getenv('MODEL_VERSION', '2.0_advanced')
-GNEWS_API_KEY = os.getenv('GNEWS_API_KEY', '')
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
-
-# Validate API keys are configured
-if not GNEWS_API_KEY or not GEMINI_API_KEY:
-    st.warning("⚠️ API keys not configured. Please set GNEWS_API_KEY and GEMINI_API_KEY in .env file")
+# Configuration
+MODEL_PATH = 'models/pipeline.joblib'
+CONFIG_PATH = 'models/config.json'
+# NOTE: In production, use st.secrets or environment variables
+GNEWS_API_KEY = "84750e988d2d3e69c1c5e94293393433"
+GEMINI_API_KEY = "AIzaSyBa8Txd9gDph1tMP4h7A8iNkWiNN5UrQ3Q"
 
 # Initialize optional features
 try:
@@ -53,30 +44,11 @@ try:
         calculate_readability_score, extract_time_references,
         extract_domain
     )
-    from model_versioning import get_model_manager
     db = AnalysisDatabase()
     HAS_ENHANCED_FEATURES = True
-    model_manager = get_model_manager()
 except Exception as e:
     HAS_ENHANCED_FEATURES = False
     db = None
-    model_manager = None
-
-# --- Input Validation Helper ---
-def validate_text_input(text: str, min_length: int = 10, max_length: int = 5000) -> tuple:
-    """Validate user text input"""
-    if not text:
-        return False, "Text cannot be empty"
-    
-    text = text.strip()
-    
-    if len(text) < min_length:
-        return False, f"Text must be at least {min_length} characters long"
-    
-    if len(text) > max_length:
-        return False, f"Text must not exceed {max_length} characters"
-    
-    return True, "Valid"
 
 # --- Helper Functions ---
 

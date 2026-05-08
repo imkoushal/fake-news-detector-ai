@@ -1,70 +1,69 @@
-<![CDATA[# ===== Python =====
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-*.egg-info/
-dist/
-build/
 
-# ===== Virtual Environment =====
+# Virtual environment
 .venv/
 venv/
 ENV/
 env/
 
-# ===== Data Files =====
+# --- SECURITY: Never commit secrets ---
+.env
+.secrets.toml
+*.key
+*.pem
+
+# Large data files
 data/*.csv
 data_new/*.csv
 data_new/*.h5
 data_new/liar/*.tsv
 *.h5
-*.csv
 
 # Keep directory structure
 !data/.gitkeep
 !data_new/.gitkeep
 
-# ===== Model Artifacts (large binaries) =====
+# Model files (large binary artifacts)
 models/*.keras
 models/*.joblib
-models/pipeline_optimized.joblib
-models/pipeline_svm.joblib
-models/deep_learning_best.keras
+models/v_*/
 
-# ===== Environment Secrets =====
-.env
-
-# ===== Database =====
-*.db
-*.sqlite
-*.sqlite3
-
-# ===== IDE / Editor =====
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*.sublime-project
-*.sublime-workspace
 
-# ===== OS =====
+# OS
 .DS_Store
 Thumbs.db
-desktop.ini
-ehthumbs.db
 
-# ===== Logs =====
-logs/
-*.log
+# Logs
+logs/*.log
+logs/*.png
+logs/*.csv
 
-# ===== Temp Files =====
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Temporary files
 *.tmp
 *.bak
-*.orig
 
-# ===== Node (package-lock from accidental init) =====
-node_modules/
-package-lock.json
-]]>
+# Database (local dev only)
+*.db
+
+# Docker
+.docker/
