@@ -46,7 +46,7 @@ def render_analyze_page(pipe, sensitivity, db, has_enhanced_features, gemini_ver
                 
                 cleaned = clean_text(text)
                 if cleaned.strip():
-                    proba = pipe.predict_proba([cleaned])[0]
+                    proba = pipe.predict_proba([cleaned], raw_texts=[text])[0]
                     real_prob = float(proba[0])  # Class 0 is REAL
                     fake_prob = float(proba[1])  # Class 1 is FAKE
                     

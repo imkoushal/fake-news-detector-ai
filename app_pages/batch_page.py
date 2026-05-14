@@ -28,7 +28,7 @@ def render_batch_page(pipe, db):
                         text = str(row[text_col])
                         if len(text) > 50:
                             cleaned = clean_text(text)
-                            proba = pipe.predict_proba([cleaned])[0]
+                            proba = pipe.predict_proba([cleaned], raw_texts=[text])[0]
                             pred = 'FAKE' if proba[1] > 0.5 else 'REAL'
                             conf = max(proba) * 100
                             

@@ -5,6 +5,7 @@ from joblib import load
 import requests
 import re
 import numpy as np
+import scipy.sparse as sp
 from sklearn.base import BaseEstimator, ClassifierMixin
 
 # Import new modules
@@ -53,17 +54,42 @@ except Exception as e:
 # --- Helper Functions ---
 
 class FinalModel(BaseEstimator, ClassifierMixin):
-    def __init__(self, vectorizer, model):
+    """Wraps vectorizer + optional scaler + model for unified predict interface.
+    
+    Phase 2: If scaler is provided, computes meta features from raw text,
+    scales them, and hstacks with TF-IDF before prediction.
+    """
+    def __init__(self, vectorizer, model, scaler=None):
         self.vectorizer = vectorizer
         self.model = model
+        self.scaler = scaler
+        # Lazy import meta_features (only when scaler is present)
+        self._meta_extract = None
+        if self.scaler is not None:
+            try:
+                from meta_features import extract_single
+                self._meta_extract = extract_single
+            except ImportError:
+                self.scaler = None  # Fall back to TF-IDF only
     
-    def predict(self, X):
+    def _build_features(self, X, raw_texts=None):
+        """Build combined TF-IDF + meta feature matrix."""
         X_tfidf = self.vectorizer.transform(X)
-        return self.model.predict(X_tfidf)
+        if self.scaler is not None and self._meta_extract is not None:
+            # Use raw_texts for meta features if available, else fall back to X
+            texts_for_meta = raw_texts if raw_texts is not None else X
+            meta = np.vstack([self._meta_extract(t) for t in texts_for_meta])
+            meta_scaled = self.scaler.transform(meta)
+            X_tfidf = sp.hstack([X_tfidf, sp.csr_matrix(meta_scaled)], format="csr")
+        return X_tfidf
     
-    def predict_proba(self, X):
-        X_tfidf = self.vectorizer.transform(X)
-        return self.model.predict_proba(X_tfidf)
+    def predict(self, X, raw_texts=None):
+        X_combined = self._build_features(X, raw_texts)
+        return self.model.predict(X_combined)
+    
+    def predict_proba(self, X, raw_texts=None):
+        X_combined = self._build_features(X, raw_texts)
+        return self.model.predict_proba(X_combined)
 
 @st.cache_resource
 def load_model():
@@ -72,7 +98,13 @@ def load_model():
         if os.path.exists('models/model.joblib') and os.path.exists('models/tfidf.joblib'):
             vectorizer = load('models/tfidf.joblib')
             model = load('models/model.joblib')
-            pipe = FinalModel(vectorizer=vectorizer, model=model)
+            
+            # Phase 2: Load scaler if available (for meta features)
+            scaler = None
+            if os.path.exists('models/scaler.joblib'):
+                scaler = load('models/scaler.joblib')
+            
+            pipe = FinalModel(vectorizer=vectorizer, model=model, scaler=scaler)
             
             if os.path.exists('models/config.json'):
                 with open('models/config.json') as f:

@@ -164,7 +164,7 @@ else:
     @limiter.limit("30/minute")
     async def analyze_article(
         article: Article,
-        request: any = None,
+        request: Request,
         user: str = Depends(verify_api_key)
     ):
         """Analyze single article for fake news"""

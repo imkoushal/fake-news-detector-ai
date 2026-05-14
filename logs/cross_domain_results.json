@@ -1,0 +1,137 @@
+{
+  "timestamp": "2026-05-14 18:06:38.281831",
+  "matrix": {
+    "FakeTrue\u2192FakeTrue": {
+      "accuracy": 0.9967,
+      "f1": 0.9968,
+      "auc": 0.9998,
+      "type": "in-domain"
+    },
+    "FakeTrue\u2192WELFake": {
+      "accuracy": 0.8619,
+      "f1": 0.8748,
+      "auc": 0.9162,
+      "type": "cross-domain"
+    },
+    "FakeTrue\u2192LIAR": {
+      "accuracy": 0.5132,
+      "f1": 0.6587,
+      "auc": 0.5427,
+      "type": "cross-domain"
+    },
+    "FakeTrue\u2192DataCSV": {
+      "accuracy": 0.8501,
+      "f1": 0.8594,
+      "auc": 0.916,
+      "type": "cross-domain"
+    },
+    "WELFake\u2192FakeTrue": {
+      "accuracy": 0.9912,
+      "f1": 0.9913,
+      "auc": 0.9994,
+      "type": "cross-domain"
+    },
+    "WELFake\u2192WELFake": {
+      "accuracy": 0.9775,
+      "f1": 0.9775,
+      "auc": 0.9967,
+      "type": "in-domain"
+    },
+    "WELFake\u2192LIAR": {
+      "accuracy": 0.5332,
+      "f1": 0.3456,
+      "auc": 0.5554,
+      "type": "cross-domain"
+    },
+    "WELFake\u2192DataCSV": {
+      "accuracy": 0.8506,
+      "f1": 0.8293,
+      "auc": 0.9564,
+      "type": "cross-domain"
+    },
+    "LIAR\u2192FakeTrue": {
+      "accuracy": 0.5203,
+      "f1": 0.1179,
+      "auc": 0.5709,
+      "type": "cross-domain"
+    },
+    "LIAR\u2192WELFake": {
+      "accuracy": 0.5023,
+      "f1": 0.0918,
+      "auc": 0.464,
+      "type": "cross-domain"
+    },
+    "LIAR\u2192LIAR": {
+      "accuracy": 0.8673,
+      "f1": 0.8688,
+      "auc": 0.94,
+      "type": "in-domain"
+    },
+    "LIAR\u2192DataCSV": {
+      "accuracy": 0.496,
+      "f1": 0.096,
+      "auc": 0.3758,
+      "type": "cross-domain"
+    },
+    "DataCSV\u2192FakeTrue": {
+      "accuracy": 0.6685,
+      "f1": 0.7496,
+      "auc": 0.9524,
+      "type": "cross-domain"
+    },
+    "DataCSV\u2192WELFake": {
+      "accuracy": 0.6351,
+      "f1": 0.7304,
+      "auc": 0.8705,
+      "type": "cross-domain"
+    },
+    "DataCSV\u2192LIAR": {
+      "accuracy": 0.5063,
+      "f1": 0.6672,
+      "auc": 0.557,
+      "type": "cross-domain"
+    },
+    "DataCSV\u2192DataCSV": {
+      "accuracy": 0.9896,
+      "f1": 0.9896,
+      "auc": 0.9996,
+      "type": "in-domain"
+    },
+    "Combined\u2192FakeTrue": {
+      "accuracy": 0.9961,
+      "f1": 0.9962,
+      "auc": 0.9999,
+      "type": "combined"
+    },
+    "Combined\u2192WELFake": {
+      "accuracy": 0.9586,
+      "f1": 0.9586,
+      "auc": 0.9916,
+      "type": "combined"
+    },
+    "Combined\u2192LIAR": {
+      "accuracy": 0.735,
+      "f1": 0.7343,
+      "auc": 0.803,
+      "type": "combined"
+    },
+    "Combined\u2192DataCSV": {
+      "accuracy": 0.9738,
+      "f1": 0.9734,
+      "auc": 0.9974,
+      "type": "combined"
+    }
+  },
+  "avg_cross_domain_accuracy": 0.7245,
+  "combined_holdout": {
+    "accuracy": 0.9071,
+    "f1": 0.9074,
+    "auc": 0.9748
+  },
+  "dataset_sizes": {
+    "FakeTrue": 19996,
+    "WELFake": 19957,
+    "LIAR": 9014,
+    "DataCSV": 3736
+  }
+}
