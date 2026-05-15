@@ -10,6 +10,12 @@ try:
     HAS_OOD = True
 except ImportError:
     HAS_OOD = False
+try:
+    from model_monitor import ModelMonitor
+    _monitor = ModelMonitor()
+    HAS_MONITOR = True
+except ImportError:
+    HAS_MONITOR = False
 
 def render_analyze_page(pipe, sensitivity, db, has_enhanced_features, gemini_verify_claim, search_news_gnews, translate_text=None):
     """Render the Analyze tab"""
@@ -404,6 +410,28 @@ def render_analyze_page(pipe, sensitivity, db, has_enhanced_features, gemini_ver
                         st.warning(f'**Confidence: {final_confidence:.1f}%**')
                         st.write('• Mixed signals from different verification methods')
                         st.write('• Recommend manual fact-checking before sharing')
+                    
+                    # Phase 6: Log prediction to monitor
+                    if HAS_MONITOR:
+                        try:
+                            final_verdict_label = 'REAL' if final_score >= 0.65 else 'FAKE' if final_score <= 0.35 else 'UNCERTAIN'
+                            _monitor.log_prediction(
+                                prediction=pred,
+                                confidence=conf,
+                                real_prob=real_prob,
+                                fake_prob=fake_prob,
+                                ood_score=ood_val,
+                                ml_weight=w_ml,
+                                gemini_weight=w_gemini,
+                                web_weight=w_web,
+                                red_flag_score=red_flag_score,
+                                text_length=len(text),
+                                category=topic if has_enhanced_features else None,
+                                final_verdict=final_verdict_label,
+                                final_score=final_score,
+                            )
+                        except Exception:
+                            pass  # Monitoring should never break analysis
                     
                     # Breakdown
                     with st.expander('📊 See Detailed Breakdown'):
