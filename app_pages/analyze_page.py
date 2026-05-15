@@ -5,6 +5,11 @@ from enhanced_features import (
     analyze_source, classify_topic, get_model_predictions, highlight_suspicious_phrases,
     calculate_readability_score, extract_domain, detect_fake_news_red_flags
 )
+try:
+    from ood_detector import get_dynamic_weights, calibrate_confidence
+    HAS_OOD = True
+except ImportError:
+    HAS_OOD = False
 
 def render_analyze_page(pipe, sensitivity, db, has_enhanced_features, gemini_verify_claim, search_news_gnews, translate_text=None):
     """Render the Analyze tab"""
@@ -50,6 +55,9 @@ def render_analyze_page(pipe, sensitivity, db, has_enhanced_features, gemini_ver
                     real_prob = float(proba[0])  # Class 0 is REAL
                     fake_prob = float(proba[1])  # Class 1 is FAKE
                     
+                    # Phase 5: OOD Detection
+                    ood_val, ood_details = pipe.ood_score(text)
+                    
                     # Detect red flags
                     red_flag_score = detect_fake_news_red_flags(text)
                     
@@ -63,13 +71,28 @@ def render_analyze_page(pipe, sensitivity, db, has_enhanced_features, gemini_ver
                     
                     conf = max(adjusted_real_prob, fake_prob) * 100
                     
-                    col1, col2, col3 = st.columns(3)
+                    # Phase 5.3: Calibrate confidence using OOD score
+                    if HAS_OOD:
+                        conf = calibrate_confidence(conf, ood_val)
+                    
+                    col1, col2, col3, col4 = st.columns(4)
                     with col1:
                         st.metric('Prediction', f"{'🟢 REAL' if pred == 'REAL' else '🔴 FAKE'}")
                     with col2:
                         st.metric('Confidence', f'{conf:.1f}%')
                     with col3:
                         st.metric('Real Score', f'{real_prob:.3f}')
+                    with col4:
+                        ood_label = f'{ood_val:.2f}'
+                        if ood_val > 0.5:
+                            st.metric('OOD Score', ood_label, '⚠️ Unusual', delta_color='inverse')
+                        else:
+                            st.metric('OOD Score', ood_label, '✓ Normal')
+                    
+                    # Display OOD warning
+                    if ood_val > 0.5:
+                        st.warning(f'⚠️ **Out-of-Distribution Input** (OOD: {ood_val:.0%}) — This article differs significantly from training data. '
+                                   f'ML confidence has been reduced. Gemini AI and Web verification are weighted more heavily.')
                     
                     # Display red flag score
                     if red_flag_score > 0.3:
@@ -320,8 +343,18 @@ def render_analyze_page(pipe, sensitivity, db, has_enhanced_features, gemini_ver
                         # Searched but found nothing - suspicious
                         web_score = 0.3
                     
-                    # Weighted combination: ML (50%), Gemini (30%), Web (20%)
-                    final_score = (ml_score * 0.5) + (gemini_score * 0.3) + (web_score * 0.2)
+                    # Phase 5.2: Dynamic hybrid weights based on OOD score
+                    if HAS_OOD:
+                        dw = get_dynamic_weights(ood_val, gemini_available=bool(gemini_result), 
+                                                web_results_count=len(articles) if articles else 0)
+                        w_ml = dw['ml_weight']
+                        w_gemini = dw['gemini_weight']
+                        w_web = dw['web_weight']
+                    else:
+                        w_ml, w_gemini, w_web = 0.50, 0.30, 0.20
+                    
+                    # Weighted combination with dynamic weights
+                    final_score = (ml_score * w_ml) + (gemini_score * w_gemini) + (web_score * w_web)
                     
                     # Red flag adjustment
                     if red_flag_score > 0.3:
@@ -374,12 +407,15 @@ def render_analyze_page(pipe, sensitivity, db, has_enhanced_features, gemini_ver
                     
                     # Breakdown
                     with st.expander('📊 See Detailed Breakdown'):
-                        st.write(f'**ML Model Score:** {ml_score:.3f} (weight: 50%)')
-                        st.write(f'**Gemini AI Score:** {gemini_score:.3f} (weight: 30%)')
-                        st.write(f'**Web Verification Score:** {web_score:.3f} (weight: 20%)')
+                        st.write(f'**ML Model Score:** {ml_score:.3f} (weight: {w_ml*100:.0f}%)')
+                        st.write(f'**Gemini AI Score:** {gemini_score:.3f} (weight: {w_gemini*100:.0f}%)')
+                        st.write(f'**Web Verification Score:** {web_score:.3f} (weight: {w_web*100:.0f}%)')
                         st.write(f'**Red Flag Penalty:** {red_flag_score:.3f}')
+                        st.write(f'**OOD Score:** {ood_val:.3f}')
                         st.write(f'**Final Combined Score:** {final_score:.3f}')
                         st.write('---')
+                        if HAS_OOD and ood_val > 0.3:
+                            st.info(f'ℹ️ Dynamic weights active: ML weight reduced from 50% to {w_ml*100:.0f}% due to OOD score of {ood_val:.2f}')
                         st.write('**Scoring:**')
                         st.write('• 0.0-0.35: FAKE NEWS (high confidence)')
                         st.write('• 0.35-0.65: UNCERTAIN (low confidence)')

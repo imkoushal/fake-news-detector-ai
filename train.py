@@ -287,7 +287,7 @@ def near_dedup(df, col="content", verbose=True):
 def main():
     print("=" * 80)
     print("🚀 HYBRID FAKE NEWS DETECTION - TRAINING PIPELINE v4.3")
-    print("   Phase 4: RandomizedSearchCV + Cross-Domain Validation")
+    print("   Phase 5: Inference Improvements (OOD Detection + Dynamic Weights)")
     print("=" * 80)
 
     # ========================
@@ -677,11 +677,11 @@ def main():
         "threshold": best_thr
     }
     params = {
-        "model": "Stacking (LR+RF+SGD+SVC+LGBM) + Meta + RandSearch",
+        "model": "Stacking (LR+RF+SGD+SVC+LGBM) + Meta + RandSearch + OOD",
         "n_samples": len(df),
         "features": int(X_train_tfidf.shape[1]),
         "meta_features": N_META_FEATURES,
-        "version": "4.3_phase4"
+        "version": "5.0_phase5"
     }
     log_experiment(metrics, params)
 
@@ -721,19 +721,26 @@ def main():
         "datasets_used": list(df["source_dataset"].unique()) if "source_dataset" in df.columns else [],
     }
 
+    # Phase 5: Compute OOD centroid from training TF-IDF
+    print("\n🔬 Computing OOD centroid from training data...")
+    ood_centroid = np.asarray(X_train_tfidf_raw.mean(axis=0)).flatten()
+    print(f"  ✅ OOD centroid: {ood_centroid.shape[0]} dimensions, norm={np.linalg.norm(ood_centroid):.4f}")
+
     # Save to BOTH versioned dir and latest (models/) location
     for target_dir in [version_dir, MODEL_DIR]:
         dump(calibrated, target_dir / "model.joblib")
         dump(tfidf, target_dir / "tfidf.joblib")
         dump(scaler, target_dir / "scaler.joblib")  # Phase 2: meta feature scaler
+        np.save(target_dir / "ood_centroid.npy", ood_centroid)  # Phase 5: OOD centroid
         with open(target_dir / "config.json", "w") as f:
             json.dump(config_data, f, indent=2)
 
-    print(f"✅ Saved model  → {MODEL_DIR / 'model.joblib'}")
-    print(f"✅ Saved tfidf  → {MODEL_DIR / 'tfidf.joblib'}")
-    print(f"✅ Saved scaler → {MODEL_DIR / 'scaler.joblib'}")
-    print(f"✅ Saved config → {MODEL_DIR / 'config.json'}")
-    print(f"✅ Versioned copy → {version_dir}")
+    print(f"✅ Saved model        → {MODEL_DIR / 'model.joblib'}")
+    print(f"✅ Saved tfidf        → {MODEL_DIR / 'tfidf.joblib'}")
+    print(f"✅ Saved scaler       → {MODEL_DIR / 'scaler.joblib'}")
+    print(f"✅ Saved OOD centroid → {MODEL_DIR / 'ood_centroid.npy'}")
+    print(f"✅ Saved config       → {MODEL_DIR / 'config.json'}")
+    print(f"✅ Versioned copy     → {version_dir}")
     print("\n" + "=" * 80)
     print("🎉 TRAINING COMPLETE - ACCURACY: {:.2f}%".format(acc*100))
     print("=" * 80)

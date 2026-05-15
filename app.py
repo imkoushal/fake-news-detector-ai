@@ -58,11 +58,13 @@ class FinalModel(BaseEstimator, ClassifierMixin):
     
     Phase 2: If scaler is provided, computes meta features from raw text,
     scales them, and hstacks with TF-IDF before prediction.
+    Phase 5: If ood_detector is provided, computes OOD score for input text.
     """
-    def __init__(self, vectorizer, model, scaler=None):
+    def __init__(self, vectorizer, model, scaler=None, ood_detector=None):
         self.vectorizer = vectorizer
         self.model = model
         self.scaler = scaler
+        self.ood = ood_detector
         # Lazy import meta_features (only when scaler is present)
         self._meta_extract = None
         if self.scaler is not None:
@@ -90,6 +92,13 @@ class FinalModel(BaseEstimator, ClassifierMixin):
     def predict_proba(self, X, raw_texts=None):
         X_combined = self._build_features(X, raw_texts)
         return self.model.predict_proba(X_combined)
+    
+    def ood_score(self, raw_text: str):
+        """Phase 5: Get OOD score and details for a single raw text.
+        Returns (ood_score, details) or (0.0, {}) if no OOD detector."""
+        if self.ood is not None:
+            return self.ood.score(raw_text)
+        return 0.0, {"ood_score": 0.0, "is_ood": False, "confidence_modifier": 1.0}
 
 @st.cache_resource
 def load_model():
@@ -104,7 +113,17 @@ def load_model():
             if os.path.exists('models/scaler.joblib'):
                 scaler = load('models/scaler.joblib')
             
-            pipe = FinalModel(vectorizer=vectorizer, model=model, scaler=scaler)
+            # Phase 5: Load OOD centroid if available
+            ood_detector = None
+            if os.path.exists('models/ood_centroid.npy'):
+                try:
+                    from ood_detector import OODDetector
+                    centroid = np.load('models/ood_centroid.npy')
+                    ood_detector = OODDetector(vectorizer, centroid)
+                except Exception:
+                    pass  # OOD detection unavailable
+            
+            pipe = FinalModel(vectorizer=vectorizer, model=model, scaler=scaler, ood_detector=ood_detector)
             
             if os.path.exists('models/config.json'):
                 with open('models/config.json') as f:
