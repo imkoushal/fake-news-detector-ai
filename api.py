@@ -56,10 +56,126 @@ else:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    # API is public — rate limiting protects against abuse
+    # ── Auth Database Setup ──
+    import sqlite3
+    import secrets
+
+    BASE_DIR = Path(__file__).resolve().parent
+    AUTH_DB = str(BASE_DIR / "users.db")
+
+    def _init_auth_db():
+        conn = sqlite3.connect(AUTH_DB)
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )''')
+        conn.commit()
+        conn.close()
+
+    _init_auth_db()
+
+    def _hash_password(password: str, salt: str) -> str:
+        return hashlib.sha256((salt + password).encode()).hexdigest()
+
+    # Auth Pydantic models
+    class SignupRequest(BaseModel):
+        name: str
+        email: str
+        password: str
+
+    class LoginRequest(BaseModel):
+        email: str
+        password: str
+
+    # ── Auth Endpoints ──
+    @app.post("/api/v1/auth/signup")
+    @limiter.limit("10/minute")
+    async def signup(req: SignupRequest, request: Request):
+        if len(req.password) < 6:
+            raise HTTPException(400, "Password must be at least 6 characters")
+        if len(req.name.strip()) < 1:
+            raise HTTPException(400, "Name is required")
+
+        salt = secrets.token_hex(16)
+        pw_hash = _hash_password(req.password, salt)
+
+        try:
+            conn = sqlite3.connect(AUTH_DB)
+            c = conn.cursor()
+            c.execute("INSERT INTO users (name, email, password_hash, salt) VALUES (?, ?, ?, ?)",
+                      (req.name.strip(), req.email.strip().lower(), pw_hash, salt))
+            user_id = c.lastrowid
+            token = secrets.token_urlsafe(32)
+            c.execute("INSERT INTO sessions (token, user_id) VALUES (?, ?)", (token, user_id))
+            conn.commit()
+            conn.close()
+            return {"token": token, "user": {"id": user_id, "name": req.name.strip(), "email": req.email.strip().lower()}}
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "An account with this email already exists")
+        except Exception as e:
+            raise HTTPException(500, str(e))
+
+    @app.post("/api/v1/auth/login")
+    @limiter.limit("15/minute")
+    async def login(req: LoginRequest, request: Request):
+        conn = sqlite3.connect(AUTH_DB)
+        c = conn.cursor()
+        c.execute("SELECT id, name, email, password_hash, salt FROM users WHERE email = ?",
+                  (req.email.strip().lower(),))
+        user = c.fetchone()
+        if not user:
+            conn.close()
+            raise HTTPException(401, "Invalid email or password")
+
+        pw_hash = _hash_password(req.password, user[4])
+        if pw_hash != user[3]:
+            conn.close()
+            raise HTTPException(401, "Invalid email or password")
+
+        token = secrets.token_urlsafe(32)
+        c.execute("INSERT INTO sessions (token, user_id) VALUES (?, ?)", (token, user[0]))
+        conn.commit()
+        conn.close()
+        return {"token": token, "user": {"id": user[0], "name": user[1], "email": user[2]}}
+
+    @app.get("/api/v1/auth/me")
+    async def get_me(request: Request):
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if not token:
+            raise HTTPException(401, "Not authenticated")
+        conn = sqlite3.connect(AUTH_DB)
+        c = conn.cursor()
+        c.execute("""SELECT u.id, u.name, u.email FROM users u
+                     JOIN sessions s ON s.user_id = u.id WHERE s.token = ?""", (token,))
+        user = c.fetchone()
+        conn.close()
+        if not user:
+            raise HTTPException(401, "Invalid session")
+        return {"id": user[0], "name": user[1], "email": user[2]}
+
+    @app.post("/api/v1/auth/logout")
+    async def logout(request: Request):
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if token:
+            conn = sqlite3.connect(AUTH_DB)
+            c = conn.cursor()
+            c.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            conn.commit()
+            conn.close()
+        return {"ok": True}
 
     # ── Load model ──
-    BASE_DIR = Path(__file__).resolve().parent
     MODEL_DIR = BASE_DIR / "models"
 
     try:

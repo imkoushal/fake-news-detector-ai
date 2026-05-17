@@ -1,4 +1,4 @@
-T
+
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 
@@ -17,6 +17,72 @@ T
 </head>
 
 <body>
+
+  <!-- ===== AUTH OVERLAY ===== -->
+  <div id="authOverlay">
+    <div class="auth-bg"></div>
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-logo">
+          <svg viewBox="0 0 36 36" fill="none">
+            <path d="M6 20L15 30L32 6" stroke="#1B3A4B" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M12 20L15 26L32 5" stroke="#4ADE80" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Verify</span>
+        </div>
+
+        <!-- LOGIN PANEL -->
+        <div id="loginPanel" class="auth-form-panel active">
+          <p class="auth-subtitle">Sign in to access your dashboard</p>
+          <div class="auth-error" id="loginError"></div>
+          <form class="auth-form" id="loginForm" autocomplete="on">
+            <div class="auth-field">
+              <label for="loginEmail">Email</label>
+              <input type="email" id="loginEmail" class="input" placeholder="you@example.com" required autocomplete="email">
+            </div>
+            <div class="auth-field">
+              <label for="loginPassword">Password</label>
+              <input type="password" id="loginPassword" class="input" placeholder="Enter your password" required autocomplete="current-password">
+            </div>
+            <button type="submit" class="auth-btn" id="loginBtn">Sign In</button>
+          </form>
+          <div class="auth-toggle">
+            Don't have an account? <a id="showSignup">Create one</a>
+          </div>
+        </div>
+
+        <!-- SIGNUP PANEL -->
+        <div id="signupPanel" class="auth-form-panel">
+          <p class="auth-subtitle">Create your account</p>
+          <div class="auth-error" id="signupError"></div>
+          <form class="auth-form" id="signupForm" autocomplete="on">
+            <div class="auth-field">
+              <label for="signupName">Full Name</label>
+              <input type="text" id="signupName" class="input" placeholder="John Doe" required autocomplete="name">
+            </div>
+            <div class="auth-field">
+              <label for="signupEmail">Email</label>
+              <input type="email" id="signupEmail" class="input" placeholder="you@example.com" required autocomplete="email">
+            </div>
+            <div class="auth-field">
+              <label for="signupPassword">Password</label>
+              <input type="password" id="signupPassword" class="input" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password">
+            </div>
+            <button type="submit" class="auth-btn" id="signupBtn">Create Account</button>
+          </form>
+          <div class="auth-toggle">
+            Already have an account? <a id="showLogin">Sign in</a>
+          </div>
+        </div>
+
+        <div class="auth-features">
+          <span class="auth-feat">ML Ensemble</span>
+          <span class="auth-feat">Gemini AI</span>
+          <span class="auth-feat">Web Verification</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ===== NAVBAR ===== -->
   <nav id="navbar">
@@ -42,6 +108,11 @@ T
           <span class="theme-icon">🌙</span>
         </button>
         <a href="#settings" class="icon-btn" data-page="settings" title="Settings">⚙️</a>
+        <div class="user-pill hidden" id="userPill">
+          <div class="user-avatar" id="userAvatar">K</div>
+          <span id="userName">User</span>
+        </div>
+        <button class="logout-btn hidden" id="logoutBtn" title="Sign out">Sign out</button>
         <button class="hamburger" id="hamburger" aria-label="Menu">
           <span></span><span></span><span></span>
         </button>

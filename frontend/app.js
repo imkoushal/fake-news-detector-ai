@@ -3,6 +3,77 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
   ? 'http://localhost:8000'
   : window.location.origin;
 
+// ===== AUTH STATE =====
+let currentUser = null;
+function getToken() { return localStorage.getItem('verify_token'); }
+function setToken(t) { localStorage.setItem('verify_token', t); }
+function clearToken() { localStorage.removeItem('verify_token'); }
+
+function showAuthOverlay() {
+  document.getElementById('authOverlay').classList.remove('hidden');
+  document.getElementById('navbar').style.display = 'none';
+  document.getElementById('userPill').classList.add('hidden');
+  document.getElementById('logoutBtn').classList.add('hidden');
+}
+function hideAuthOverlay() {
+  document.getElementById('authOverlay').classList.add('hidden');
+  document.getElementById('navbar').style.display = '';
+  if (currentUser) {
+    document.getElementById('userName').textContent = currentUser.name;
+    document.getElementById('userAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
+    document.getElementById('userPill').classList.remove('hidden');
+    document.getElementById('logoutBtn').classList.remove('hidden');
+  }
+}
+async function checkSession() {
+  const token = getToken();
+  if (!token) { showAuthOverlay(); return; }
+  try {
+    const res = await fetch(API_BASE + '/api/v1/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) throw new Error();
+    currentUser = await res.json();
+    hideAuthOverlay();
+  } catch { clearToken(); showAuthOverlay(); }
+}
+async function handleLogin(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  errEl.classList.remove('show'); btn.textContent = 'Signing in...'; btn.disabled = true;
+  try {
+    const res = await fetch(API_BASE + '/api/v1/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: document.getElementById('loginEmail').value, password: document.getElementById('loginPassword').value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Login failed');
+    setToken(data.token); currentUser = data.user; hideAuthOverlay();
+    showToast('Welcome back, ' + currentUser.name + '!');
+  } catch (err) { errEl.textContent = err.message; errEl.classList.add('show'); }
+  btn.textContent = 'Sign In'; btn.disabled = false;
+}
+async function handleSignup(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('signupError');
+  const btn = document.getElementById('signupBtn');
+  errEl.classList.remove('show'); btn.textContent = 'Creating account...'; btn.disabled = true;
+  try {
+    const res = await fetch(API_BASE + '/api/v1/auth/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: document.getElementById('signupName').value, email: document.getElementById('signupEmail').value, password: document.getElementById('signupPassword').value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Signup failed');
+    setToken(data.token); currentUser = data.user; hideAuthOverlay();
+    showToast('Welcome to Verify, ' + currentUser.name + '!');
+  } catch (err) { errEl.textContent = err.message; errEl.classList.add('show'); }
+  btn.textContent = 'Create Account'; btn.disabled = false;
+}
+async function handleLogout() {
+  try { await fetch(API_BASE + '/api/v1/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + getToken() } }); } catch {}
+  clearToken(); currentUser = null; showAuthOverlay(); showToast('Signed out');
+}
+
 // ===== ROUTING =====
 function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -23,6 +94,22 @@ window.addEventListener('hashchange', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Auth — check session first
+  checkSession();
+
+  // Auth form toggles
+  document.getElementById('showSignup').addEventListener('click', () => {
+    document.getElementById('loginPanel').classList.remove('active');
+    document.getElementById('signupPanel').classList.add('active');
+  });
+  document.getElementById('showLogin').addEventListener('click', () => {
+    document.getElementById('signupPanel').classList.remove('active');
+    document.getElementById('loginPanel').classList.add('active');
+  });
+  document.getElementById('loginForm').addEventListener('submit', handleLogin);
+  document.getElementById('signupForm').addEventListener('submit', handleSignup);
+  document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+
   const page = location.hash.slice(1) || 'home';
   navigate(page);
 

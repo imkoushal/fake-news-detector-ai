@@ -11,6 +11,47 @@ img{max-width:100%}
 .text-muted{color:var(--text2);font-size:.875rem}
 .center{text-align:center}
 
+/* ===== AUTH OVERLAY ===== */
+#authOverlay{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:var(--bg);transition:opacity .5s,visibility .5s}
+#authOverlay.hidden{opacity:0;visibility:hidden;pointer-events:none}
+.auth-bg{position:absolute;inset:0;overflow:hidden}
+.auth-bg::before{content:'';position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(74,222,128,.12)0%,transparent 70%);top:20%;left:15%;animation:authFloat1 8s ease-in-out infinite}
+.auth-bg::after{content:'';position:absolute;width:400px;height:400px;background:radial-gradient(circle,rgba(59,130,246,.08)0%,transparent 70%);bottom:10%;right:10%;animation:authFloat2 10s ease-in-out infinite}
+@keyframes authFloat1{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-40px)}}
+@keyframes authFloat2{0%,100%{transform:translate(0,0)}50%{transform:translate(-20px,30px)}}
+.auth-container{position:relative;z-index:1;width:100%;max-width:440px;padding:0 20px}
+.auth-card{background:rgba(26,34,51,.85);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:20px;padding:40px 36px;box-shadow:0 24px 80px rgba(0,0,0,.4)}
+.auth-logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px}
+.auth-logo svg{width:36px;height:36px;filter:drop-shadow(0 0 20px rgba(74,222,128,.4))}
+.auth-logo span{font-size:1.5rem;font-weight:800;letter-spacing:-0.5px}
+.auth-subtitle{text-align:center;color:var(--text2);font-size:.9rem;margin-bottom:32px}
+.auth-form{display:flex;flex-direction:column;gap:16px}
+.auth-field{position:relative}
+.auth-field label{display:block;font-size:.8rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.auth-field .input{background:var(--surface);border:1px solid var(--border);padding:14px 16px;font-size:.95rem;border-radius:10px}
+.auth-field .input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,222,128,.12)}
+.auth-btn{width:100%;padding:14px;border:none;border-radius:10px;font-size:1rem;font-weight:700;font-family:var(--font);cursor:pointer;transition:.3s;background:linear-gradient(135deg,#1B3A4B,#22C55E);color:#fff;margin-top:8px}
+.auth-btn:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(74,222,128,.25)}
+.auth-btn:active{transform:translateY(0)}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--text3);font-size:.8rem}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.auth-toggle{text-align:center;font-size:.9rem;color:var(--text2);margin-top:20px}
+.auth-toggle a{color:var(--accent);font-weight:600;cursor:pointer;transition:.2s}
+.auth-toggle a:hover{text-decoration:underline}
+.auth-error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:10px 14px;font-size:.85rem;color:var(--danger);display:none;margin-bottom:4px}
+.auth-error.show{display:block}
+.auth-form-panel{display:none}
+.auth-form-panel.active{display:block}
+.auth-features{display:flex;gap:8px;justify-content:center;margin-top:24px;flex-wrap:wrap}
+.auth-feat{font-size:.75rem;padding:4px 10px;border-radius:12px;border:1px solid var(--border);color:var(--text3)}
+
+/* User profile in navbar */
+.user-pill{display:flex;align-items:center;gap:8px;padding:4px 14px 4px 4px;border-radius:20px;background:var(--surface);border:1px solid var(--border);font-size:.85rem;font-weight:500;cursor:default;transition:.2s}
+.user-pill:hover{border-color:var(--accent)}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#1B3A4B,#22C55E);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff}
+.logout-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:.85rem;padding:6px 10px;border-radius:6px;transition:.2s}
+.logout-btn:hover{color:var(--danger);background:rgba(239,68,68,.1)}
+
 /* ===== NAVBAR ===== */
 #navbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);background:rgba(11,15,25,.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);z-index:100;display:flex;align-items:center}
 .nav-inner{width:100%;max-width:1280px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between}
