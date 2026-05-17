@@ -11,3 +11,4 @@ scipy>=1.13.0,<1.15
 requests==2.32.5
 python-dotenv==1.0.0
 lightgbm>=4.0.0,<4.6
+psycopg2-binary>=2.9.0
