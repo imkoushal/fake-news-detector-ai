@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 try:
-    from fastapi import FastAPI, HTTPException, Depends, Header, Request
+    from fastapi import FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import FileResponse
@@ -56,17 +56,7 @@ else:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    # ── API Key management ──
-    API_KEYS = {
-        "demo_key_123": "demo_user",
-        "prod_key_456": "production_user",
-    }
-
-    def verify_api_key(x_api_key: str = Header(None)):
-        """Verify API key"""
-        if x_api_key not in API_KEYS:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-        return API_KEYS[x_api_key]
+    # API is public — rate limiting protects against abuse
 
     # ── Load model ──
     BASE_DIR = Path(__file__).resolve().parent
@@ -178,7 +168,6 @@ else:
     async def analyze_article(
         article: Article,
         request: Request,
-        user: str = Depends(verify_api_key)
     ):
         """Analyze single article for fake news"""
         if not MODEL_LOADED:
@@ -219,7 +208,6 @@ else:
     async def analyze_batch(
         request: Request,
         batch: BatchRequest,
-        user: str = Depends(verify_api_key)
     ):
         """Analyze multiple articles in batch"""
         if not MODEL_LOADED:
@@ -265,10 +253,9 @@ else:
         }
 
     @app.get("/api/v1/stats")
-    async def get_stats(user: str = Depends(verify_api_key)):
+    async def get_stats():
         """Get API usage statistics"""
         return {
-            "user": user,
             "total_requests": 0,
             "requests_today": 0,
             "avg_response_time": 0,

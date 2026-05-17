@@ -142,7 +142,7 @@ async function runAnalysis() {
   try {
     const res = await fetch(API_BASE + '/api/v1/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': 'demo_key_123' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
     });
     if (!res.ok) throw new Error('API error ' + res.status);
