@@ -1,394 +1,624 @@
+T
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Verify — AI-Powered News Verification</title>
-  <meta name="description" content="AI-powered fake news detector combining ML ensemble models, Gemini AI, and real-time web verification.">
+  <meta name="description"
+    content="AI-powered fake news detector combining ML ensemble models, Gemini AI, and real-time web verification.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
-<!-- ===== NAVBAR ===== -->
-<nav id="navbar">
-  <div class="nav-inner">
-    <a href="#home" class="nav-brand">
-      <svg class="nav-logo" viewBox="0 0 36 36" fill="none"><path d="M6 20L15 30L32 6" stroke="#1B3A4B" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 20L15 26L32 5" stroke="#4ADE80" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span>Verify</span>
-    </a>
-    <div class="nav-links" id="navLinks">
-      <a href="#home" class="nav-link active" data-page="home">Home</a>
-      <a href="#analyze" class="nav-link" data-page="analyze">Analyze</a>
-      <a href="#batch" class="nav-link" data-page="batch">Batch</a>
-      <a href="#dashboard" class="nav-link" data-page="dashboard">Dashboard</a>
-      <a href="#about" class="nav-link" data-page="about">About</a>
-    </div>
-    <div class="nav-actions">
-      <button class="icon-btn" id="themeToggle" title="Toggle theme">
-        <span class="theme-icon">🌙</span>
-      </button>
-      <a href="#settings" class="icon-btn" data-page="settings" title="Settings">⚙️</a>
-      <button class="hamburger" id="hamburger" aria-label="Menu">
-        <span></span><span></span><span></span>
-      </button>
-    </div>
-  </div>
-</nav>
-
-<!-- ===== MAIN ===== -->
-<main id="app">
-
-<!-- ==================== HOME ==================== -->
-<section id="page-home" class="page active">
-  <div class="hero">
-    <div class="hero-glow"></div>
-    <div class="hero-content">
-      <svg class="hero-logo" viewBox="0 0 80 80" fill="none"><path d="M12 44L34 66L70 14" stroke="#1B3A4B" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 44L34 58L70 12" stroke="#4ADE80" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <h1>Don't Get Fooled.<br><span class="accent">Get Verified.</span></h1>
-      <p class="hero-sub">Absolute clinical objectivity in an era of information volatility. Deploy advanced ML models to dissect, cross-reference, and validate claims instantly.</p>
-      <a href="#analyze" class="btn btn-primary btn-lg" data-page="analyze">Start Analyzing</a>
-    </div>
-  </div>
-
-  <div class="trust-bar">
-    <div class="trust-pill"><span class="trust-val">96.46%</span><span class="trust-label">Accuracy Rating</span></div>
-    <div class="trust-pill"><span class="trust-val">59,000+</span><span class="trust-label">Training Samples</span></div>
-    <div class="trust-pill"><span class="trust-val">&lt;2.4s</span><span class="trust-label">Avg Processing Time</span></div>
-  </div>
-
-  <div class="section">
-    <h2 class="section-title">Forensic Processing Pipeline</h2>
-    <p class="section-sub">Our multi-layered architecture ensures every claim is interrogated through multiple objective lenses.</p>
-    <div class="card-grid three">
-      <div class="feature-card">
-        <div class="feature-icon">🧠</div>
-        <h3>ML Analysis</h3>
-        <p>Raw text is parsed through proprietary natural language statistical models to identify stylistic, emotional manipulation, and structural inconsistencies.</p>
+  <!-- ===== NAVBAR ===== -->
+  <nav id="navbar">
+    <div class="nav-inner">
+      <a href="#home" class="nav-brand">
+        <svg class="nav-logo" viewBox="0 0 36 36" fill="none">
+          <path d="M6 20L15 30L32 6" stroke="#1B3A4B" stroke-width="5.5" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <path d="M12 20L15 26L32 5" stroke="#4ADE80" stroke-width="2.8" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        <span>Verify</span>
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="#home" class="nav-link active" data-page="home">Home</a>
+        <a href="#analyze" class="nav-link" data-page="analyze">Analyze</a>
+        <a href="#batch" class="nav-link" data-page="batch">Batch</a>
+        <a href="#dashboard" class="nav-link" data-page="dashboard">Dashboard</a>
+        <a href="#about" class="nav-link" data-page="about">About</a>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">✨</div>
-        <h3>AI Fact-Check</h3>
-        <p>Entities and claims are extracted and cross-referenced against validated institutional databases, peer-reviewed journals, and historical records.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🌐</div>
-        <h3>Web Verification</h3>
-        <p>Real-time scraping against high-trust news aggregators and government databases to verify the current consensus and temporal accuracy of the claim.</p>
+      <div class="nav-actions">
+        <button class="icon-btn" id="themeToggle" title="Toggle theme">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <a href="#settings" class="icon-btn" data-page="settings" title="Settings">⚙️</a>
+        <button class="hamburger" id="hamburger" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
       </div>
     </div>
-  </div>
+  </nav>
 
-  <div class="section">
-    <div class="card-grid two">
-      <div class="highlight-card">
-        <h3>🚩 Red Flag Scanner</h3>
-        <p>Automatically detects manipulative rhetoric, unverified statistics, and highly polarized language patterns designed to evoke emotional rather than rational responses.</p>
-        <div class="mini-bar"><div class="mini-bar-fill" style="width:65%"></div></div>
-        <span class="mini-label">Polarization Score</span>
-      </div>
-      <div class="highlight-card">
-        <h3>⚠️ Out-of-Distribution</h3>
-        <p>Flags claims that significantly deviate from established knowledge graphs, requiring higher burdens of proof before being classified as factual.</p>
-        <div class="tag-row"><span class="tag tag-green">Knowledge Check</span><span class="tag tag-outline">Anomaly Detection</span></div>
-      </div>
-    </div>
-  </div>
+  <!-- ===== MAIN ===== -->
+  <main id="app">
 
-  <div class="cta-section">
-    <h2>Ready for Absolute Objectivity?</h2>
-    <p>Join researchers, journalists, and analysts utilizing the world's most advanced verification engine.</p>
-    <a href="#analyze" class="btn btn-primary btn-lg" data-page="analyze">Start Analyzing</a>
-  </div>
-</section>
-
-<!-- ==================== ANALYZE ==================== -->
-<section id="page-analyze" class="page">
-  <div class="page-header">
-    <h1>Analyze Content</h1>
-    <p>Paste text, articles, or transcripts to perform a deep-dive forensic analysis using multiple verification models.</p>
-  </div>
-
-  <div class="card analyze-input-card">
-    <textarea id="articleText" placeholder="Paste your text here for analysis..." rows="8"></textarea>
-    <div class="analyze-controls">
-      <label class="toggle-label"><input type="checkbox" id="translateToggle"> Translate to English</label>
-      <div class="sensitivity-control">
-        <span>Sensitivity:</span>
-        <input type="range" id="sensitivitySlider" min="0" max="100" value="50" class="slider">
-      </div>
-      <span class="char-count" id="charCount">0 / 5000 chars</span>
-      <button class="btn btn-primary" id="analyzeBtn">Analyze Article</button>
-    </div>
-  </div>
-
-  <!-- Results (hidden until analysis) -->
-  <div id="analyzeResults" class="hidden">
-    <!-- Verdict Banner -->
-    <div class="verdict-banner" id="verdictBanner">
-      <div class="verdict-left">
-        <span class="verdict-icon" id="verdictIcon">✅</span>
-        <div>
-          <h2 class="verdict-text" id="verdictText">LIKELY REAL</h2>
-          <p class="verdict-sub" id="verdictSub">Cross-referenced against 3 distinct verification models.</p>
+    <!-- ==================== HOME ==================== -->
+    <section id="page-home" class="page active">
+      <div class="hero">
+        <div class="hero-glow"></div>
+        <div class="hero-content">
+          <svg class="hero-logo" viewBox="0 0 80 80" fill="none">
+            <path d="M12 44L34 66L70 14" stroke="#1B3A4B" stroke-width="10" stroke-linecap="round"
+              stroke-linejoin="round" />
+            <path d="M24 44L34 58L70 12" stroke="#4ADE80" stroke-width="5" stroke-linecap="round"
+              stroke-linejoin="round" />
+          </svg>
+          <h1>Don't Get Fooled.<br><span class="accent">Get Verified.</span></h1>
+          <p class="hero-sub">Absolute clinical objectivity in an era of information volatility. Deploy advanced ML
+            models to dissect, cross-reference, and validate claims instantly.</p>
+          <a href="#analyze" class="btn btn-primary btn-lg" data-page="analyze">Start Analyzing</a>
         </div>
       </div>
-      <div class="verdict-right">
-        <span class="verdict-score" id="verdictScore">94%</span>
-        <span class="verdict-score-label">CONFIDENCE SCORE</span>
-      </div>
-    </div>
 
-    <!-- Three Sources -->
-    <div class="card-grid three">
-      <div class="source-card">
-        <div class="source-icon">🧠</div>
-        <h3>ML Model</h3>
-        <div class="progress-ring-wrap">
-          <svg class="progress-ring" viewBox="0 0 80 80"><circle class="ring-bg" cx="40" cy="40" r="34"/><circle class="ring-fill" id="ringML" cx="40" cy="40" r="34" style="--pct:0"/></svg>
-          <span class="ring-text" id="ringMLText">0%</span>
+      <div class="trust-bar">
+        <div class="trust-pill"><span class="trust-val">96.46%</span><span class="trust-label">Accuracy Rating</span>
         </div>
-        <p class="source-detail" id="mlDetail">High structural consistency.</p>
-      </div>
-      <div class="source-card">
-        <div class="source-icon">✨</div>
-        <h3>Gemini AI</h3>
-        <div class="progress-ring-wrap">
-          <svg class="progress-ring" viewBox="0 0 80 80"><circle class="ring-bg" cx="40" cy="40" r="34"/><circle class="ring-fill" id="ringGemini" cx="40" cy="40" r="34" style="--pct:0"/></svg>
-          <span class="ring-text" id="ringGeminiText">0%</span>
+        <div class="trust-pill"><span class="trust-val">59,000+</span><span class="trust-label">Training Samples</span>
         </div>
-        <p class="source-detail" id="geminiDetail">Semantic logic aligns with facts.</p>
+        <div class="trust-pill"><span class="trust-val">&lt;2.4s</span><span class="trust-label">Avg Processing
+            Time</span></div>
       </div>
-      <div class="source-card">
-        <div class="source-icon">🌐</div>
-        <h3>Web Verification</h3>
-        <div class="progress-ring-wrap">
-          <svg class="progress-ring" viewBox="0 0 80 80"><circle class="ring-bg" cx="40" cy="40" r="34"/><circle class="ring-fill" id="ringWeb" cx="40" cy="40" r="34" style="--pct:0"/></svg>
-          <span class="ring-text" id="ringWebText">0%</span>
-        </div>
-        <p class="source-detail" id="webDetail">Strong corroboration found.</p>
-      </div>
-    </div>
 
-    <!-- Explainable AI + Web Sources -->
-    <div class="card-grid two">
+      <div class="section">
+        <h2 class="section-title">Forensic Processing Pipeline</h2>
+        <p class="section-sub">Our multi-layered architecture ensures every claim is interrogated through multiple
+          objective lenses.</p>
+        <div class="card-grid three">
+          <div class="feature-card">
+            <div class="feature-icon">🧠</div>
+            <h3>ML Analysis</h3>
+            <p>Raw text is parsed through proprietary natural language statistical models to identify stylistic,
+              emotional manipulation, and structural inconsistencies.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">✨</div>
+            <h3>AI Fact-Check</h3>
+            <p>Entities and claims are extracted and cross-referenced against validated institutional databases,
+              peer-reviewed journals, and historical records.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🌐</div>
+            <h3>Web Verification</h3>
+            <p>Real-time scraping against high-trust news aggregators and government databases to verify the current
+              consensus and temporal accuracy of the claim.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="card-grid two">
+          <div class="highlight-card">
+            <h3>🚩 Red Flag Scanner</h3>
+            <p>Automatically detects manipulative rhetoric, unverified statistics, and highly polarized language
+              patterns designed to evoke emotional rather than rational responses.</p>
+            <div class="mini-bar">
+              <div class="mini-bar-fill" style="width:65%"></div>
+            </div>
+            <span class="mini-label">Polarization Score</span>
+          </div>
+          <div class="highlight-card">
+            <h3>⚠️ Out-of-Distribution</h3>
+            <p>Flags claims that significantly deviate from established knowledge graphs, requiring higher burdens of
+              proof before being classified as factual.</p>
+            <div class="tag-row"><span class="tag tag-green">Knowledge Check</span><span class="tag tag-outline">Anomaly
+                Detection</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cta-section">
+        <h2>Ready for Absolute Objectivity?</h2>
+        <p>Join researchers, journalists, and analysts utilizing the world's most advanced verification engine.</p>
+        <a href="#analyze" class="btn btn-primary btn-lg" data-page="analyze">Start Analyzing</a>
+      </div>
+    </section>
+
+    <!-- ==================== ANALYZE ==================== -->
+    <section id="page-analyze" class="page">
+      <div class="page-header">
+        <h1>Analyze Content</h1>
+        <p>Paste text, articles, or transcripts to perform a deep-dive forensic analysis using multiple verification
+          models.</p>
+      </div>
+
+      <div class="card analyze-input-card">
+        <textarea id="articleText" placeholder="Paste your text here for analysis..." rows="8"></textarea>
+        <div class="analyze-controls">
+          <label class="toggle-label"><input type="checkbox" id="translateToggle"> Translate to English</label>
+          <div class="sensitivity-control">
+            <span>Sensitivity:</span>
+            <input type="range" id="sensitivitySlider" min="0" max="100" value="50" class="slider">
+          </div>
+          <span class="char-count" id="charCount">0 / 5000 chars</span>
+          <button class="btn btn-primary" id="analyzeBtn">Analyze Article</button>
+        </div>
+      </div>
+
+      <!-- Results (hidden until analysis) -->
+      <div id="analyzeResults" class="hidden">
+        <!-- Verdict Banner -->
+        <div class="verdict-banner" id="verdictBanner">
+          <div class="verdict-left">
+            <span class="verdict-icon" id="verdictIcon">✅</span>
+            <div>
+              <h2 class="verdict-text" id="verdictText">LIKELY REAL</h2>
+              <p class="verdict-sub" id="verdictSub">Cross-referenced against 3 distinct verification models.</p>
+            </div>
+          </div>
+          <div class="verdict-right">
+            <span class="verdict-score" id="verdictScore">94%</span>
+            <span class="verdict-score-label">CONFIDENCE SCORE</span>
+          </div>
+        </div>
+
+        <!-- Three Sources -->
+        <div class="card-grid three">
+          <div class="source-card">
+            <div class="source-icon">🧠</div>
+            <h3>ML Model</h3>
+            <div class="progress-ring-wrap">
+              <svg class="progress-ring" viewBox="0 0 80 80">
+                <circle class="ring-bg" cx="40" cy="40" r="34" />
+                <circle class="ring-fill" id="ringML" cx="40" cy="40" r="34" style="--pct:0" />
+              </svg>
+              <span class="ring-text" id="ringMLText">0%</span>
+            </div>
+            <p class="source-detail" id="mlDetail">High structural consistency.</p>
+          </div>
+          <div class="source-card">
+            <div class="source-icon">✨</div>
+            <h3>Gemini AI</h3>
+            <div class="progress-ring-wrap">
+              <svg class="progress-ring" viewBox="0 0 80 80">
+                <circle class="ring-bg" cx="40" cy="40" r="34" />
+                <circle class="ring-fill" id="ringGemini" cx="40" cy="40" r="34" style="--pct:0" />
+              </svg>
+              <span class="ring-text" id="ringGeminiText">0%</span>
+            </div>
+            <p class="source-detail" id="geminiDetail">Semantic logic aligns with facts.</p>
+          </div>
+          <div class="source-card">
+            <div class="source-icon">🌐</div>
+            <h3>Web Verification</h3>
+            <div class="progress-ring-wrap">
+              <svg class="progress-ring" viewBox="0 0 80 80">
+                <circle class="ring-bg" cx="40" cy="40" r="34" />
+                <circle class="ring-fill" id="ringWeb" cx="40" cy="40" r="34" style="--pct:0" />
+              </svg>
+              <span class="ring-text" id="ringWebText">0%</span>
+            </div>
+            <p class="source-detail" id="webDetail">Strong corroboration found.</p>
+          </div>
+        </div>
+
+        <!-- Explainable AI + Web Sources -->
+        <div class="card-grid two">
+          <div class="card">
+            <h3>Explainable AI Insights</h3>
+            <details class="accordion">
+              <summary>Model Predictions</summary>
+              <div class="accordion-body" id="modelPredictions">
+                <p>Individual model results will appear here.</p>
+              </div>
+            </details>
+            <details class="accordion">
+              <summary>Suspicious Phrases</summary>
+              <div class="accordion-body" id="suspiciousPhrases">
+                <p>No suspicious phrases detected.</p>
+              </div>
+            </details>
+          </div>
+          <div class="card">
+            <h3>Web Sources</h3>
+            <div id="webSourcesList" class="source-list">
+              <p class="text-muted">Sources will appear after analysis.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gemini Analysis -->
+        <div class="card">
+          <div class="card-header-row">
+            <h3>✨ Gemini AI Analysis</h3>
+            <span class="badge badge-green" id="geminiBadge">COMPLETED</span>
+          </div>
+          <blockquote id="geminiAnalysisText" class="analysis-quote">Analysis will appear here after processing.
+          </blockquote>
+        </div>
+
+        <!-- Feedback -->
+        <div class="card">
+          <h3>📝 Rate This Analysis</h3>
+          <div class="feedback-row">
+            <div class="feedback-slider">
+              <input type="range" id="feedbackSlider" min="1" max="5" value="3" class="slider">
+              <div class="feedback-labels"><span>❌ Wrong</span><span>⚠️ Poor</span><span>😐 OK</span><span>👍
+                  Good</span><span>✅ Perfect</span></div>
+            </div>
+            <button class="btn btn-primary" id="submitFeedback">Submit Rating</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== BATCH ==================== -->
+    <section id="page-batch" class="page">
+      <div class="page-header">
+        <h1>Bulk Analysis</h1>
+        <p>Upload a CSV file to analyze multiple articles at once. Must contain a 'text' or 'content' column.</p>
+      </div>
+      <div class="card upload-zone" id="uploadZone">
+        <div class="upload-inner">
+          <span class="upload-icon">📁</span>
+          <p>Drag & drop a CSV file, or <label for="csvFile" class="upload-link">click to browse</label></p>
+          <span class="text-muted">Maximum 500 rows. Accepted: .csv</span>
+          <input type="file" id="csvFile" accept=".csv" hidden>
+        </div>
+      </div>
+      <div id="batchFileInfo" class="hidden card">
+        <p id="batchFileName"></p><button class="btn btn-primary" id="startBatch">Start Batch Analysis</button>
+      </div>
+      <div id="batchProgress" class="hidden">
+        <div class="progress-bar">
+          <div class="progress-fill" id="batchProgressFill"></div>
+        </div>
+        <p id="batchProgressText">Processing...</p>
+      </div>
+      <div id="batchResults" class="hidden">
+        <div class="card">
+          <h3>Results</h3>
+          <div class="table-wrap">
+            <table class="data-table" id="batchTable">
+              <thead>
+                <tr>
+                  <th>Preview</th>
+                  <th>Prediction</th>
+                  <th>Confidence</th>
+                  <th>Real Prob</th>
+                  <th>Fake Prob</th>
+                  <th>Red Flags</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <button class="btn btn-primary" id="downloadBatch">📥 Download Results CSV</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <section id="page-dashboard" class="page">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div>
+            <h1>Analytics Overview</h1>
+            <p>System status and forensic metrics for the current verification cycle.</p>
+          </div>
+          <div class="page-header-actions">
+            <button class="btn btn-outline" id="exportDashboard">📥 Export</button>
+            <select class="select" id="dashRange">
+              <option>Last 7 Days</option>
+              <option>Last 30 Days</option>
+              <option>Last 90 Days</option>
+              <option>All Time</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-grid three">
+        <div class="stat-card">
+          <div class="stat-header"><span class="stat-dot green"></span><span>TOTAL ANALYZED</span><span
+              class="stat-badge green">+12.4%</span></div>
+          <div class="stat-value" id="statTotal">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span class="stat-dot blue"></span><span>AVG CONFIDENCE</span></div>
+          <div class="stat-value"><span id="statConfidence">0</span>%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span class="stat-dot red"></span><span>FAKE DETECTED</span><span
+              class="stat-badge red">+5.2%</span></div>
+          <div class="stat-value" id="statFake">0</div>
+        </div>
+      </div>
+
+      <div class="card-grid two">
+        <div class="card">
+          <h3>Prediction Distribution</h3>
+          <div class="chart-wrap"><canvas id="chartPrediction"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Topic Breakdown</h3>
+          <div class="chart-wrap"><canvas id="chartTopics"></canvas></div>
+        </div>
+      </div>
+
       <div class="card">
-        <h3>Explainable AI Insights</h3>
-        <details class="accordion"><summary>Model Predictions</summary><div class="accordion-body" id="modelPredictions"><p>Individual model results will appear here.</p></div></details>
-        <details class="accordion"><summary>Suspicious Phrases</summary><div class="accordion-body" id="suspiciousPhrases"><p>No suspicious phrases detected.</p></div></details>
+        <h3>📈 Activity Trend</h3>
+        <div class="chart-wrap chart-wide"><canvas id="chartTrend"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h3>📜 Recent Analyses</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="recentTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Prediction</th>
+                <th>Confidence</th>
+                <th>Category</th>
+                <th>Preview</th>
+              </tr>
+            </thead>
+            <tbody id="recentBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== ABOUT ==================== -->
+    <section id="page-about" class="page">
+      <div class="page-header center">
+        <svg class="hero-logo small" viewBox="0 0 80 80" fill="none">
+          <path d="M12 44L34 66L70 14" stroke="#1B3A4B" stroke-width="10" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <path d="M24 44L34 58L70 12" stroke="#4ADE80" stroke-width="5" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        <h1>About Verify</h1>
+        <p>Combating misinformation with transparent, multi-layered AI analysis.</p>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">How It Works</h2>
+        <div class="pipeline">
+          <div class="pipe-step"><span class="pipe-num">1</span>
+            <h4>Input</h4>
+            <p>Paste article text</p>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step"><span class="pipe-num">2</span>
+            <h4>Preprocessing</h4>
+            <p>TF-IDF vectorization</p>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step"><span class="pipe-num">3</span>
+            <h4>ML Ensemble</h4>
+            <p>5 models vote</p>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step"><span class="pipe-num">4</span>
+            <h4>Gemini AI</h4>
+            <p>Credibility check</p>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step"><span class="pipe-num">5</span>
+            <h4>Web Search</h4>
+            <p>Cross-reference</p>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step"><span class="pipe-num">6</span>
+            <h4>Verdict</h4>
+            <p>Final hybrid score</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">Model Details</h2>
+        <div class="card-grid three">
+          <div class="card center">
+            <h4>Logistic Regression</h4>
+            <p class="text-muted">Fast baseline classifier</p>
+          </div>
+          <div class="card center">
+            <h4>Random Forest</h4>
+            <p class="text-muted">Ensemble tree model</p>
+          </div>
+          <div class="card center">
+            <h4>SVM</h4>
+            <p class="text-muted">Support vector classifier</p>
+          </div>
+          <div class="card center">
+            <h4>Naive Bayes</h4>
+            <p class="text-muted">Probabilistic classifier</p>
+          </div>
+          <div class="card center">
+            <h4>Gradient Boosting</h4>
+            <p class="text-muted">Sequential learner</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">How to Use</h2>
+        <div class="steps-grid">
+          <div class="step-card"><span class="step-num">1</span>
+            <p>Navigate to the <strong>Analyze</strong> page</p>
+          </div>
+          <div class="step-card"><span class="step-num">2</span>
+            <p>Paste your article text (500+ characters recommended)</p>
+          </div>
+          <div class="step-card"><span class="step-num">3</span>
+            <p>Click <strong>Analyze Article</strong> and wait for results</p>
+          </div>
+          <div class="step-card"><span class="step-num">4</span>
+            <p>Review the three-layer breakdown and final verdict</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SETTINGS ==================== -->
+    <section id="page-settings" class="page">
+      <div class="page-header">
+        <h1>Settings Configuration</h1>
+        <p>Manage global system parameters, API integrations, and environmental preferences.</p>
+      </div>
+
+      <div class="card settings-section">
+        <h3>⚙️ Appearance & Interface</h3>
+        <div class="setting-row">
+          <div><strong>Theme Preference</strong>
+            <p class="text-muted">Switch between dark mode and light mode.</p>
+          </div><label class="switch"><input type="checkbox" id="settingsTheme"><span
+              class="switch-slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <div><strong>Typography Scale</strong>
+            <p class="text-muted">Adjust text size.</p>
+          </div>
+          <div class="btn-group"><button class="btn btn-sm" data-size="compact">Compact</button><button
+              class="btn btn-sm active" data-size="standard">Standard</button><button class="btn btn-sm"
+              data-size="large">Legibility</button></div>
+        </div>
+      </div>
+
+      <div class="card settings-section">
+        <h3>🔬 Analysis Parameters</h3>
+        <div class="setting-row">
+          <div><strong>Heuristic Sensitivity</strong>
+            <p class="text-muted">Adjust the strictness of the verification algorithms.</p>
+          </div><span class="setting-val accent" id="settingSensVal">0.50</span>
+        </div>
+        <input type="range" id="settingsSensitivity" min="0" max="100" value="50" class="slider full">
+        <div class="slider-labels"><span>0.0 (Lenient)</span><span>1.0 (Strict)</span></div>
+        <div class="setting-row">
+          <div><strong>Global Translation Matrix</strong>
+            <p class="text-muted">Automatically normalize foreign language sources to English.</p>
+          </div><label class="switch"><input type="checkbox" id="settingsTranslate"><span
+              class="switch-slider"></span></label>
+        </div>
+      </div>
+
+      <div class="card settings-section">
+        <h3>🔗 Data Pipelines</h3>
+        <div class="api-row">
+          <div class="api-info"><span class="stat-dot green"></span><strong>Google Gemini Core</strong><span
+              class="badge badge-green">CONNECTED</span></div>
+          <div class="api-key-row"><input type="password" class="input" value="sk-••••••••••••••••" readonly><button
+              class="btn btn-sm">🔄 Verify</button></div>
+        </div>
+        <div class="api-row">
+          <div class="api-info"><span class="stat-dot green"></span><strong>GNews Syndicate</strong><span
+              class="badge badge-green">CONNECTED</span></div>
+          <div class="api-key-row"><input type="password" class="input" value="sk-••••••••••••••••" readonly><button
+              class="btn btn-sm">🔄 Verify</button></div>
+        </div>
+      </div>
+
+      <div class="card settings-section">
+        <h3>🗃️ Retention & Telemetry</h3>
+        <div class="card-grid two">
+          <div class="sub-card"><strong>Export Telemetry</strong>
+            <p class="text-muted">Download a local JSON manifest of all verification sessions.</p><button
+              class="btn btn-primary full">📥 Compile Export</button>
+          </div>
+          <div class="sub-card"><strong>Purge Archives</strong>
+            <p class="text-muted">Irreversibly destroy all local verification logs and cached reports.</p><button
+              class="btn btn-danger full">🗑️ Execute Purge</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== HISTORY ==================== -->
+    <section id="page-history" class="page">
+      <div class="page-header">
+        <h1>Verification History</h1>
+        <p>A comprehensive log of all verifications processed through the engine.</p>
       </div>
       <div class="card">
-        <h3>Web Sources</h3>
-        <div id="webSourcesList" class="source-list">
-          <p class="text-muted">Sources will appear after analysis.</p>
+        <div class="filter-bar">
+          <div class="filter-row">
+            <input type="date" class="input" id="dateFrom" placeholder="From">
+            <span class="text-muted">–</span>
+            <input type="date" class="input" id="dateTo" placeholder="To">
+            <input type="text" class="input" id="historySearch" placeholder="🔍 Search previews">
+            <select class="select" id="historySort">
+              <option>Sort by Date (Newest)</option>
+              <option>Sort by Confidence</option>
+              <option>Sort by Red Flags</option>
+            </select>
+          </div>
+          <div class="filter-pills">
+            <button class="pill active" data-filter="all">All</button>
+            <button class="pill" data-filter="real">Real Only</button>
+            <button class="pill" data-filter="fake">Fake Only</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="historyTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Prediction</th>
+                <th>Confidence</th>
+                <th>Category</th>
+                <th>Red Flag Score</th>
+                <th>Preview</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+        <div class="table-footer">
+          <div class="rows-per-page">Rows per page: <select class="select sm" id="historyPageSize">
+              <option>25</option>
+              <option>50</option>
+              <option>100</option>
+            </select></div>
+          <div class="pagination"><span id="historyPagInfo">1-25 of 0</span><button class="icon-btn sm"
+              id="historyPrev">‹</button><button class="icon-btn sm" id="historyNext">›</button></div>
         </div>
       </div>
-    </div>
-
-    <!-- Gemini Analysis -->
-    <div class="card">
-      <div class="card-header-row">
-        <h3>✨ Gemini AI Analysis</h3>
-        <span class="badge badge-green" id="geminiBadge">COMPLETED</span>
+      <div class="export-row">
+        <select class="select" id="exportFormat">
+          <option>Format: CSV</option>
+          <option>Format: JSON</option>
+        </select>
+        <button class="btn btn-primary" id="exportHistory">📥 Export Filtered Results</button>
       </div>
-      <blockquote id="geminiAnalysisText" class="analysis-quote">Analysis will appear here after processing.</blockquote>
-    </div>
+    </section>
 
-    <!-- Feedback -->
-    <div class="card">
-      <h3>📝 Rate This Analysis</h3>
-      <div class="feedback-row">
-        <div class="feedback-slider">
-          <input type="range" id="feedbackSlider" min="1" max="5" value="3" class="slider">
-          <div class="feedback-labels"><span>❌ Wrong</span><span>⚠️ Poor</span><span>😐 OK</span><span>👍 Good</span><span>✅ Perfect</span></div>
-        </div>
-        <button class="btn btn-primary" id="submitFeedback">Submit Rating</button>
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer id="footer">
+    <div class="footer-inner">
+      <span class="footer-brand">Verify</span>
+      <span class="footer-copy">© 2026 Verify Platform. Absolute Clinical Objectivity.</span>
+      <div class="footer-links">
+        <a href="#">Privacy</a><a href="#">Terms</a><a href="#">API Docs</a><a href="#">GitHub</a>
       </div>
     </div>
-  </div>
-</section>
+  </footer>
 
-<!-- ==================== BATCH ==================== -->
-<section id="page-batch" class="page">
-  <div class="page-header">
-    <h1>Bulk Analysis</h1>
-    <p>Upload a CSV file to analyze multiple articles at once. Must contain a 'text' or 'content' column.</p>
-  </div>
-  <div class="card upload-zone" id="uploadZone">
-    <div class="upload-inner">
-      <span class="upload-icon">📁</span>
-      <p>Drag & drop a CSV file, or <label for="csvFile" class="upload-link">click to browse</label></p>
-      <span class="text-muted">Maximum 500 rows. Accepted: .csv</span>
-      <input type="file" id="csvFile" accept=".csv" hidden>
-    </div>
-  </div>
-  <div id="batchFileInfo" class="hidden card"><p id="batchFileName"></p><button class="btn btn-primary" id="startBatch">Start Batch Analysis</button></div>
-  <div id="batchProgress" class="hidden"><div class="progress-bar"><div class="progress-fill" id="batchProgressFill"></div></div><p id="batchProgressText">Processing...</p></div>
-  <div id="batchResults" class="hidden">
-    <div class="card"><h3>Results</h3><div class="table-wrap"><table class="data-table" id="batchTable"><thead><tr><th>Preview</th><th>Prediction</th><th>Confidence</th><th>Real Prob</th><th>Fake Prob</th><th>Red Flags</th></tr></thead><tbody></tbody></table></div>
-    <button class="btn btn-primary" id="downloadBatch">📥 Download Results CSV</button></div>
-  </div>
-</section>
-
-<!-- ==================== DASHBOARD ==================== -->
-<section id="page-dashboard" class="page">
-  <div class="page-header">
-    <div class="page-header-row">
-      <div><h1>Analytics Overview</h1><p>System status and forensic metrics for the current verification cycle.</p></div>
-      <div class="page-header-actions">
-        <button class="btn btn-outline" id="exportDashboard">📥 Export</button>
-        <select class="select" id="dashRange"><option>Last 7 Days</option><option>Last 30 Days</option><option>Last 90 Days</option><option>All Time</option></select>
-      </div>
-    </div>
-  </div>
-
-  <div class="card-grid three">
-    <div class="stat-card"><div class="stat-header"><span class="stat-dot green"></span><span>TOTAL ANALYZED</span><span class="stat-badge green">+12.4%</span></div><div class="stat-value" id="statTotal">0</div></div>
-    <div class="stat-card"><div class="stat-header"><span class="stat-dot blue"></span><span>AVG CONFIDENCE</span></div><div class="stat-value"><span id="statConfidence">0</span>%</div></div>
-    <div class="stat-card"><div class="stat-header"><span class="stat-dot red"></span><span>FAKE DETECTED</span><span class="stat-badge red">+5.2%</span></div><div class="stat-value" id="statFake">0</div></div>
-  </div>
-
-  <div class="card-grid two">
-    <div class="card"><h3>Prediction Distribution</h3><div class="chart-wrap"><canvas id="chartPrediction"></canvas></div></div>
-    <div class="card"><h3>Topic Breakdown</h3><div class="chart-wrap"><canvas id="chartTopics"></canvas></div></div>
-  </div>
-
-  <div class="card"><h3>📈 Activity Trend</h3><div class="chart-wrap chart-wide"><canvas id="chartTrend"></canvas></div></div>
-
-  <div class="card">
-    <h3>📜 Recent Analyses</h3>
-    <div class="table-wrap"><table class="data-table" id="recentTable"><thead><tr><th>Date</th><th>Prediction</th><th>Confidence</th><th>Category</th><th>Preview</th></tr></thead><tbody id="recentBody"></tbody></table></div>
-  </div>
-</section>
-
-<!-- ==================== ABOUT ==================== -->
-<section id="page-about" class="page">
-  <div class="page-header center">
-    <svg class="hero-logo small" viewBox="0 0 80 80" fill="none"><path d="M12 44L34 66L70 14" stroke="#1B3A4B" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 44L34 58L70 12" stroke="#4ADE80" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <h1>About Verify</h1>
-    <p>Combating misinformation with transparent, multi-layered AI analysis.</p>
-  </div>
-
-  <div class="section">
-    <h2 class="section-title">How It Works</h2>
-    <div class="pipeline">
-      <div class="pipe-step"><span class="pipe-num">1</span><h4>Input</h4><p>Paste article text</p></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step"><span class="pipe-num">2</span><h4>Preprocessing</h4><p>TF-IDF vectorization</p></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step"><span class="pipe-num">3</span><h4>ML Ensemble</h4><p>5 models vote</p></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step"><span class="pipe-num">4</span><h4>Gemini AI</h4><p>Credibility check</p></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step"><span class="pipe-num">5</span><h4>Web Search</h4><p>Cross-reference</p></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step"><span class="pipe-num">6</span><h4>Verdict</h4><p>Final hybrid score</p></div>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2 class="section-title">Model Details</h2>
-    <div class="card-grid three">
-      <div class="card center"><h4>Logistic Regression</h4><p class="text-muted">Fast baseline classifier</p></div>
-      <div class="card center"><h4>Random Forest</h4><p class="text-muted">Ensemble tree model</p></div>
-      <div class="card center"><h4>SVM</h4><p class="text-muted">Support vector classifier</p></div>
-      <div class="card center"><h4>Naive Bayes</h4><p class="text-muted">Probabilistic classifier</p></div>
-      <div class="card center"><h4>Gradient Boosting</h4><p class="text-muted">Sequential learner</p></div>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2 class="section-title">How to Use</h2>
-    <div class="steps-grid">
-      <div class="step-card"><span class="step-num">1</span><p>Navigate to the <strong>Analyze</strong> page</p></div>
-      <div class="step-card"><span class="step-num">2</span><p>Paste your article text (500+ characters recommended)</p></div>
-      <div class="step-card"><span class="step-num">3</span><p>Click <strong>Analyze Article</strong> and wait for results</p></div>
-      <div class="step-card"><span class="step-num">4</span><p>Review the three-layer breakdown and final verdict</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- ==================== SETTINGS ==================== -->
-<section id="page-settings" class="page">
-  <div class="page-header"><h1>Settings Configuration</h1><p>Manage global system parameters, API integrations, and environmental preferences.</p></div>
-
-  <div class="card settings-section">
-    <h3>⚙️ Appearance & Interface</h3>
-    <div class="setting-row"><div><strong>Theme Preference</strong><p class="text-muted">Switch between dark mode and light mode.</p></div><label class="switch"><input type="checkbox" id="settingsTheme"><span class="switch-slider"></span></label></div>
-    <div class="setting-row"><div><strong>Typography Scale</strong><p class="text-muted">Adjust text size.</p></div>
-      <div class="btn-group"><button class="btn btn-sm" data-size="compact">Compact</button><button class="btn btn-sm active" data-size="standard">Standard</button><button class="btn btn-sm" data-size="large">Legibility</button></div>
-    </div>
-  </div>
-
-  <div class="card settings-section">
-    <h3>🔬 Analysis Parameters</h3>
-    <div class="setting-row"><div><strong>Heuristic Sensitivity</strong><p class="text-muted">Adjust the strictness of the verification algorithms.</p></div><span class="setting-val accent" id="settingSensVal">0.50</span></div>
-    <input type="range" id="settingsSensitivity" min="0" max="100" value="50" class="slider full">
-    <div class="slider-labels"><span>0.0 (Lenient)</span><span>1.0 (Strict)</span></div>
-    <div class="setting-row"><div><strong>Global Translation Matrix</strong><p class="text-muted">Automatically normalize foreign language sources to English.</p></div><label class="switch"><input type="checkbox" id="settingsTranslate"><span class="switch-slider"></span></label></div>
-  </div>
-
-  <div class="card settings-section">
-    <h3>🔗 Data Pipelines</h3>
-    <div class="api-row"><div class="api-info"><span class="stat-dot green"></span><strong>Google Gemini Core</strong><span class="badge badge-green">CONNECTED</span></div><div class="api-key-row"><input type="password" class="input" value="sk-••••••••••••••••" readonly><button class="btn btn-sm">🔄 Verify</button></div></div>
-    <div class="api-row"><div class="api-info"><span class="stat-dot green"></span><strong>GNews Syndicate</strong><span class="badge badge-green">CONNECTED</span></div><div class="api-key-row"><input type="password" class="input" value="sk-••••••••••••••••" readonly><button class="btn btn-sm">🔄 Verify</button></div></div>
-  </div>
-
-  <div class="card settings-section">
-    <h3>🗃️ Retention & Telemetry</h3>
-    <div class="card-grid two">
-      <div class="sub-card"><strong>Export Telemetry</strong><p class="text-muted">Download a local JSON manifest of all verification sessions.</p><button class="btn btn-primary full">📥 Compile Export</button></div>
-      <div class="sub-card"><strong>Purge Archives</strong><p class="text-muted">Irreversibly destroy all local verification logs and cached reports.</p><button class="btn btn-danger full">🗑️ Execute Purge</button></div>
-    </div>
-  </div>
-</section>
-
-<!-- ==================== HISTORY ==================== -->
-<section id="page-history" class="page">
-  <div class="page-header"><h1>Verification History</h1><p>A comprehensive log of all verifications processed through the engine.</p></div>
-  <div class="card">
-    <div class="filter-bar">
-      <div class="filter-row">
-        <input type="date" class="input" id="dateFrom" placeholder="From">
-        <span class="text-muted">–</span>
-        <input type="date" class="input" id="dateTo" placeholder="To">
-        <input type="text" class="input" id="historySearch" placeholder="🔍 Search previews">
-        <select class="select" id="historySort"><option>Sort by Date (Newest)</option><option>Sort by Confidence</option><option>Sort by Red Flags</option></select>
-      </div>
-      <div class="filter-pills">
-        <button class="pill active" data-filter="all">All</button>
-        <button class="pill" data-filter="real">Real Only</button>
-        <button class="pill" data-filter="fake">Fake Only</button>
-      </div>
-    </div>
-    <div class="table-wrap"><table class="data-table" id="historyTable"><thead><tr><th>Date</th><th>Prediction</th><th>Confidence</th><th>Category</th><th>Red Flag Score</th><th>Preview</th></tr></thead><tbody id="historyBody"></tbody></table></div>
-    <div class="table-footer">
-      <div class="rows-per-page">Rows per page: <select class="select sm" id="historyPageSize"><option>25</option><option>50</option><option>100</option></select></div>
-      <div class="pagination"><span id="historyPagInfo">1-25 of 0</span><button class="icon-btn sm" id="historyPrev">‹</button><button class="icon-btn sm" id="historyNext">›</button></div>
-    </div>
-  </div>
-  <div class="export-row">
-    <select class="select" id="exportFormat"><option>Format: CSV</option><option>Format: JSON</option></select>
-    <button class="btn btn-primary" id="exportHistory">📥 Export Filtered Results</button>
-  </div>
-</section>
-
-</main>
-
-<!-- ===== FOOTER ===== -->
-<footer id="footer">
-  <div class="footer-inner">
-    <span class="footer-brand">Verify</span>
-    <span class="footer-copy">© 2026 Verify Platform. Absolute Clinical Objectivity.</span>
-    <div class="footer-links">
-      <a href="#">Privacy</a><a href="#">Terms</a><a href="#">API Docs</a><a href="#">GitHub</a>
-    </div>
-  </div>
-</footer>
-
-<div class="toast" id="toast"></div>
-<script src="app.js"></script>
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
 </body>
+
 </html>

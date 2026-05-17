@@ -30,8 +30,13 @@ data_new/liar/*.tsv
 
 # Model files (large binary artifacts)
 models/*.keras
-models/*.joblib
+models/pipeline*.joblib
 models/v_*/
+
+# Keep essential model files for deployment
+!models/model.joblib
+!models/tfidf.joblib
+!models/scaler.joblib
 
 # IDE
 .vscode/
