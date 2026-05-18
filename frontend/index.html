@@ -107,12 +107,25 @@
         <button class="icon-btn" id="themeToggle" title="Toggle theme">
           <span class="theme-icon">🌙</span>
         </button>
-        <a href="#settings" class="icon-btn" data-page="settings" title="Settings">⚙️</a>
-        <div class="user-pill hidden" id="userPill">
-          <div class="user-avatar" id="userAvatar">K</div>
-          <span id="userName">User</span>
+        <div class="profile-wrap hidden" id="profileWrap">
+          <button class="avatar-btn" id="avatarBtn" title="Account menu">
+            <div class="user-avatar" id="userAvatar">K</div>
+          </button>
+          <div class="profile-dropdown" id="profileDropdown">
+            <div class="dropdown-header">
+              <div class="dropdown-avatar" id="dropdownAvatar">K</div>
+              <div class="dropdown-info">
+                <strong id="dropdownName">User</strong>
+                <span id="dropdownEmail">user@email.com</span>
+              </div>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" data-page="settings" href="#settings">⚙️ Settings</a>
+            <a class="dropdown-item" data-page="dashboard" href="#dashboard">📊 Dashboard</a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-signout" id="logoutBtn">🚪 Sign out</button>
+          </div>
         </div>
-        <button class="logout-btn hidden" id="logoutBtn" title="Sign out">Sign out</button>
         <button class="hamburger" id="hamburger" aria-label="Menu">
           <span></span><span></span><span></span>
         </button>

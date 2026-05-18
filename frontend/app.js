@@ -12,17 +12,18 @@ function clearToken() { localStorage.removeItem('verify_token'); }
 function showAuthOverlay() {
   document.getElementById('authOverlay').classList.remove('hidden');
   document.getElementById('navbar').style.display = 'none';
-  document.getElementById('userPill').classList.add('hidden');
-  document.getElementById('logoutBtn').classList.add('hidden');
+  document.getElementById('profileWrap').classList.add('hidden');
 }
 function hideAuthOverlay() {
   document.getElementById('authOverlay').classList.add('hidden');
   document.getElementById('navbar').style.display = '';
   if (currentUser) {
-    document.getElementById('userName').textContent = currentUser.name;
-    document.getElementById('userAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
-    document.getElementById('userPill').classList.remove('hidden');
-    document.getElementById('logoutBtn').classList.remove('hidden');
+    const initial = currentUser.name.charAt(0).toUpperCase();
+    document.getElementById('userAvatar').textContent = initial;
+    document.getElementById('dropdownAvatar').textContent = initial;
+    document.getElementById('dropdownName').textContent = currentUser.name;
+    document.getElementById('dropdownEmail').textContent = currentUser.email || '';
+    document.getElementById('profileWrap').classList.remove('hidden');
   }
 }
 async function checkSession() {
@@ -109,6 +110,25 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('loginForm').addEventListener('submit', handleLogin);
   document.getElementById('signupForm').addEventListener('submit', handleSignup);
   document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+
+  // Profile dropdown toggle
+  document.getElementById('avatarBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('profileDropdown').classList.toggle('open');
+  });
+  // Close dropdown on outside click
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('profileWrap');
+    if (wrap && !wrap.contains(e.target)) {
+      document.getElementById('profileDropdown').classList.remove('open');
+    }
+  });
+  // Close dropdown when a menu item is clicked
+  document.querySelectorAll('.dropdown-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.getElementById('profileDropdown').classList.remove('open');
+    });
+  });
 
   const page = location.hash.slice(1) || 'home';
   navigate(page);
