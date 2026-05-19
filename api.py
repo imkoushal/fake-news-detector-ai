@@ -335,6 +335,27 @@ else:
                 "db_mode": "postgresql" if USE_POSTGRES else "sqlite",
                 "timestamp": datetime.now().isoformat()}
 
+    @app.get("/api/v1/debug/db")
+    async def debug_db():
+        """Temporary debug endpoint to check DB status."""
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            if USE_POSTGRES:
+                c.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+            else:
+                c.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in c.fetchall()]
+            counts = {}
+            for t in tables:
+                c.execute(f"SELECT COUNT(*) FROM {t}")
+                counts[t] = c.fetchone()[0]
+            return {"db_mode": "postgresql" if USE_POSTGRES else "sqlite", "tables": tables, "row_counts": counts}
+        except Exception as e:
+            return {"error": str(e)}
+        finally:
+            conn.close()
+
     @app.post("/api/v1/analyze", response_model=PredictionResponse)
     @limiter.limit("30/minute")
     async def analyze_article(article: Article, request: Request):
@@ -363,10 +384,14 @@ else:
                     (user_id, preview, prediction, confidence, real_prob, fake_prob, red_flag_score)
                 )
                 conn.commit()
-            except Exception:
+                print(f"[OK] Analysis saved for user {user_id}: {prediction}")
+            except Exception as e:
+                print(f"[ERR] Failed to save analysis: {e}")
                 conn.rollback()
             finally:
                 conn.close()
+        else:
+            print("[WARN] No user_id found, analysis NOT saved")
 
         return PredictionResponse(
             prediction=prediction, confidence=confidence,
