@@ -290,6 +290,7 @@ else:
     try:
         model = joblib.load(MODEL_DIR / "model.joblib")
         tfidf = joblib.load(MODEL_DIR / "tfidf.joblib")
+        scaler = joblib.load(MODEL_DIR / "scaler.joblib")
         MODEL_LOADED = True
         print("[OK] Model loaded successfully.")
     except Exception as e:
@@ -320,6 +321,59 @@ else:
         if text.count('!') > 5 or text.count('?') > 5:
             red_flags += 1
         return min(red_flags, 10) / 10
+
+    def compute_meta_features(text: str) -> list:
+        """Compute the 20 linguistic meta-features the stacking model expects."""
+        import math
+        sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
+        words = text.split()
+        word_count = max(len(words), 1)
+        char_count = max(len(text), 1)
+
+        sentence_count = max(len(sentences), 1)
+        avg_sentence_length = word_count / sentence_count
+        exclamation_ratio = text.count('!') / char_count
+        question_ratio = text.count('?') / char_count
+        all_caps_words = sum(1 for w in words if w.isupper() and len(w) > 1)
+        all_caps_ratio = all_caps_words / word_count
+        title_case_words = sum(1 for w in words if w.istitle())
+        title_case_ratio = title_case_words / word_count
+        caps_chars = sum(1 for c in text if c.isupper())
+        caps_char_ratio = caps_chars / char_count
+        unique_words = set(w.lower() for w in words)
+        lexical_diversity = len(unique_words) / word_count
+        avg_word_length = sum(len(w) for w in words) / word_count
+        first_person = sum(1 for w in words if w.lower() in ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours'])
+        first_person_ratio = first_person / word_count
+        quoted_source_count = text.count('"') // 2 + text.count('\u201c')
+        number_count = len(re.findall(r'\d+', text))
+        url_count = len(re.findall(r'http[s]?://\S+', text))
+
+        conspiracy_words = ['conspiracy', 'coverup', 'cover-up', 'illuminati', 'deep state', 'new world order', 'big pharma', 'they dont want']
+        conspiracy_score = sum(1 for w in conspiracy_words if w in text.lower())
+
+        sensational_words = ['shocking', 'unbelievable', 'incredible', 'horrifying', 'explosive', 'bombshell', 'breaking', 'urgent', 'miracle', 'secret']
+        sensationalism_score = sum(1 for w in sensational_words if w in text.lower())
+
+        red_flag_score = detect_red_flags(text)
+
+        # Flesch-Kincaid approximation
+        syllable_count = sum(max(1, len(re.findall(r'[aeiouy]+', w.lower()))) for w in words)
+        fk_grade = 0.39 * (word_count / sentence_count) + 11.8 * (syllable_count / word_count) - 15.59
+
+        attribution_words = ['according to', 'said', 'reported', 'stated', 'confirmed', 'announced', 'officials say']
+        has_attribution = 1.0 if any(w in text.lower() for w in attribution_words) else 0.0
+
+        clickbait_patterns = ['you won\'t believe', 'what happens next', 'this is why', 'the truth about', 'they don\'t want you']
+        clickbait_score = sum(1 for p in clickbait_patterns if p in text.lower())
+
+        return [
+            sentence_count, avg_sentence_length, word_count, exclamation_ratio,
+            question_ratio, all_caps_ratio, title_case_ratio, caps_char_ratio,
+            lexical_diversity, avg_word_length, first_person_ratio, quoted_source_count,
+            number_count, url_count, conspiracy_score, sensationalism_score,
+            red_flag_score, fk_grade, has_attribution, clickbait_score
+        ]
 
     # ── ML API Endpoints ──
     @app.get("/api/v1/info")
@@ -365,7 +419,15 @@ else:
             raise HTTPException(400, "Article text too short (minimum 50 characters)")
 
         cleaned = clean_text(article.text)
-        features = tfidf.transform([cleaned])
+        tfidf_features = tfidf.transform([cleaned])
+
+        # Compute and scale the 20 meta-features, then concatenate with TF-IDF
+        import numpy as np
+        from scipy.sparse import hstack
+        meta = np.array([compute_meta_features(article.text)])
+        meta_scaled = scaler.transform(meta)
+        features = hstack([tfidf_features, meta_scaled])
+
         proba = model.predict_proba(features)[0]
         real_prob, fake_prob = float(proba[1]), float(proba[0])
         red_flag_score = detect_red_flags(article.text)
@@ -411,7 +473,13 @@ else:
         for article in batch.articles:
             try:
                 cleaned = clean_text(article.text)
-                proba = model.predict_proba(tfidf.transform([cleaned]))[0]
+                tfidf_features = tfidf.transform([cleaned])
+                import numpy as np
+                from scipy.sparse import hstack
+                meta = np.array([compute_meta_features(article.text)])
+                meta_scaled = scaler.transform(meta)
+                features = hstack([tfidf_features, meta_scaled])
+                proba = model.predict_proba(features)[0]
                 real_prob, fake_prob = float(proba[1]), float(proba[0])
                 results.append({
                     "id": article.id, "prediction": "FAKE" if fake_prob > 0.5 else "REAL",
