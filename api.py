@@ -418,18 +418,22 @@ else:
         if len(article.text) < 50:
             raise HTTPException(400, "Article text too short (minimum 50 characters)")
 
-        cleaned = clean_text(article.text)
-        tfidf_features = tfidf.transform([cleaned])
+        try:
+            cleaned = clean_text(article.text)
+            tfidf_features = tfidf.transform([cleaned])
 
-        # Compute and scale the 20 meta-features, then concatenate with TF-IDF
-        import numpy as np
-        from scipy.sparse import hstack
-        meta = np.array([compute_meta_features(article.text)])
-        meta_scaled = scaler.transform(meta)
-        features = hstack([tfidf_features, meta_scaled])
+            # Compute and scale the 20 meta-features, then concatenate with TF-IDF
+            import numpy as np
+            from scipy.sparse import hstack
+            meta = np.array([compute_meta_features(article.text)])
+            meta_scaled = scaler.transform(meta)
+            features = hstack([tfidf_features, meta_scaled])
 
-        proba = model.predict_proba(features)[0]
-        real_prob, fake_prob = float(proba[1]), float(proba[0])
+            proba = model.predict_proba(features)[0]
+            real_prob, fake_prob = float(proba[1]), float(proba[0])
+        except Exception as e:
+            print(f"[ERR] Prediction failed: {e}")
+            raise HTTPException(500, f"Prediction error: {str(e)}")
         red_flag_score = detect_red_flags(article.text)
         prediction = "FAKE" if fake_prob > 0.5 else "REAL"
         confidence = max(real_prob, fake_prob) * 100
