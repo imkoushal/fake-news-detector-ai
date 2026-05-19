@@ -102,6 +102,17 @@ else:
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )''')
+            c.execute('''CREATE TABLE IF NOT EXISTS analyses (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                text_preview TEXT NOT NULL,
+                prediction TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                real_prob REAL NOT NULL,
+                fake_prob REAL NOT NULL,
+                red_flag_score REAL NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )''')
         else:
             c.execute('''CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,6 +128,18 @@ else:
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )''')
+            c.execute('''CREATE TABLE IF NOT EXISTS analyses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                text_preview TEXT NOT NULL,
+                prediction TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                real_prob REAL NOT NULL,
+                fake_prob REAL NOT NULL,
+                red_flag_score REAL NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )''')
         conn.commit()
         conn.close()
 
@@ -124,6 +147,18 @@ else:
 
     def _hash_password(password: str, salt: str) -> str:
         return hashlib.sha256((salt + password).encode()).hexdigest()
+
+    def _get_user_from_token(request: Request):
+        """Extract user_id from auth token. Returns user_id or None."""
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if not token:
+            return None
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(f"SELECT user_id FROM sessions WHERE token = {ph()}", (token,))
+        row = c.fetchone()
+        conn.close()
+        return row[0] if row else None
 
     # ── Pydantic Models ──
     class SignupRequest(BaseModel):
@@ -314,9 +349,27 @@ else:
         real_prob, fake_prob = float(proba[1]), float(proba[0])
         red_flag_score = detect_red_flags(article.text)
         prediction = "FAKE" if fake_prob > 0.5 else "REAL"
+        confidence = max(real_prob, fake_prob) * 100
+
+        # Save analysis to DB if user is authenticated
+        user_id = _get_user_from_token(request)
+        if user_id:
+            preview = article.text[:200].replace("'", "")
+            conn = get_db()
+            c = conn.cursor()
+            try:
+                c.execute(
+                    f"INSERT INTO analyses (user_id, text_preview, prediction, confidence, real_prob, fake_prob, red_flag_score) VALUES ({ph(7)})",
+                    (user_id, preview, prediction, confidence, real_prob, fake_prob, red_flag_score)
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            finally:
+                conn.close()
 
         return PredictionResponse(
-            prediction=prediction, confidence=max(real_prob, fake_prob) * 100,
+            prediction=prediction, confidence=confidence,
             real_probability=real_prob, fake_probability=fake_prob,
             red_flag_score=red_flag_score, timestamp=datetime.now().isoformat()
         )
@@ -347,9 +400,96 @@ else:
         return {"total": len(batch.articles), "processed": len(results),
                 "results": results, "timestamp": datetime.now().isoformat()}
 
-    @app.get("/api/v1/stats")
-    async def get_stats():
-        return {"total_requests": 0, "requests_today": 0, "message": "Statistics tracking not yet implemented"}
+    @app.get("/api/v1/user/stats")
+    async def get_user_stats(request: Request):
+        """Get dashboard stats for the authenticated user."""
+        user_id = _get_user_from_token(request)
+        if not user_id:
+            raise HTTPException(401, "Not authenticated")
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            # Total analyses
+            c.execute(f"SELECT COUNT(*) FROM analyses WHERE user_id = {ph()}", (user_id,))
+            total = c.fetchone()[0]
+            # Avg confidence
+            c.execute(f"SELECT COALESCE(AVG(confidence), 0) FROM analyses WHERE user_id = {ph()}", (user_id,))
+            avg_conf = round(c.fetchone()[0], 1)
+            # Fake count
+            c.execute(f"SELECT COUNT(*) FROM analyses WHERE user_id = {ph()} AND prediction = 'FAKE'", (user_id,))
+            fake_count = c.fetchone()[0]
+            # Real count
+            real_count = total - fake_count
+            # Recent 10 analyses
+            c.execute(f"SELECT text_preview, prediction, confidence, red_flag_score, created_at FROM analyses WHERE user_id = {ph()} ORDER BY created_at DESC LIMIT 10", (user_id,))
+            recent = []
+            for row in c.fetchall():
+                recent.append({
+                    "preview": row[0], "prediction": row[1],
+                    "confidence": round(row[2], 1), "red_flags": round(row[3] * 100),
+                    "date": str(row[4])
+                })
+            # Daily trend (last 7 days)
+            if USE_POSTGRES:
+                c.execute(f"""SELECT DATE(created_at) as d, prediction, COUNT(*) FROM analyses
+                    WHERE user_id = {ph()} AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+                    GROUP BY d, prediction ORDER BY d""", (user_id,))
+            else:
+                c.execute(f"""SELECT DATE(created_at) as d, prediction, COUNT(*) FROM analyses
+                    WHERE user_id = {ph()} AND created_at >= DATE('now', '-6 days')
+                    GROUP BY d, prediction ORDER BY d""", (user_id,))
+            trend_raw = c.fetchall()
+            trend = {}
+            for row in trend_raw:
+                day = str(row[0])
+                if day not in trend:
+                    trend[day] = {"real": 0, "fake": 0}
+                trend[day][row[1].lower()] = row[2]
+            return {
+                "total": total, "avg_confidence": avg_conf,
+                "fake_count": fake_count, "real_count": real_count,
+                "recent": recent, "trend": trend
+            }
+        finally:
+            conn.close()
+
+    @app.get("/api/v1/user/history")
+    async def get_user_history(request: Request, page: int = 1, limit: int = 25, filter: str = "all"):
+        """Get paginated analysis history for the authenticated user."""
+        user_id = _get_user_from_token(request)
+        if not user_id:
+            raise HTTPException(401, "Not authenticated")
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            where = f"user_id = {ph()}"
+            params = [user_id]
+            if filter == "real":
+                where += f" AND prediction = {ph()}"
+                params.append("REAL")
+            elif filter == "fake":
+                where += f" AND prediction = {ph()}"
+                params.append("FAKE")
+            # Count
+            c.execute(f"SELECT COUNT(*) FROM analyses WHERE {where}", tuple(params))
+            total_count = c.fetchone()[0]
+            # Paginated results
+            offset = (page - 1) * limit
+            c.execute(f"SELECT id, text_preview, prediction, confidence, real_prob, fake_prob, red_flag_score, created_at FROM analyses WHERE {where} ORDER BY created_at DESC LIMIT {ph()} OFFSET {ph()}", tuple(params + [limit, offset]))
+            rows = []
+            for row in c.fetchall():
+                rows.append({
+                    "id": row[0], "preview": row[1], "prediction": row[2],
+                    "confidence": round(row[3], 1), "real_prob": round(row[4], 3),
+                    "fake_prob": round(row[5], 3), "red_flags": round(row[6] * 100),
+                    "date": str(row[7])
+                })
+            return {
+                "items": rows, "total": total_count,
+                "page": page, "limit": limit, "pages": max(1, -(-total_count // limit))
+            }
+        finally:
+            conn.close()
 
     # ── Serve Static Frontend ──
     FRONTEND_DIR = BASE_DIR / "frontend"

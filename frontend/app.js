@@ -247,9 +247,12 @@ async function runAnalysis() {
 
   let data;
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = getToken();
+    if (token) headers['Authorization'] = 'Bearer ' + token;
     const res = await fetch(API_BASE + '/api/v1/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ text })
     });
     if (!res.ok) throw new Error('API error ' + res.status);
@@ -442,116 +445,159 @@ function downloadFile(content, filename, type) {
 
 // ===== DASHBOARD =====
 let chartsInit = false;
-function initDashboard() {
-  // Demo stats
-  document.getElementById('statTotal').textContent = '24,592';
-  document.getElementById('statConfidence').textContent = '87';
-  document.getElementById('statFake').textContent = '3,140';
+let predChart, topicsChart, trendChart;
 
-  if (chartsInit) return;
-  chartsInit = true;
+async function initDashboard() {
+  const token = getToken();
+  if (!token) return;
 
-  const chartColors = {
-    green: '#4ADE80', red: '#EF4444', gray: '#64748B',
-    blue: '#3B82F6', teal: '#14B8A6', yellow: '#F59E0B'
-  };
+  try {
+    const res = await fetch(API_BASE + '/api/v1/user/stats', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error('Failed to load stats');
+    const stats = await res.json();
 
-  // Prediction Distribution
-  new Chart(document.getElementById('chartPrediction'), {
-    type: 'doughnut',
-    data: {
-      labels: ['Real', 'Fake', 'Unverified'],
-      datasets: [{ data: [18400, 3100, 3000], backgroundColor: [chartColors.green, chartColors.red, chartColors.gray], borderWidth: 0 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'right', labels: { color: '#94A3B8', padding: 16 } } },
-      cutout: '65%'
-    }
-  });
+    // Update stat cards
+    document.getElementById('statTotal').textContent = stats.total.toLocaleString();
+    document.getElementById('statConfidence').textContent = stats.avg_confidence || 0;
+    document.getElementById('statFake').textContent = stats.fake_count.toLocaleString();
 
-  // Topics
-  new Chart(document.getElementById('chartTopics'), {
-    type: 'bar',
-    data: {
-      labels: ['Politics', 'Health', 'Tech', 'Finance', 'Other'],
-      datasets: [{ data: [8500, 6200, 4100, 2800, 2900], backgroundColor: [chartColors.teal, chartColors.teal, chartColors.teal, chartColors.teal, chartColors.teal], borderRadius: 4, barThickness: 20 }]
-    },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: '#1F2937' }, ticks: { color: '#94A3B8' } },
-        y: { grid: { display: false }, ticks: { color: '#94A3B8' } }
+    const chartColors = {
+      green: '#4ADE80', red: '#EF4444', gray: '#64748B',
+      blue: '#3B82F6', teal: '#14B8A6', yellow: '#F59E0B'
+    };
+
+    // Destroy old charts if re-visiting
+    if (predChart) predChart.destroy();
+    if (topicsChart) topicsChart.destroy();
+    if (trendChart) trendChart.destroy();
+
+    // Prediction Distribution (doughnut)
+    predChart = new Chart(document.getElementById('chartPrediction'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Real', 'Fake'],
+        datasets: [{ data: [stats.real_count, stats.fake_count], backgroundColor: [chartColors.green, chartColors.red], borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'right', labels: { color: '#94A3B8', padding: 16 } } },
+        cutout: '65%'
       }
-    }
-  });
+    });
 
-  // Trend
-  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  new Chart(document.getElementById('chartTrend'), {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Real', data: [120, 150, 130, 170, 160, 90, 110], borderColor: chartColors.green, backgroundColor: 'rgba(74,222,128,0.1)', fill: true, tension: 0.4, pointRadius: 4 },
-        { label: 'Fake', data: [30, 45, 25, 55, 40, 20, 35], borderColor: chartColors.red, backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4, pointRadius: 4 }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#94A3B8' } } },
-      scales: {
-        x: { grid: { color: '#1F2937' }, ticks: { color: '#94A3B8' } },
-        y: { grid: { color: '#1F2937' }, ticks: { color: '#94A3B8' } }
+    // Confidence distribution as bar (fake vs real count by confidence ranges)
+    topicsChart = new Chart(document.getElementById('chartTopics'), {
+      type: 'bar',
+      data: {
+        labels: ['Total Real', 'Total Fake', 'Avg Confidence'],
+        datasets: [{ data: [stats.real_count, stats.fake_count, stats.avg_confidence], backgroundColor: [chartColors.green, chartColors.red, chartColors.teal], borderRadius: 4, barThickness: 20 }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: '#1F2937' }, ticks: { color: '#94A3B8' } },
+          y: { grid: { display: false }, ticks: { color: '#94A3B8' } }
+        }
       }
-    }
-  });
+    });
 
-  // Recent table
-  const recentData = [
-    { date: '2023-10-24 14:32', pred: 'REAL', conf: '98%', cat: 'Politics', preview: '"New legislative bill proposes sweeping changes to renewable energy subsidies."' },
-    { date: '2023-10-24 11:15', pred: 'FAKE', conf: '95%', cat: 'Health', preview: '"Miracle cure discovered in remote jungle completely eradicates all forms of cellular..."' },
-    { date: '2023-10-23 09:45', pred: 'UNCERTAIN', conf: '54%', cat: 'Technology', preview: '"Leaked specs suggest next-gen quantum processor will achieve consciousness by Q3..."' }
-  ];
-  const tbody = document.getElementById('recentBody');
-  recentData.forEach(r => {
-    const cls = r.pred === 'REAL' ? 'real' : r.pred === 'FAKE' ? 'fake' : 'uncertain';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.date}</td><td><span class="pred-pill ${cls}">${r.pred}</span></td><td>${r.conf}</td><td><span class="cat-pill">${r.cat}</span></td><td>${r.preview}</td>`;
-    tbody.appendChild(tr);
-  });
+    // Trend line (last 7 days)
+    const trendDays = Object.keys(stats.trend).sort();
+    const realData = trendDays.map(d => stats.trend[d].real || 0);
+    const fakeData = trendDays.map(d => stats.trend[d].fake || 0);
+    const labels = trendDays.map(d => {
+      const dt = new Date(d);
+      return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    });
+
+    trendChart = new Chart(document.getElementById('chartTrend'), {
+      type: 'line',
+      data: {
+        labels: labels.length ? labels : ['No data yet'],
+        datasets: [
+          { label: 'Real', data: realData, borderColor: chartColors.green, backgroundColor: 'rgba(74,222,128,0.1)', fill: true, tension: 0.4, pointRadius: 4 },
+          { label: 'Fake', data: fakeData, borderColor: chartColors.red, backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4, pointRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94A3B8' } } },
+        scales: {
+          x: { grid: { color: '#1F2937' }, ticks: { color: '#94A3B8' } },
+          y: { grid: { color: '#1F2937' }, ticks: { color: '#94A3B8', stepSize: 1 } }
+        }
+      }
+    });
+
+    // Recent analyses table
+    const tbody = document.getElementById('recentBody');
+    tbody.innerHTML = '';
+    if (stats.recent.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">No analyses yet. Go to Analyze to get started!</td></tr>';
+    } else {
+      stats.recent.forEach(r => {
+        const cls = r.prediction === 'REAL' ? 'real' : 'fake';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${new Date(r.date).toLocaleString()}</td><td><span class="pred-pill ${cls}">${r.prediction}</span></td><td>${r.confidence}%</td><td><span class="cat-pill">${r.red_flags}%</span></td><td>${r.preview.substring(0, 80)}...</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+  } catch (e) {
+    console.warn('Dashboard load failed:', e.message);
+    document.getElementById('statTotal').textContent = '0';
+    document.getElementById('statConfidence').textContent = '0';
+    document.getElementById('statFake').textContent = '0';
+  }
 }
 
 // ===== HISTORY =====
-function loadHistory() {
+let historyPage = 1;
+
+async function loadHistory() {
   const tbody = document.getElementById('historyBody');
   if (!tbody) return;
-  // Demo data
-  const demoHistory = [
-    { date: '2023-10-24 14:32', pred: 'REAL', conf: '98%', cat: 'Politics', flags: 12, preview: '"New legislative bill proposes sweeping changes to... renewable energy subsidies."' },
-    { date: '2023-10-24 11:15', pred: 'FAKE', conf: '95%', cat: 'Health', flags: 88, preview: '"Miracle cure discovered in remote jungle completely... eradicates all forms of cellular"' },
-    { date: '2023-10-23 09:45', pred: 'UNCERTAIN', conf: '54%', cat: 'Technology', flags: 45, preview: '"Leaked specs suggest next-gen quantum processor will... achieve consciousness by Q3"' },
-    { date: '2023-10-22 16:20', pred: 'REAL', conf: '91%', cat: 'Finance', flags: 8, preview: '"Central bank announces gradual interest rate adjustment... over the next quarter."' },
-    { date: '2023-10-21 10:05', pred: 'FAKE', conf: '87%', cat: 'Politics', flags: 72, preview: '"Secret government program exposed by anonymous insider... reveals shocking details."' }
-  ];
+  const token = getToken();
+  if (!token) return;
 
   const activeFilter = document.querySelector('.filter-pills .pill.active')?.dataset.filter || 'all';
-  const filtered = demoHistory.filter(r => {
-    if (activeFilter === 'real') return r.pred === 'REAL';
-    if (activeFilter === 'fake') return r.pred === 'FAKE';
-    return true;
-  });
+  const limit = parseInt(document.getElementById('historyPageSize')?.value) || 25;
 
-  tbody.innerHTML = '';
-  filtered.forEach(r => {
-    const cls = r.pred === 'REAL' ? 'real' : r.pred === 'FAKE' ? 'fake' : 'uncertain';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.date}</td><td><span class="pred-pill ${cls}">● ${r.pred}</span></td><td>${r.conf}</td><td><span class="cat-pill">${r.cat}</span></td><td>${r.flags}</td><td>${r.preview}</td>`;
-    tbody.appendChild(tr);
-  });
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/v1/user/history?page=${historyPage}&limit=${limit}&filter=${activeFilter}`,
+      { headers: { 'Authorization': 'Bearer ' + token } }
+    );
+    if (!res.ok) throw new Error('Failed to load history');
+    const data = await res.json();
 
-  document.getElementById('historyPagInfo').textContent = `1-${filtered.length} of ${filtered.length}`;
+    tbody.innerHTML = '';
+    if (data.items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">No analyses found. Start analyzing articles!</td></tr>';
+    } else {
+      data.items.forEach(r => {
+        const cls = r.prediction === 'REAL' ? 'real' : 'fake';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${new Date(r.date).toLocaleString()}</td><td><span class="pred-pill ${cls}">● ${r.prediction}</span></td><td>${r.confidence}%</td><td>${r.real_prob}</td><td>${r.red_flags}%</td><td>${r.preview.substring(0, 80)}...</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    const start = (data.page - 1) * data.limit + 1;
+    const end = Math.min(data.page * data.limit, data.total);
+    document.getElementById('historyPagInfo').textContent = data.total > 0 ? `${start}-${end} of ${data.total}` : '0 results';
+
+    // Pagination button handlers
+    document.getElementById('historyPrev').onclick = () => { if (historyPage > 1) { historyPage--; loadHistory(); } };
+    document.getElementById('historyNext').onclick = () => { if (historyPage < data.pages) { historyPage++; loadHistory(); } };
+
+  } catch (e) {
+    console.warn('History load failed:', e.message);
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Failed to load history</td></tr>';
+  }
 }
 
 // ===== EXPORT =====
