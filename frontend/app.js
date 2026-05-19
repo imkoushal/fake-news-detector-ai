@@ -458,10 +458,10 @@ async function initDashboard() {
     if (!res.ok) throw new Error('Failed to load stats');
     const stats = await res.json();
 
-    // Update stat cards
-    document.getElementById('statTotal').textContent = stats.total.toLocaleString();
-    document.getElementById('statConfidence').textContent = stats.avg_confidence || 0;
-    document.getElementById('statFake').textContent = stats.fake_count.toLocaleString();
+    // Update stat cards with GLOBAL lifetime totals (all users)
+    document.getElementById('statTotal').textContent = (stats.global_total || 0).toLocaleString();
+    document.getElementById('statConfidence').textContent = stats.global_avg_confidence || 0;
+    document.getElementById('statFake').textContent = (stats.global_fake_count || 0).toLocaleString();
 
     const chartColors = {
       green: '#4ADE80', red: '#EF4444', gray: '#64748B',

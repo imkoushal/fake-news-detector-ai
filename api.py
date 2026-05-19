@@ -445,10 +445,20 @@ else:
                 if day not in trend:
                     trend[day] = {"real": 0, "fake": 0}
                 trend[day][row[1].lower()] = row[2]
+            # ── Global stats (all users combined) ──
+            c.execute("SELECT COUNT(*) FROM analyses")
+            global_total = c.fetchone()[0]
+            c.execute("SELECT COALESCE(AVG(confidence), 0) FROM analyses")
+            global_avg_conf = round(c.fetchone()[0], 1)
+            c.execute("SELECT COUNT(*) FROM analyses WHERE prediction = 'FAKE'")
+            global_fake = c.fetchone()[0]
+
             return {
                 "total": total, "avg_confidence": avg_conf,
                 "fake_count": fake_count, "real_count": real_count,
-                "recent": recent, "trend": trend
+                "recent": recent, "trend": trend,
+                "global_total": global_total, "global_avg_confidence": global_avg_conf,
+                "global_fake_count": global_fake, "global_real_count": global_total - global_fake
             }
         finally:
             conn.close()
