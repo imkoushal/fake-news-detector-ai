@@ -8,6 +8,14 @@ Deploy:       Render / Railway / Fly.io
 import os
 from pathlib import Path
 
+import numpy as np
+from scipy.sparse import hstack
+
+# Import canonical preprocessing and feature functions (same as training pipeline)
+from utils import clean_text
+from meta_features import extract_single as compute_meta_features
+from enhanced_features import detect_fake_news_red_flags
+
 try:
     from fastapi import FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +26,7 @@ try:
     import joblib
     import re
     from datetime import datetime
-    import hashlib
+    import bcrypt
     import secrets
     import sqlite3
     from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -145,8 +153,22 @@ else:
 
     _init_auth_db()
 
-    def _hash_password(password: str, salt: str) -> str:
-        return hashlib.sha256((salt + password).encode()).hexdigest()
+    def _hash_password(password: str) -> str:
+        """Hash a password using bcrypt (salt is embedded in the output)."""
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    def _verify_password(password: str, stored_hash: str, stored_salt: str = "") -> bool:
+        """Verify a password against its hash.
+        Supports both bcrypt (new) and legacy SHA-256 (old) hashes.
+        """
+        if stored_salt == "bcrypt" or stored_hash.startswith("$2b$"):
+            # Modern bcrypt hash
+            return bcrypt.checkpw(password.encode(), stored_hash.encode())
+        else:
+            # Legacy SHA-256 fallback — needed until all users re-login
+            import hashlib
+            legacy = hashlib.sha256((stored_salt + password).encode()).hexdigest()
+            return legacy == stored_hash
 
     def _get_user_from_token(request: Request):
         """Extract user_id from auth token. Returns user_id or None."""
@@ -178,12 +200,12 @@ else:
     class PredictionResponse(BaseModel):
         prediction: str
         confidence: float
-        confidence_level: str = "Uncertain"
+        confidence_tier: str
         real_probability: float
         fake_probability: float
         red_flag_score: float
+        input_quality: str = "sufficient"
         category: Optional[str] = None
-        note: Optional[str] = None
         timestamp: str
         model_version: str = "5.0"
 
@@ -203,8 +225,8 @@ else:
         if len(req.name.strip()) < 1:
             raise HTTPException(400, "Name is required")
 
-        salt = secrets.token_hex(16)
-        pw_hash = _hash_password(req.password, salt)
+        salt = "bcrypt"  # Marker — bcrypt embeds its own salt in the hash
+        pw_hash = _hash_password(req.password)
 
         conn = get_db()
         c = conn.cursor()
@@ -247,8 +269,17 @@ else:
             user = c.fetchone()
             if not user:
                 raise HTTPException(401, "Invalid email or password")
-            if _hash_password(req.password, user[4]) != user[3]:
+            if not _verify_password(req.password, user[3], user[4]):
                 raise HTTPException(401, "Invalid email or password")
+
+            # Auto-upgrade legacy SHA-256 hashes to bcrypt on successful login
+            if user[4] != "bcrypt" and not user[3].startswith("$2b$"):
+                new_hash = _hash_password(req.password)
+                c.execute(
+                    f"UPDATE users SET password_hash = {ph()}, salt = {ph()} WHERE id = {ph()}",
+                    (new_hash, "bcrypt", user[0])
+                )
+                print(f"[OK] Auto-upgraded password hash to bcrypt for user {user[0]}")
 
             token = secrets.token_urlsafe(32)
             c.execute(f"INSERT INTO sessions (token, user_id) VALUES ({ph(2)})", (token, user[0]))
@@ -300,82 +331,9 @@ else:
         print(f"[WARN] Model could not be loaded: {e}")
 
     # ── Helper Functions ──
-    def clean_text(text: str) -> str:
-        text = str(text).lower()
-        text = re.sub(r'http\S+|www\S+|https\S+', '', text)
-        text = re.sub(r'\S+@\S+', '', text)
-        text = re.sub(r'[^a-zA-Z0-9\s]', ' ', text)
-        text = re.sub(r'\s+', ' ', text)
-        text = ' '.join([word for word in text.split() if len(word) > 2])
-        return text.strip()
-
-    def detect_red_flags(text: str) -> float:
-        red_flags = 0
-        text_lower = text.lower()
-        if any(w in text_lower for w in ['big pharma', 'mainstream media', 'deep state', 'government coverup']):
-            red_flags += 2
-        if any(w in text_lower for w in ['doctors dont want you to know', 'miracle cure', 'ancient remedy']):
-            red_flags += 3
-        if any(w in text_lower for w in ['share before deleted', 'share now', 'censored']):
-            red_flags += 2
-        if sum(1 for c in text if c.isupper()) / max(len(text), 1) > 0.1:
-            red_flags += 1
-        if text.count('!') > 5 or text.count('?') > 5:
-            red_flags += 1
-        return min(red_flags, 10) / 10
-
-    def compute_meta_features(text: str) -> list:
-        """Compute the 20 linguistic meta-features the stacking model expects."""
-        import math
-        sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
-        words = text.split()
-        word_count = max(len(words), 1)
-        char_count = max(len(text), 1)
-
-        sentence_count = max(len(sentences), 1)
-        avg_sentence_length = word_count / sentence_count
-        exclamation_ratio = text.count('!') / char_count
-        question_ratio = text.count('?') / char_count
-        all_caps_words = sum(1 for w in words if w.isupper() and len(w) > 1)
-        all_caps_ratio = all_caps_words / word_count
-        title_case_words = sum(1 for w in words if w.istitle())
-        title_case_ratio = title_case_words / word_count
-        caps_chars = sum(1 for c in text if c.isupper())
-        caps_char_ratio = caps_chars / char_count
-        unique_words = set(w.lower() for w in words)
-        lexical_diversity = len(unique_words) / word_count
-        avg_word_length = sum(len(w) for w in words) / word_count
-        first_person = sum(1 for w in words if w.lower() in ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours'])
-        first_person_ratio = first_person / word_count
-        quoted_source_count = text.count('"') // 2 + text.count('\u201c')
-        number_count = len(re.findall(r'\d+', text))
-        url_count = len(re.findall(r'http[s]?://\S+', text))
-
-        conspiracy_words = ['conspiracy', 'coverup', 'cover-up', 'illuminati', 'deep state', 'new world order', 'big pharma', 'they dont want']
-        conspiracy_score = sum(1 for w in conspiracy_words if w in text.lower())
-
-        sensational_words = ['shocking', 'unbelievable', 'incredible', 'horrifying', 'explosive', 'bombshell', 'breaking', 'urgent', 'miracle', 'secret']
-        sensationalism_score = sum(1 for w in sensational_words if w in text.lower())
-
-        red_flag_score = detect_red_flags(text)
-
-        # Flesch-Kincaid approximation
-        syllable_count = sum(max(1, len(re.findall(r'[aeiouy]+', w.lower()))) for w in words)
-        fk_grade = 0.39 * (word_count / sentence_count) + 11.8 * (syllable_count / word_count) - 15.59
-
-        attribution_words = ['according to', 'said', 'reported', 'stated', 'confirmed', 'announced', 'officials say']
-        has_attribution = 1.0 if any(w in text.lower() for w in attribution_words) else 0.0
-
-        clickbait_patterns = ['you won\'t believe', 'what happens next', 'this is why', 'the truth about', 'they don\'t want you']
-        clickbait_score = sum(1 for p in clickbait_patterns if p in text.lower())
-
-        return [
-            sentence_count, avg_sentence_length, word_count, exclamation_ratio,
-            question_ratio, all_caps_ratio, title_case_ratio, caps_char_ratio,
-            lexical_diversity, avg_word_length, first_person_ratio, quoted_source_count,
-            number_count, url_count, conspiracy_score, sensationalism_score,
-            red_flag_score, fk_grade, has_attribution, clickbait_score
-        ]
+    # clean_text, compute_meta_features (extract_single), and detect_fake_news_red_flags
+    # are now imported from utils.py, meta_features.py, and enhanced_features.py respectively.
+    # This ensures the API uses the EXACT same preprocessing as the training pipeline.
 
     # ── ML API Endpoints ──
     @app.get("/api/v1/info")
@@ -412,61 +370,63 @@ else:
         finally:
             conn.close()
 
-    def _get_confidence_level(confidence: float) -> str:
-        """Return a human-readable confidence level."""
-        if confidence >= 90:
-            return "Verified"
-        elif confidence >= 75:
-            return "Likely Real" if confidence > 0 else "Likely Fake"
-        elif confidence >= 60:
-            return "Suspicious"
-        else:
-            return "Uncertain"
-
     @app.post("/api/v1/analyze", response_model=PredictionResponse)
     @limiter.limit("30/minute")
     async def analyze_article(article: Article, request: Request):
         if not MODEL_LOADED:
             raise HTTPException(503, "Model not loaded")
-        if len(article.text.strip()) < 10:
-            raise HTTPException(400, "Please enter some text to analyze.")
 
-        cleaned = clean_text(article.text)
-        word_count = len(article.text.split())
-        is_short = word_count < 15
-        note = None
+        text = article.text.strip()
+        word_count = len(text.split())
 
+        # Soft validation: reject only truly empty/trivial input
+        if len(text) < 10 or word_count < 3:
+            raise HTTPException(400, "Please enter at least a few words to analyze.")
+
+        # Determine input quality for confidence adjustment
+        if word_count < 10:
+            input_quality = "short_claim"
+        elif word_count < 30:
+            input_quality = "headline"
+        else:
+            input_quality = "sufficient"
+
+        cleaned = clean_text(text)
         tfidf_features = tfidf.transform([cleaned])
 
         # Compute and scale the 20 meta-features, then concatenate with TF-IDF
-        import numpy as np
-        from scipy.sparse import hstack
-        meta = np.array([compute_meta_features(article.text)])
+        meta = compute_meta_features(text).reshape(1, -1)
         meta_scaled = scaler.transform(meta)
         features = hstack([tfidf_features, meta_scaled])
 
         proba = model.predict_proba(features)[0]
         real_prob, fake_prob = float(proba[1]), float(proba[0])
-        red_flag_score = detect_red_flags(article.text)
+        red_flag_score = detect_fake_news_red_flags(text)
         prediction = "FAKE" if fake_prob > 0.5 else "REAL"
         confidence = max(real_prob, fake_prob) * 100
 
-        # Short-text penalty: reduce confidence and add advisory note
-        if is_short:
-            confidence = min(confidence, 65.0)
-            note = "Short input detected. Confidence is limited — provide more context for a stronger verdict."
+        # Dampen confidence for short inputs — not enough context
+        if input_quality == "short_claim":
+            confidence = min(confidence, 60.0)
+        elif input_quality == "headline":
+            confidence = min(confidence, 80.0)
 
-        confidence_level = _get_confidence_level(confidence)
-        # Refine confidence_level based on prediction direction
-        if confidence >= 75:
-            confidence_level = "Likely Real" if prediction == "REAL" else "Likely Fake"
+        # Assign confidence tier
         if confidence >= 90:
-            confidence_level = "Verified"
+            confidence_tier = "Verified"
+        elif confidence >= 75:
+            confidence_tier = "Likely Real" if prediction == "REAL" else "Likely Fake"
+        elif confidence >= 60:
+            confidence_tier = "Uncertain"
+        elif confidence >= 50:
+            confidence_tier = "Suspicious"
+        else:
+            confidence_tier = "Inconclusive"
 
         # Save analysis to DB if user is authenticated
         user_id = _get_user_from_token(request)
         if user_id:
-            preview = article.text[:200].replace("'", "")
+            preview = text[:200].replace("'", "")
             conn = get_db()
             c = conn.cursor()
             try:
@@ -475,7 +435,7 @@ else:
                     (user_id, preview, prediction, confidence, real_prob, fake_prob, red_flag_score)
                 )
                 conn.commit()
-                print(f"[OK] Analysis saved for user {user_id}: {prediction} ({confidence_level})")
+                print(f"[OK] Analysis saved for user {user_id}: {prediction} ({confidence_tier})")
             except Exception as e:
                 print(f"[ERR] Failed to save analysis: {e}")
                 conn.rollback()
@@ -486,7 +446,7 @@ else:
 
         return PredictionResponse(
             prediction=prediction, confidence=confidence,
-            confidence_level=confidence_level, note=note,
+            confidence_tier=confidence_tier, input_quality=input_quality,
             real_probability=real_prob, fake_probability=fake_prob,
             red_flag_score=red_flag_score, timestamp=datetime.now().isoformat()
         )
@@ -504,9 +464,7 @@ else:
             try:
                 cleaned = clean_text(article.text)
                 tfidf_features = tfidf.transform([cleaned])
-                import numpy as np
-                from scipy.sparse import hstack
-                meta = np.array([compute_meta_features(article.text)])
+                meta = compute_meta_features(article.text).reshape(1, -1)
                 meta_scaled = scaler.transform(meta)
                 features = hstack([tfidf_features, meta_scaled])
                 proba = model.predict_proba(features)[0]
@@ -515,7 +473,7 @@ else:
                     "id": article.id, "prediction": "FAKE" if fake_prob > 0.5 else "REAL",
                     "confidence": max(real_prob, fake_prob) * 100,
                     "real_probability": real_prob, "fake_probability": fake_prob,
-                    "red_flag_score": detect_red_flags(article.text)
+                    "red_flag_score": detect_fake_news_red_flags(article.text)
                 })
             except Exception as e:
                 results.append({"id": article.id, "error": str(e)})
