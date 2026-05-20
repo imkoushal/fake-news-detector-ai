@@ -236,8 +236,8 @@ function showToast(msg) {
 // ===== ANALYZE =====
 async function runAnalysis() {
   const text = document.getElementById('articleText').value.trim();
-  if (!text || text.length < 50) {
-    showToast('Please enter at least 50 characters.');
+  if (!text || text.length < 10) {
+    showToast('Please enter some text to analyze.');
     return;
   }
 
@@ -264,9 +264,11 @@ async function runAnalysis() {
     data = {
       prediction: fakeProb > 0.5 ? 'FAKE' : 'REAL',
       confidence: (Math.max(fakeProb, 1 - fakeProb) * 100),
+      confidence_level: 'Uncertain',
       real_probability: 1 - fakeProb,
       fake_probability: fakeProb,
-      red_flag_score: Math.random() * 0.5
+      red_flag_score: Math.random() * 0.5,
+      note: null
     };
   }
 
@@ -282,16 +284,18 @@ function renderResults(data) {
 
   const isReal = data.prediction === 'REAL';
   const conf = data.confidence.toFixed(0);
+  const level = data.confidence_level || (isReal ? 'Likely Real' : 'Likely Fake');
+  const isUncertain = level === 'Uncertain' || level === 'Suspicious';
 
   // Verdict
   const banner = document.getElementById('verdictBanner');
-  banner.className = 'verdict-banner ' + (isReal ? 'real' : 'fake');
-  document.getElementById('verdictIcon').textContent = isReal ? '✅' : '❌';
-  document.getElementById('verdictText').textContent = isReal ? 'LIKELY REAL' : 'LIKELY FAKE';
-  document.getElementById('verdictText').style.color = isReal ? 'var(--accent)' : 'var(--danger)';
-  document.getElementById('verdictSub').textContent = 'Cross-referenced against 3 distinct verification models.';
+  banner.className = 'verdict-banner ' + (isUncertain ? 'uncertain' : (isReal ? 'real' : 'fake'));
+  document.getElementById('verdictIcon').textContent = isUncertain ? '⚠️' : (isReal ? '✅' : '❌');
+  document.getElementById('verdictText').textContent = level.toUpperCase();
+  document.getElementById('verdictText').style.color = isUncertain ? 'var(--warning)' : (isReal ? 'var(--accent)' : 'var(--danger)');
+  document.getElementById('verdictSub').textContent = data.note || 'Cross-referenced against 3 distinct verification models.';
   document.getElementById('verdictScore').textContent = conf + '%';
-  document.getElementById('verdictScore').style.color = isReal ? 'var(--accent)' : 'var(--danger)';
+  document.getElementById('verdictScore').style.color = isUncertain ? 'var(--warning)' : (isReal ? 'var(--accent)' : 'var(--danger)');
 
   // Rings
   const mlPct = Math.round(data.real_probability * 100);

@@ -178,10 +178,12 @@ else:
     class PredictionResponse(BaseModel):
         prediction: str
         confidence: float
+        confidence_level: str = "Uncertain"
         real_probability: float
         fake_probability: float
         red_flag_score: float
         category: Optional[str] = None
+        note: Optional[str] = None
         timestamp: str
         model_version: str = "5.0"
 
@@ -410,33 +412,56 @@ else:
         finally:
             conn.close()
 
+    def _get_confidence_level(confidence: float) -> str:
+        """Return a human-readable confidence level."""
+        if confidence >= 90:
+            return "Verified"
+        elif confidence >= 75:
+            return "Likely Real" if confidence > 0 else "Likely Fake"
+        elif confidence >= 60:
+            return "Suspicious"
+        else:
+            return "Uncertain"
+
     @app.post("/api/v1/analyze", response_model=PredictionResponse)
     @limiter.limit("30/minute")
     async def analyze_article(article: Article, request: Request):
         if not MODEL_LOADED:
             raise HTTPException(503, "Model not loaded")
-        if len(article.text) < 50:
-            raise HTTPException(400, "Article text too short (minimum 50 characters)")
+        if len(article.text.strip()) < 10:
+            raise HTTPException(400, "Please enter some text to analyze.")
 
-        try:
-            cleaned = clean_text(article.text)
-            tfidf_features = tfidf.transform([cleaned])
+        cleaned = clean_text(article.text)
+        word_count = len(article.text.split())
+        is_short = word_count < 15
+        note = None
 
-            # Compute and scale the 20 meta-features, then concatenate with TF-IDF
-            import numpy as np
-            from scipy.sparse import hstack
-            meta = np.array([compute_meta_features(article.text)])
-            meta_scaled = scaler.transform(meta)
-            features = hstack([tfidf_features, meta_scaled])
+        tfidf_features = tfidf.transform([cleaned])
 
-            proba = model.predict_proba(features)[0]
-            real_prob, fake_prob = float(proba[1]), float(proba[0])
-        except Exception as e:
-            print(f"[ERR] Prediction failed: {e}")
-            raise HTTPException(500, f"Prediction error: {str(e)}")
+        # Compute and scale the 20 meta-features, then concatenate with TF-IDF
+        import numpy as np
+        from scipy.sparse import hstack
+        meta = np.array([compute_meta_features(article.text)])
+        meta_scaled = scaler.transform(meta)
+        features = hstack([tfidf_features, meta_scaled])
+
+        proba = model.predict_proba(features)[0]
+        real_prob, fake_prob = float(proba[1]), float(proba[0])
         red_flag_score = detect_red_flags(article.text)
         prediction = "FAKE" if fake_prob > 0.5 else "REAL"
         confidence = max(real_prob, fake_prob) * 100
+
+        # Short-text penalty: reduce confidence and add advisory note
+        if is_short:
+            confidence = min(confidence, 65.0)
+            note = "Short input detected. Confidence is limited — provide more context for a stronger verdict."
+
+        confidence_level = _get_confidence_level(confidence)
+        # Refine confidence_level based on prediction direction
+        if confidence >= 75:
+            confidence_level = "Likely Real" if prediction == "REAL" else "Likely Fake"
+        if confidence >= 90:
+            confidence_level = "Verified"
 
         # Save analysis to DB if user is authenticated
         user_id = _get_user_from_token(request)
@@ -450,7 +475,7 @@ else:
                     (user_id, preview, prediction, confidence, real_prob, fake_prob, red_flag_score)
                 )
                 conn.commit()
-                print(f"[OK] Analysis saved for user {user_id}: {prediction}")
+                print(f"[OK] Analysis saved for user {user_id}: {prediction} ({confidence_level})")
             except Exception as e:
                 print(f"[ERR] Failed to save analysis: {e}")
                 conn.rollback()
@@ -461,6 +486,7 @@ else:
 
         return PredictionResponse(
             prediction=prediction, confidence=confidence,
+            confidence_level=confidence_level, note=note,
             real_probability=real_prob, fake_probability=fake_prob,
             red_flag_score=red_flag_score, timestamp=datetime.now().isoformat()
         )
