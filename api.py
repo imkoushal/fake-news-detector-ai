@@ -145,7 +145,8 @@ else:
             c.execute('''CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP
             )''')
             c.execute('''CREATE TABLE IF NOT EXISTS analyses (
                 id SERIAL PRIMARY KEY,
@@ -186,6 +187,17 @@ else:
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )''')
+
+        # Migration: add expires_at column if it doesn't exist (for pre-existing databases)
+        try:
+            if USE_POSTGRES:
+                c.execute("ALTER TABLE sessions ADD COLUMN expires_at TIMESTAMP")
+            else:
+                c.execute("ALTER TABLE sessions ADD COLUMN expires_at DATETIME")
+            print("[OK] Migrated sessions table: added expires_at column")
+        except Exception:
+            pass  # Column already exists — this is expected
+
         conn.commit()
         conn.close()
 
@@ -450,13 +462,13 @@ else:
         elif input_quality == "headline":
             confidence = min(confidence, 80.0)
 
-        # Assign confidence tier
+        # Assign confidence tier (incorporates both confidence level AND prediction direction)
         if confidence >= 90:
-            confidence_tier = "Verified"
+            confidence_tier = "Verified Real" if prediction == "REAL" else "Confirmed Fake"
         elif confidence >= 75:
             confidence_tier = "Likely Real" if prediction == "REAL" else "Likely Fake"
         elif confidence >= 60:
-            confidence_tier = "Uncertain"
+            confidence_tier = "Leaning Real" if prediction == "REAL" else "Leaning Fake"
         elif confidence >= 50:
             confidence_tier = "Suspicious"
         else:
