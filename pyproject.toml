@@ -20,6 +20,11 @@ dependencies = [
 
     # NLP
     "spacy>=3.8.0",
+    "textblob>=0.17.1",
+
+    # ML (training)
+    "lightgbm>=4.0.0",
+    "xgboost>=2.0.0",
 
     # Web framework
     "streamlit>=1.40.0",

@@ -7,6 +7,8 @@ Deploy:       Render / Railway / Fly.io
 """
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()
 
 import numpy as np
 from scipy.sparse import hstack
@@ -25,7 +27,7 @@ try:
     from typing import Optional, List
     import joblib
     import re
-    from datetime import datetime
+    from datetime import datetime, timedelta
     import bcrypt
     import secrets
     import sqlite3
@@ -50,9 +52,13 @@ else:
         version="5.0"
     )
 
+    # ── CORS — read allowed origins from env, default to localhost for dev ──
+    _cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8501")
+    ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(",") if o.strip()]
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=ALLOWED_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -134,6 +140,7 @@ else:
                 token TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                expires_at DATETIME,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )''')
             c.execute('''CREATE TABLE IF NOT EXISTS analyses (
@@ -170,17 +177,35 @@ else:
             legacy = hashlib.sha256((stored_salt + password).encode()).hexdigest()
             return legacy == stored_hash
 
+    # ── Session token TTL (7 days) ──
+    SESSION_TTL_DAYS = 7
+
     def _get_user_from_token(request: Request):
-        """Extract user_id from auth token. Returns user_id or None."""
+        """Extract user_id from auth token. Rejects expired tokens."""
         token = request.headers.get("Authorization", "").replace("Bearer ", "")
         if not token:
             return None
         conn = get_db()
         c = conn.cursor()
-        c.execute(f"SELECT user_id FROM sessions WHERE token = {ph()}", (token,))
+        c.execute(f"SELECT user_id, expires_at FROM sessions WHERE token = {ph()}", (token,))
         row = c.fetchone()
+        if not row:
+            conn.close()
+            return None
+        # Check expiry (if expires_at column exists and is set)
+        if row[1]:
+            try:
+                exp = datetime.fromisoformat(str(row[1]))
+                if datetime.now() > exp:
+                    # Token expired — clean it up
+                    c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (token,))
+                    conn.commit()
+                    conn.close()
+                    return None
+            except (ValueError, TypeError):
+                pass
         conn.close()
-        return row[0] if row else None
+        return row[0]
 
     # ── Pydantic Models ──
     class SignupRequest(BaseModel):
@@ -241,7 +266,8 @@ else:
             else:
                 user_id = c.lastrowid
             token = secrets.token_urlsafe(32)
-            c.execute(f"INSERT INTO sessions (token, user_id) VALUES ({ph(2)})", (token, user_id))
+            expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token, user_id, expires_at))
             conn.commit()
             return {
                 "token": token,
@@ -282,7 +308,8 @@ else:
                 print(f"[OK] Auto-upgraded password hash to bcrypt for user {user[0]}")
 
             token = secrets.token_urlsafe(32)
-            c.execute(f"INSERT INTO sessions (token, user_id) VALUES ({ph(2)})", (token, user[0]))
+            expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token, user[0], expires_at))
             conn.commit()
             return {"token": token, "user": {"id": user[0], "name": user[1], "email": user[2]}}
         finally:
@@ -349,26 +376,7 @@ else:
                 "db_mode": "postgresql" if USE_POSTGRES else "sqlite",
                 "timestamp": datetime.now().isoformat()}
 
-    @app.get("/api/v1/debug/db")
-    async def debug_db():
-        """Temporary debug endpoint to check DB status."""
-        conn = get_db()
-        c = conn.cursor()
-        try:
-            if USE_POSTGRES:
-                c.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
-            else:
-                c.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = [row[0] for row in c.fetchall()]
-            counts = {}
-            for t in tables:
-                c.execute(f"SELECT COUNT(*) FROM {t}")
-                counts[t] = c.fetchone()[0]
-            return {"db_mode": "postgresql" if USE_POSTGRES else "sqlite", "tables": tables, "row_counts": counts}
-        except Exception as e:
-            return {"error": str(e)}
-        finally:
-            conn.close()
+    # Debug endpoint removed — was leaking DB schema unauthenticated (Issue #6)
 
     @app.post("/api/v1/analyze", response_model=PredictionResponse)
     @limiter.limit("30/minute")

@@ -8,7 +8,7 @@ import string
 try:
     nlp = spacy.load("en_core_web_sm", disable=["parser"])
     USE_SPACY = True
-except:
+except Exception:
     nlp = None
     USE_SPACY = False
 
@@ -60,7 +60,7 @@ def clean_text(text: str) -> str:
                 if not tok.is_stop and tok.is_alpha and tok.lemma_ not in ENHANCED_STOPWORDS
             ]
             return " ".join(tokens).strip()
-        except:
+        except Exception:
             pass
     
     # Fallback: remove common stopwords manually

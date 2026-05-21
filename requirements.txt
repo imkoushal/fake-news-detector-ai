@@ -56,7 +56,7 @@ lightgbm==4.6.0
 plotly==5.24.1
 google-generativeai==0.8.3
 
-# NEW: Additional dependencies for enhanced features
+# API framework dependencies
 fastapi==0.115.0
 uvicorn==0.32.1
 slowapi==0.1.9
@@ -64,5 +64,3 @@ pydantic==2.10.3
 bcrypt>=4.0.0
 python-multipart==0.0.18
 qrcode==8.0
-scipy==1.16.1
-pillow==11.3.0

@@ -101,10 +101,10 @@ def get_model_predictions(model, text_features) -> Dict:
                 pred = estimator.predict(text_features)[0]
                 proba = estimator.predict_proba(text_features)[0] if hasattr(estimator, 'predict_proba') else [0.5, 0.5]
                 predictions[f'Model_{i+1}'] = {
-                    'prediction': 'FAKE' if pred == 1 else 'REAL',
+                    'prediction': 'REAL' if pred == 1 else 'FAKE',
                     'confidence': max(proba) * 100
                 }
-            except:
+            except Exception:
                 pass
     
     return predictions
@@ -185,7 +185,6 @@ def extract_time_references(text: str) -> List[str]:
         matches = re.findall(pattern, text, re.IGNORECASE)
         references.extend(matches)
     
-    return references
     return references
 
 def detect_fake_news_red_flags(text: str) -> float:

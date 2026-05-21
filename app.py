@@ -1,6 +1,8 @@
 import streamlit as st
 import json
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from joblib import load
 import requests
 import re
