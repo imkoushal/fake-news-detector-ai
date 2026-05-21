@@ -1,3 +1,15 @@
+"""
+⚠️ DEPRECATED: This file is the legacy Streamlit entry point.
+Use `streamlit run streamlit_app.py` instead, which uses the modular src/ package.
+This file is retained only for backward compatibility and will be removed in a future version.
+"""
+import warnings
+warnings.warn(
+    "app.py is deprecated. Use 'streamlit run streamlit_app.py' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 import streamlit as st
 import json
 import os

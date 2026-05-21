@@ -84,13 +84,44 @@ else:
     if not USE_POSTGRES:
         print("[OK] SQLite mode — local development")
 
-    def get_db():
-        """Get a database connection."""
-        if USE_POSTGRES:
+    # Connection pool for PostgreSQL (reuse connections instead of opening/closing each request)
+    _pg_pool = None
+
+    if USE_POSTGRES:
+        try:
+            from psycopg2 import pool as pg_pool
             url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-            conn = psycopg2.connect(url)
-            conn.autocommit = False
-            return conn
+            _pg_pool = pg_pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=url)
+            print(f"[OK] PostgreSQL connection pool created (1-10 connections)")
+        except Exception as e:
+            print(f"[WARN] Failed to create connection pool: {e}")
+            _pg_pool = None
+
+    class _PooledConnection:
+        """Wraps a psycopg2 connection so that .close() returns it to the pool."""
+        def __init__(self, conn, pool):
+            self._conn = conn
+            self._pool = pool
+        def close(self):
+            try: self._pool.putconn(self._conn)
+            except Exception:
+                try: self._conn.close()
+                except Exception: pass
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+
+    def get_db():
+        """Get a database connection (pooled for PostgreSQL)."""
+        if USE_POSTGRES:
+            if _pg_pool:
+                conn = _pg_pool.getconn()
+                conn.autocommit = False
+                return _PooledConnection(conn, _pg_pool)
+            else:
+                url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+                conn = psycopg2.connect(url)
+                conn.autocommit = False
+                return conn
         else:
             return sqlite3.connect(str(BASE_DIR / "users.db"))
 
@@ -589,6 +620,11 @@ else:
             }
         finally:
             conn.close()
+
+    # ── API catch-all: return proper 404 for unmatched /api/ paths ──
+    @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    async def api_catchall(path: str):
+        raise HTTPException(404, f"API endpoint /api/{path} not found")
 
     # ── Serve Static Frontend ──
     FRONTEND_DIR = BASE_DIR / "frontend"
