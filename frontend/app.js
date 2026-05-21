@@ -236,8 +236,9 @@ function showToast(msg) {
 // ===== ANALYZE =====
 async function runAnalysis() {
   const text = document.getElementById('articleText').value.trim();
-  if (!text || text.length < 10) {
-    showToast('Please enter some text to analyze.');
+  const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+  if (!text || wordCount < 3) {
+    showToast('Please enter at least a few words to analyze.');
     return;
   }
 
@@ -258,18 +259,10 @@ async function runAnalysis() {
     if (!res.ok) throw new Error('API error ' + res.status);
     data = await res.json();
   } catch (e) {
-    // Fallback demo data
-    console.warn('API unavailable, using demo data:', e.message);
-    const fakeProb = Math.random();
-    data = {
-      prediction: fakeProb > 0.5 ? 'FAKE' : 'REAL',
-      confidence: (Math.max(fakeProb, 1 - fakeProb) * 100),
-      confidence_level: 'Uncertain',
-      real_probability: 1 - fakeProb,
-      fake_probability: fakeProb,
-      red_flag_score: Math.random() * 0.5,
-      note: null
-    };
+    btn.textContent = 'Analyze Article';
+    btn.disabled = false;
+    showToast('Analysis failed: ' + e.message + '. Please try again.');
+    return;
   }
 
   btn.textContent = 'Analyze Article';
@@ -284,55 +277,55 @@ function renderResults(data) {
 
   const isReal = data.prediction === 'REAL';
   const conf = data.confidence.toFixed(0);
-  const level = data.confidence_level || (isReal ? 'Likely Real' : 'Likely Fake');
-  const isUncertain = level === 'Uncertain' || level === 'Suspicious';
+  const tier = data.confidence_tier || (isReal ? 'LIKELY REAL' : 'LIKELY FAKE');
 
   // Verdict
   const banner = document.getElementById('verdictBanner');
-  banner.className = 'verdict-banner ' + (isUncertain ? 'uncertain' : (isReal ? 'real' : 'fake'));
-  document.getElementById('verdictIcon').textContent = isUncertain ? '⚠️' : (isReal ? '✅' : '❌');
-  document.getElementById('verdictText').textContent = level.toUpperCase();
-  document.getElementById('verdictText').style.color = isUncertain ? 'var(--warning)' : (isReal ? 'var(--accent)' : 'var(--danger)');
-  document.getElementById('verdictSub').textContent = data.note || 'Cross-referenced against 3 distinct verification models.';
-  document.getElementById('verdictScore').textContent = conf + '%';
-  document.getElementById('verdictScore').style.color = isUncertain ? 'var(--warning)' : (isReal ? 'var(--accent)' : 'var(--danger)');
+  banner.className = 'verdict-banner ' + (isReal ? 'real' : 'fake');
+  document.getElementById('verdictIcon').textContent = isReal ? '✅' : '❌';
+  document.getElementById('verdictText').textContent = tier.toUpperCase();
+  document.getElementById('verdictText').style.color = isReal ? 'var(--accent)' : 'var(--danger)';
 
-  // Rings
+  // Show input quality context
+  let subText = 'Analyzed by a 5-model ML ensemble trained on 59,000+ articles.';
+  if (data.input_quality === 'short_claim') {
+    subText = '⚠️ Short claim detected — not enough context for high-confidence verification.';
+  } else if (data.input_quality === 'headline') {
+    subText = 'ℹ️ Headline-length input — confidence may be lower than for full articles.';
+  }
+  document.getElementById('verdictSub').textContent = subText;
+  document.getElementById('verdictScore').textContent = conf + '%';
+  document.getElementById('verdictScore').style.color = isReal ? 'var(--accent)' : 'var(--danger)';
+
+  // Rings — all derived from real ML API response data
   const mlPct = Math.round(data.real_probability * 100);
-  const geminiPct = Math.max(50, Math.round((data.real_probability * 0.9 + Math.random() * 0.1) * 100));
-  const webPct = Math.max(50, Math.round((data.real_probability * 0.85 + Math.random() * 0.15) * 100));
+  const redFlagPct = Math.round(Math.max(0, 100 - (data.red_flag_score || 0) * 100));
+  const confPct = Math.round(data.confidence);
 
   animateRing('ringML', mlPct, 'ringMLText');
-  animateRing('ringGemini', geminiPct, 'ringGeminiText');
-  animateRing('ringWeb', webPct, 'ringWebText');
+  animateRing('ringGemini', redFlagPct, 'ringGeminiText');
+  animateRing('ringWeb', confPct, 'ringWebText');
 
   document.getElementById('mlDetail').textContent = isReal ? 'High structural consistency.' : 'Structural anomalies detected.';
-  document.getElementById('geminiDetail').textContent = isReal ? 'Semantic logic aligns with facts.' : 'Logical inconsistencies found.';
-  document.getElementById('webDetail').textContent = isReal ? 'Strong corroboration found.' : 'Limited corroboration.';
+  document.getElementById('geminiDetail').textContent = redFlagPct >= 80 ? 'Low red-flag indicators.' : 'Elevated red-flag indicators.';
+  document.getElementById('webDetail').textContent = `Overall confidence: ${data.confidence_tier || 'N/A'}`;
 
   // Ring colors
   setRingColor('ringML', mlPct);
-  setRingColor('ringGemini', geminiPct);
-  setRingColor('ringWeb', webPct);
+  setRingColor('ringGemini', redFlagPct);
+  setRingColor('ringWeb', confPct);
 
-  // Web sources (demo)
+  // Web sources — honest message
   const sourcesList = document.getElementById('webSourcesList');
-  const sources = [
-    { name: 'Reuters', date: 'Oct 24, 2023' },
-    { name: 'Associated Press', date: 'Oct 25, 2023' },
-    { name: 'Local News Net', date: 'Oct 23, 2023' }
-  ];
-  sourcesList.innerHTML = sources.map(s =>
-    `<div class="source-item"><div class="source-item-info"><span class="source-item-name">${s.name}</span><span class="source-item-date">${s.date}</span></div><a class="source-item-link" href="#">🔗</a></div>`
-  ).join('');
+  sourcesList.innerHTML = '<div class="source-item"><div class="source-item-info"><span class="source-item-name">ML Ensemble</span><span class="source-item-date">5-model stacking classifier (LR, RF, SGD, SVC, LightGBM)</span></div></div>';
 
-  // Gemini
+  // Analysis summary — real data
   document.getElementById('geminiBadge').className = 'badge badge-green';
-  document.getElementById('geminiBadge').textContent = 'COMPLETED';
+  document.getElementById('geminiBadge').textContent = 'ML ANALYSIS';
+  const realProbPct = (data.real_probability * 100).toFixed(1);
+  const fakeProbPct = (data.fake_probability * 100).toFixed(1);
   document.getElementById('geminiAnalysisText').textContent =
-    isReal
-      ? '"The text provides a coherent and factually verifiable account of recent events. Cross-referencing entities mentioned aligns with established public records. Tone is objective and lacks common disinformation markers."'
-      : '"The text contains several unverifiable claims and uses emotionally charged language. Multiple assertions lack attribution to credible sources. Sensationalism indicators are elevated."';
+    `Real probability: ${realProbPct}% | Fake probability: ${fakeProbPct}% | Red flag score: ${((data.red_flag_score || 0) * 100).toFixed(0)}% | Quality: ${data.input_quality || 'sufficient'} | Tier: ${data.confidence_tier || 'N/A'}`;
 }
 
 function animateRing(ringId, pct, textId) {
@@ -400,22 +393,59 @@ async function runBatch() {
   const tbody = document.querySelector('#batchTable tbody');
   tbody.innerHTML = '';
 
-  for (let i = 0; i < batchData.length; i++) {
-    const pct = ((i + 1) / batchData.length * 100);
-    document.getElementById('batchProgressFill').style.width = pct + '%';
-    document.getElementById('batchProgressText').textContent = `Processing ${i + 1} / ${batchData.length}...`;
+  // Build batch request payload
+  const articles = batchData.map((text, i) => ({ id: String(i + 1), text }));
 
-    const fakeProb = Math.random();
-    const row = {
-      preview: batchData[i].substring(0, 80) + '...',
-      prediction: fakeProb > 0.5 ? 'FAKE' : 'REAL',
-      confidence: (Math.max(fakeProb, 1 - fakeProb) * 100).toFixed(1) + '%',
-      real_prob: (1 - fakeProb).toFixed(3),
-      fake_prob: fakeProb.toFixed(3),
-      red_flags: (Math.random() * 0.5).toFixed(2)
-    };
-    batchResults.push(row);
-    await new Promise(r => setTimeout(r, 50));
+  // Process in chunks of 50 (API limit)
+  const CHUNK_SIZE = 50;
+  let processed = 0;
+
+  for (let start = 0; start < articles.length; start += CHUNK_SIZE) {
+    const chunk = articles.slice(start, start + CHUNK_SIZE);
+    const pct = Math.round(((start + chunk.length) / articles.length) * 100);
+    document.getElementById('batchProgressFill').style.width = pct + '%';
+    document.getElementById('batchProgressText').textContent = `Processing ${start + 1}–${start + chunk.length} of ${articles.length}...`;
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      const token = getToken();
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      const res = await fetch(API_BASE + '/api/v1/batch', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ articles: chunk })
+      });
+
+      if (!res.ok) throw new Error('Batch API error: ' + res.status);
+      const batchResponse = await res.json();
+
+      for (const r of batchResponse.results) {
+        const idx = parseInt(r.id) - 1;
+        const row = {
+          preview: (batchData[idx] || '').substring(0, 80) + '...',
+          prediction: r.prediction || 'ERROR',
+          confidence: r.error ? 'N/A' : (r.confidence || 0).toFixed(1) + '%',
+          real_prob: r.error ? 'N/A' : (r.real_probability || 0).toFixed(3),
+          fake_prob: r.error ? 'N/A' : (r.fake_probability || 0).toFixed(3),
+          red_flags: r.error ? r.error : (r.red_flag_score || 0).toFixed(2)
+        };
+        batchResults.push(row);
+      }
+    } catch (e) {
+      showToast('Batch error: ' + e.message);
+      // Mark remaining in this chunk as errors
+      for (const a of chunk) {
+        batchResults.push({
+          preview: a.text.substring(0, 80) + '...',
+          prediction: 'ERROR',
+          confidence: 'N/A',
+          real_prob: 'N/A',
+          fake_prob: 'N/A',
+          red_flags: e.message
+        });
+      }
+    }
   }
 
   document.getElementById('batchProgress').classList.add('hidden');

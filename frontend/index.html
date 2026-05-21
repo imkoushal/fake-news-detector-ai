@@ -77,8 +77,8 @@
 
         <div class="auth-features">
           <span class="auth-feat">ML Ensemble</span>
-          <span class="auth-feat">Gemini AI</span>
-          <span class="auth-feat">Web Verification</span>
+          <span class="auth-feat">Red Flag Scanner</span>
+          <span class="auth-feat">Meta-Features</span>
         </div>
       </div>
     </div>
@@ -170,20 +170,20 @@
           <div class="feature-card">
             <div class="feature-icon">🧠</div>
             <h3>ML Analysis</h3>
-            <p>Raw text is parsed through proprietary natural language statistical models to identify stylistic,
+            <p>Raw text is parsed through a 5-model stacking ensemble (LR, RF, SGD, SVC, LightGBM) to identify stylistic,
               emotional manipulation, and structural inconsistencies.</p>
           </div>
           <div class="feature-card">
-            <div class="feature-icon">✨</div>
-            <h3>AI Fact-Check</h3>
-            <p>Entities and claims are extracted and cross-referenced against validated institutional databases,
-              peer-reviewed journals, and historical records.</p>
+            <div class="feature-icon">🚩</div>
+            <h3>Red Flag Scanner</h3>
+            <p>Heuristic-based analysis detects conspiracy language, sensationalism, clickbait patterns, and
+              unverifiable claims that are common in misinformation.</p>
           </div>
           <div class="feature-card">
-            <div class="feature-icon">🌐</div>
-            <h3>Web Verification</h3>
-            <p>Real-time scraping against high-trust news aggregators and government databases to verify the current
-              consensus and temporal accuracy of the claim.</p>
+            <div class="feature-icon">📊</div>
+            <h3>Meta-Feature Analysis</h3>
+            <p>20 handcrafted linguistic features including readability scores, entity density, and sentiment
+              analysis provide deeper context beyond surface-level text matching.</p>
           </div>
         </div>
       </div>
@@ -245,7 +245,7 @@
             <span class="verdict-icon" id="verdictIcon">✅</span>
             <div>
               <h2 class="verdict-text" id="verdictText">LIKELY REAL</h2>
-              <p class="verdict-sub" id="verdictSub">Cross-referenced against 3 distinct verification models.</p>
+              <p class="verdict-sub" id="verdictSub">Analyzed by a 5-model ML ensemble trained on 59,000+ articles.</p>
             </div>
           </div>
           <div class="verdict-right">
@@ -269,8 +269,8 @@
             <p class="source-detail" id="mlDetail">High structural consistency.</p>
           </div>
           <div class="source-card">
-            <div class="source-icon">✨</div>
-            <h3>Gemini AI</h3>
+            <div class="source-icon">🚩</div>
+            <h3>Red Flags</h3>
             <div class="progress-ring-wrap">
               <svg class="progress-ring" viewBox="0 0 80 80">
                 <circle class="ring-bg" cx="40" cy="40" r="34" />
@@ -281,8 +281,8 @@
             <p class="source-detail" id="geminiDetail">Semantic logic aligns with facts.</p>
           </div>
           <div class="source-card">
-            <div class="source-icon">🌐</div>
-            <h3>Web Verification</h3>
+            <div class="source-icon">📊</div>
+            <h3>Confidence</h3>
             <div class="progress-ring-wrap">
               <svg class="progress-ring" viewBox="0 0 80 80">
                 <circle class="ring-bg" cx="40" cy="40" r="34" />
@@ -314,7 +314,7 @@
           <div class="card">
             <h3>Web Sources</h3>
             <div id="webSourcesList" class="source-list">
-              <p class="text-muted">Sources will appear after analysis.</p>
+              <p class="text-muted">Model information will appear after analysis.</p>
             </div>
           </div>
         </div>
@@ -322,8 +322,8 @@
         <!-- Gemini Analysis -->
         <div class="card">
           <div class="card-header-row">
-            <h3>✨ Gemini AI Analysis</h3>
-            <span class="badge badge-green" id="geminiBadge">COMPLETED</span>
+            <h3>📊 ML Analysis Breakdown</h3>
+            <span class="badge badge-green" id="geminiBadge">ML ANALYSIS</span>
           </div>
           <blockquote id="geminiAnalysisText" class="analysis-quote">Analysis will appear here after processing.
           </blockquote>
