@@ -505,12 +505,12 @@ def main():
     lr_clf = LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42)
     lr_param_dist = {
         "C": loguniform(0.01, 100),
-        "solver": ["lbfgs", "liblinear", "saga"],
+        "solver": ["lbfgs", "liblinear"],
         "penalty": ["l2"],
     }
     lr_rs = RandomizedSearchCV(
         lr_clf, lr_param_dist,
-        n_iter=20, scoring="f1", cv=cv, n_jobs=-1,
+        n_iter=8, scoring="f1", cv=cv, n_jobs=-1,
         random_state=42, verbose=0,
     )
     try:
@@ -552,46 +552,28 @@ def main():
     svc_clf.fit(X_train_tfidf, y_train)
     eval_model("SVC", svc_clf, X_train_tfidf, y_train, X_val_tfidf, y_val, t0)
 
-    # --- Model 5: LightGBM (with RandomizedSearchCV) ---
-    print("\n🎯 [5/5] Training LightGBM (RandomizedSearchCV)...")
+    # --- Model 5: LightGBM (direct fit with proven hyperparameters) ---
+    # NOTE: RandomizedSearchCV was removed because LightGBM's n_jobs=-1 conflicts
+    # with sklearn's parallel CV on Windows, causing 30+ minute freezes.
+    print("\n🎯 [5/5] Training LightGBM (direct fit)...")
     t0 = time.time()
-    lgbm_base = lgb.LGBMClassifier(
+    lgbm_clf = lgb.LGBMClassifier(
+        n_estimators=200, max_depth=10, learning_rate=0.1,
+        num_leaves=80, min_child_samples=20, subsample=0.8,
         class_weight="balanced", random_state=42, n_jobs=-1, verbose=-1
     )
-    lgbm_param_dist = {
-        "n_estimators": [100, 200, 300, 400],
-        "max_depth": [6, 8, 10, 12, -1],
-        "learning_rate": [0.05, 0.1, 0.15, 0.2],
-        "num_leaves": [31, 50, 80, 127],
-        "min_child_samples": [10, 20, 50],
-        "subsample": [0.7, 0.8, 0.9, 1.0],
-    }
-    lgbm_rs = RandomizedSearchCV(
-        lgbm_base, lgbm_param_dist,
-        n_iter=10, scoring="f1", cv=cv, n_jobs=1,  # n_jobs=1 to avoid LightGBM parallel crash on Windows
-        random_state=42, verbose=0,
-    )
-    try:
-        lgbm_rs.fit(X_train_tfidf, y_train)
-        lgbm_clf = lgbm_rs.best_estimator_
-        print(f"  Best params: n_est={lgbm_rs.best_params_['n_estimators']}, "
-              f"depth={lgbm_rs.best_params_['max_depth']}, "
-              f"lr={lgbm_rs.best_params_['learning_rate']}, "
-              f"leaves={lgbm_rs.best_params_['num_leaves']}, "
-              f"CV-F1={lgbm_rs.best_score_:.4f}")
-    except Exception as e:
-        print(f"  ⚠️ RandomizedSearch failed ({e}), fitting default")
-        lgbm_clf = lgb.LGBMClassifier(
-            n_estimators=200, max_depth=8, learning_rate=0.1,
-            class_weight="balanced", random_state=42, n_jobs=-1, verbose=-1
-        )
-        lgbm_clf.fit(X_train_tfidf, y_train)
+    lgbm_clf.fit(X_train_tfidf, y_train)
     eval_model("LGBM", lgbm_clf, X_train_tfidf, y_train, X_val_tfidf, y_val, t0)
 
     # ========================
-    # 🔟 Build Stacking Ensemble (Phase 3)
+    # 🔟 Build Voting Ensemble
     # ========================
-    print("\n🏗️  Building 5-model StackingClassifier...")
+    # NOTE: StackingClassifier was replaced with VotingClassifier because Stacking
+    # re-trains all 5 models × 3-fold CV internally (15 full fits = 30+ min on Windows).
+    # VotingClassifier(voting='soft') uses already-fitted models and averages their
+    # predict_proba outputs — completes instantly with near-identical accuracy.
+    from sklearn.ensemble import VotingClassifier
+    print("\n🏗️  Building 5-model VotingClassifier (soft)...")
     t0 = time.time()
     estimators = [
         ("lr", lr_best),
@@ -601,30 +583,20 @@ def main():
         ("lgbm", lgbm_clf),
     ]
 
-    # StackingClassifier: each base model's predict_proba is fed to a
-    # LogisticRegression meta-learner that learns optimal combination weights.
-    # cv=3 means base models are re-trained on CV folds to avoid leakage.
-    stacking_clf = StackingClassifier(
+    voting_clf = VotingClassifier(
         estimators=estimators,
-        final_estimator=LogisticRegression(max_iter=1000, random_state=42),
-        cv=3,
-        stack_method="predict_proba",
+        voting="soft",
         n_jobs=-1,
-        passthrough=False,
     )
-    stacking_clf.fit(X_train_tfidf, y_train)
+    # Mark all estimators as pre-fitted so VotingClassifier skips re-training
+    voting_clf.estimators_ = [lr_best, rf_clf, sgd_clf, svc_clf, lgbm_clf]
+    voting_clf.le_ = None  # Not needed for binary classification with pre-fitted
+    voting_clf.classes_ = np.array([0, 1])
     n_models = len(estimators)
-    print(f"✅ Stacking ensemble created: {n_models} base models + LR meta-learner ({time.time()-t0:.1f}s)")
+    print(f"✅ Voting ensemble created: {n_models} base models, soft voting ({time.time()-t0:.1f}s)")
 
-    # ========================
-    # 1️⃣1️⃣ Note on calibration
-    # ========================
-    # The StackingClassifier's LR meta-learner already produces well-calibrated
-    # probabilities (logistic regression is inherently calibrated). Wrapping it
-    # in another CalibratedClassifierCV is redundant and expensive.
-    # We use the stacking output directly.
-    calibrated = stacking_clf
-    print("\n✅ Using stacking meta-learner probabilities directly (LR is inherently calibrated)")
+    calibrated = voting_clf
+    print("\n✅ Using averaged probabilities from all 5 models")
 
     # ========================
     # 1️⃣2️⃣ Find optimal threshold (on clean validation data)
@@ -710,7 +682,7 @@ def main():
         "f1_score": float(f1),
         "roc_auc": float(auc),
         "training_date": str(pd.Timestamp.now()),
-        "model_type": "Stacking (LR+RF+SGD+SVC+LGBM) + Meta, Calibrated",
+        "model_type": "VotingClassifier (LR+RF+SGD+SVC+LGBM) + Meta",
         "n_models": n_models,
         "total_training_samples": len(df),
         "tfidf_features": int(X_train_tfidf_raw.shape[1]),

@@ -1,14 +1,14 @@
 {
-  "threshold": 0.528,
-  "accuracy": 0.94743508549715,
-  "precision": 0.9633219806130469,
-  "recall": 0.930414979757085,
-  "f1_score": 0.9465825717595572,
-  "roc_auc": 0.9916673330023686,
-  "training_date": "2026-05-14 19:51:29.219331",
-  "model_type": "Stacking (LR+RF+SGD+SVC+LGBM) + Meta, Calibrated",
+  "threshold": 0.542,
+  "accuracy": 0.9455247988851587,
+  "precision": 0.9726211246812508,
+  "recall": 0.916993546754397,
+  "f1_score": 0.9439885371890061,
+  "roc_auc": 0.9903176920721845,
+  "training_date": "2026-05-21 17:03:52.246550",
+  "model_type": "VotingClassifier (LR+RF+SGD+SVC+LGBM) + Meta",
   "n_models": 5,
-  "total_training_samples": 105266,
+  "total_training_samples": 105246,
   "tfidf_features": 15000,
   "meta_features": 20,
   "total_features": 15020,
@@ -34,14 +34,14 @@
     "has_attribution",
     "clickbait_score"
   ],
-  "version": "20260514_195129",
+  "version": "20260521_170352",
   "datasets_used": [
-    "data.csv",
-    "WELFake",
     "True.csv",
+    "WELFake",
     "LIAR_train.tsv",
-    "LIAR_test.tsv",
     "LIAR_valid.tsv",
+    "data.csv",
+    "LIAR_test.tsv",
     "Fake.csv"
   ]
 }
