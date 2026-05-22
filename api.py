@@ -503,17 +503,15 @@ else:
         )
 
     # ── Gemini AI Verification Endpoint ──
-    _gemini_client = None
-    _gemini_init_attempted = False
+    _gemini_state = {"client": None, "attempted": False}
 
     def _get_gemini_client():
         """Lazy-init Gemini client on first request (uses lightweight google-genai SDK)."""
-        nonlocal _gemini_client, _gemini_init_attempted
-        if _gemini_client is not None:
-            return _gemini_client
-        if _gemini_init_attempted:
+        if _gemini_state["client"] is not None:
+            return _gemini_state["client"]
+        if _gemini_state["attempted"]:
             return None
-        _gemini_init_attempted = True
+        _gemini_state["attempted"] = True
 
         api_key = os.getenv("GEMINI_API_KEY", "")
         if not api_key:
@@ -521,9 +519,9 @@ else:
             return None
         try:
             from google import genai
-            _gemini_client = genai.Client(api_key=api_key)
+            _gemini_state["client"] = genai.Client(api_key=api_key)
             print("[OK] Gemini AI initialized (google-genai SDK)")
-            return _gemini_client
+            return _gemini_state["client"]
         except ImportError:
             print("[WARN] google-genai not installed — Gemini verification disabled")
             return None
