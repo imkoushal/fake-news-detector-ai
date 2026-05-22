@@ -1,15 +1,15 @@
-# Production API dependencies (Python 3.11)
+# Production requirements — versions match model training environment
+scikit-learn==1.8.0
+numpy==2.4.4
+scipy==1.17.1
+joblib==1.5.3
+lightgbm==4.6.0
 fastapi==0.115.0
 uvicorn[standard]==0.32.1
 slowapi==0.1.9
 pydantic==2.10.3
 python-multipart==0.0.18
-joblib==1.4.2
-scikit-learn==1.5.2
-numpy==2.0.2
-scipy==1.14.1
-requests==2.32.5
+bcrypt>=4.0.0
+psycopg2-binary>=2.9.0
 python-dotenv==1.0.0
-lightgbm==4.5.0
-psycopg2-binary==2.9.10
-bcrypt==4.2.1
+requests>=2.31.0
