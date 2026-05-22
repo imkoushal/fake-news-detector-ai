@@ -297,21 +297,51 @@ function renderResults(data) {
   document.getElementById('verdictScore').textContent = conf + '%';
   document.getElementById('verdictScore').style.color = isReal ? 'var(--accent)' : 'var(--danger)';
 
-  // Rings — ML and Confidence from API response
+  // ── Card 1: ML Model (instant from analyze response) ──
   const mlPct = Math.round(data.real_probability * 100);
-  const confPct = Math.round(data.confidence);
-
   animateRing('ringML', mlPct, 'ringMLText');
-  animateRing('ringWeb', confPct, 'ringWebText');
-
-  document.getElementById('mlDetail').textContent = isReal ? 'High structural consistency.' : 'Structural anomalies detected.';
-  document.getElementById('webDetail').textContent = `Overall confidence: ${data.confidence_tier || 'N/A'}`;
-
-  // Ring colors
   setRingColor('ringML', mlPct);
-  setRingColor('ringWeb', confPct);
+  document.getElementById('mlDetail').textContent = isReal ? 'High structural consistency.' : 'Structural anomalies detected.';
 
-  // Gemini AI Verification — async call to middle card
+  // Track scores from all 3 sources for combined verdict
+  let geminiScore = null, gnewsScore = null;
+  const articleText = document.getElementById('articleInput').value.trim();
+
+  function updateCombinedVerdict() {
+    // Weight: ML 50%, Gemini 30%, GNews 20%
+    let sources = [{ score: data.real_probability, weight: 0.5 }];
+    let totalWeight = 0.5;
+    if (geminiScore !== null) { sources.push({ score: geminiScore, weight: 0.3 }); totalWeight += 0.3; }
+    if (gnewsScore !== null) { sources.push({ score: gnewsScore, weight: 0.2 }); totalWeight += 0.2; }
+
+    const combined = sources.reduce((sum, s) => sum + s.score * s.weight, 0) / totalWeight;
+    const combinedPct = Math.round(combined * 100);
+    const combinedReal = combined > 0.5;
+    const conf = Math.round(Math.abs(combined - 0.5) * 200);
+
+    // Update banner with combined verdict
+    const banner = document.getElementById('verdictBanner');
+    banner.className = 'verdict-banner ' + (combinedReal ? 'real' : 'fake');
+    document.getElementById('verdictIcon').textContent = combinedReal ? '✅' : '❌';
+    let tier;
+    if (conf >= 90) tier = combinedReal ? 'Verified Real' : 'Confirmed Fake';
+    else if (conf >= 75) tier = combinedReal ? 'Likely Real' : 'Likely Fake';
+    else if (conf >= 60) tier = combinedReal ? 'Leaning Real' : 'Leaning Fake';
+    else if (conf >= 50) tier = 'Suspicious';
+    else tier = 'Inconclusive';
+    document.getElementById('verdictText').textContent = tier.toUpperCase();
+    document.getElementById('verdictText').style.color = combinedReal ? 'var(--accent)' : 'var(--danger)';
+    document.getElementById('verdictScore').textContent = conf + '%';
+    document.getElementById('verdictScore').style.color = combinedReal ? 'var(--accent)' : 'var(--danger)';
+
+    const srcCount = 1 + (geminiScore !== null ? 1 : 0) + (gnewsScore !== null ? 1 : 0);
+    document.getElementById('verdictSub').textContent = `Combined analysis from ${srcCount} source${srcCount > 1 ? 's' : ''}: ML Model${geminiScore !== null ? ' + Gemini AI' : ''}${gnewsScore !== null ? ' + GNews' : ''}`;
+  }
+
+  // Initial verdict from ML only
+  updateCombinedVerdict();
+
+  // ── Card 2: Gemini AI (async) ──
   document.getElementById('geminiDetail').textContent = 'Verifying with Gemini AI...';
   animateRing('ringGemini', 0, 'ringGeminiText');
   document.getElementById('ringGeminiText').textContent = '...';
@@ -319,38 +349,66 @@ function renderResults(data) {
   fetch(API_BASE + '/api/v1/gemini-verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: document.getElementById('articleInput').value.trim() })
+    body: JSON.stringify({ text: articleText })
   })
   .then(r => r.ok ? r.json() : Promise.reject(r))
   .then(g => {
-    const geminiPct = Math.round(g.credibility_score * 100);
+    geminiScore = g.credibility_score;
+    const geminiPct = Math.round(geminiScore * 100);
     animateRing('ringGemini', geminiPct, 'ringGeminiText');
     setRingColor('ringGemini', geminiPct);
     const verdictMap = { 'LIKELY_TRUE': 'Likely True', 'LIKELY_FALSE': 'Likely False', 'MIXED': 'Mixed signals', 'UNVERIFIABLE': 'Unverifiable' };
     document.getElementById('geminiDetail').textContent = verdictMap[g.verdict] || g.verdict;
-
-    // Update the analysis section with Gemini insights
-    document.getElementById('geminiBadge').className = 'badge badge-green';
     document.getElementById('geminiBadge').textContent = 'GEMINI AI';
-    document.getElementById('geminiAnalysisText').textContent = g.analysis || 'No additional analysis available.';
+    document.getElementById('geminiAnalysisText').textContent = g.analysis || 'No additional analysis.';
+    updateCombinedVerdict();
   })
-  .catch((err) => {
-    // Gemini unavailable — show a clear message, not red-flag data
-    console.warn('Gemini verification unavailable:', err);
-    animateRing('ringGemini', 0, 'ringGeminiText');
+  .catch(() => {
     document.getElementById('ringGeminiText').textContent = '—';
     document.getElementById('geminiDetail').textContent = 'Gemini AI unavailable';
-    document.getElementById('geminiBadge').className = 'badge badge-green';
-    document.getElementById('geminiBadge').textContent = 'ML ANALYSIS';
-    const realProbPct = (data.real_probability * 100).toFixed(1);
-    const fakeProbPct = (data.fake_probability * 100).toFixed(1);
-    document.getElementById('geminiAnalysisText').textContent =
-      `Real: ${realProbPct}% | Fake: ${fakeProbPct}% | Red flags: ${((data.red_flag_score || 0) * 100).toFixed(0)}% | ${data.confidence_tier || 'N/A'}`;
+    document.getElementById('geminiBadge').textContent = 'UNAVAILABLE';
   });
 
-  // Web sources — honest message
-  const sourcesList = document.getElementById('webSourcesList');
-  sourcesList.innerHTML = '<div class="source-item"><div class="source-item-info"><span class="source-item-name">ML Ensemble</span><span class="source-item-date">5-model voting classifier (LR, RF, SGD, SVC, LightGBM)</span></div></div>';
+  // ── Card 3: GNews API (async) ──
+  document.getElementById('webDetail').textContent = 'Searching news sources...';
+  animateRing('ringWeb', 0, 'ringWebText');
+  document.getElementById('ringWebText').textContent = '...';
+
+  fetch(API_BASE + '/api/v1/gnews-search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: articleText })
+  })
+  .then(r => r.ok ? r.json() : Promise.reject(r))
+  .then(g => {
+    gnewsScore = g.web_score;
+    const webPct = Math.round(gnewsScore * 100);
+    animateRing('ringWeb', webPct, 'ringWebText');
+    setRingColor('ringWeb', webPct);
+    const detail = g.trusted_count > 0
+      ? `${g.trusted_count} trusted source${g.trusted_count > 1 ? 's' : ''} found (${g.total_articles} total)`
+      : g.total_articles > 0
+        ? `${g.total_articles} article${g.total_articles > 1 ? 's' : ''} found, no trusted sources`
+        : 'No matching articles found';
+    document.getElementById('webDetail').textContent = detail;
+
+    // Show sources in Web Sources section
+    const sourcesList = document.getElementById('webSourcesList');
+    if (g.articles && g.articles.length > 0) {
+      sourcesList.innerHTML = g.articles.map(a =>
+        `<div class="source-item"><div class="source-item-info"><a href="${a.url}" target="_blank" class="source-item-name">${a.source}</a><span class="source-item-date">${a.title}</span></div></div>`
+      ).join('');
+    } else {
+      sourcesList.innerHTML = '<p class="text-muted">No matching news articles found.</p>';
+    }
+    updateCombinedVerdict();
+  })
+  .catch(() => {
+    document.getElementById('ringWebText').textContent = '—';
+    document.getElementById('webDetail').textContent = 'GNews API unavailable';
+    const sourcesList = document.getElementById('webSourcesList');
+    sourcesList.innerHTML = '<p class="text-muted">GNews API not available.</p>';
+  });
 }
 
 function animateRing(ringId, pct, textId) {

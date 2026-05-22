@@ -598,6 +598,88 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
             print(f"[ERR] Gemini verification failed: {e}")
             raise HTTPException(502, f"Gemini verification failed: {str(e)}")
 
+    # ── GNews Web Verification Endpoint ──
+    GNEWS_API_KEY = os.getenv("GNEWS_API_KEY", "")
+
+    class GNewsRequest(BaseModel):
+        text: str
+
+    @app.post("/api/v1/gnews-search")
+    @limiter.limit("15/minute")
+    async def gnews_search(req: GNewsRequest, request: Request):
+        if not GNEWS_API_KEY:
+            raise HTTPException(503, "GNews API not configured. Set GNEWS_API_KEY env var.")
+
+        text = req.text.strip()
+        if len(text) < 10:
+            raise HTTPException(400, "Text too short for search")
+
+        # Extract keywords for search
+        from utils import extract_keywords
+        keywords = extract_keywords(text, max_keywords=5)
+        if not keywords:
+            keywords = " ".join(text.split()[:5])
+
+        try:
+            import requests as req_lib
+            params = {
+                "q": keywords,
+                "apikey": GNEWS_API_KEY,
+                "lang": "en",
+                "max": 10,
+                "sortby": "relevance"
+            }
+            resp = req_lib.get("https://gnews.io/api/v4/search", params=params, timeout=10)
+
+            if resp.status_code != 200:
+                raise HTTPException(502, f"GNews API returned status {resp.status_code}")
+
+            data = resp.json()
+            articles = data.get("articles", []) if isinstance(data, dict) else []
+
+            # Filter quality articles
+            quality = []
+            for a in articles:
+                if a.get("title") and a.get("source", {}).get("name") and a.get("url"):
+                    quality.append({
+                        "title": a["title"],
+                        "source": a["source"]["name"],
+                        "url": a["url"],
+                        "publishedAt": a.get("publishedAt", ""),
+                    })
+
+            # Calculate web corroboration score
+            trusted = ['reuters', 'apnews', 'bbc', 'nytimes', 'washingtonpost',
+                       'theguardian', 'bloomberg', 'wsj', 'cnn', 'npr', 'pbs',
+                       'abcnews', 'cbsnews', 'nbcnews', 'usatoday', 'associated press']
+            trusted_count = sum(1 for a in quality if any(t in a["source"].lower() for t in trusted))
+            total = len(quality)
+
+            if total == 0:
+                web_score = 0.3  # No articles found — uncertain
+            elif trusted_count >= 3:
+                web_score = 0.9  # Strong corroboration
+            elif trusted_count >= 1:
+                web_score = 0.7  # Some trusted sources
+            elif total >= 3:
+                web_score = 0.5  # Articles found but not from trusted sources
+            else:
+                web_score = 0.4  # Minimal coverage
+
+            return {
+                "web_score": web_score,
+                "total_articles": total,
+                "trusted_count": trusted_count,
+                "articles": quality[:5],  # Return top 5
+                "keywords": keywords,
+                "available": True
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[ERR] GNews search failed: {e}")
+            raise HTTPException(502, f"GNews search failed: {str(e)}")
+
     @app.post("/api/v1/batch")
     @limiter.limit("10/minute")
     async def analyze_batch(request: Request, batch: BatchRequest):
