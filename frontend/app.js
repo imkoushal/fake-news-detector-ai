@@ -305,7 +305,7 @@ function renderResults(data) {
 
   // Track scores from all 3 sources for combined verdict
   let geminiScore = null, gnewsScore = null;
-  const articleText = document.getElementById('articleInput').value.trim();
+  const articleText = document.getElementById('articleText').value.trim();
 
   function updateCombinedVerdict() {
     // Weight: ML 50%, Gemini 30%, GNews 20%
