@@ -502,6 +502,102 @@ else:
             red_flag_score=red_flag_score, timestamp=datetime.now().isoformat()
         )
 
+    # ── Gemini AI Verification Endpoint ──
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    _gemini_model = None
+
+    if GEMINI_API_KEY:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=GEMINI_API_KEY)
+            _gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+            print("[OK] Gemini AI initialized for verification")
+        except ImportError:
+            print("[WARN] google-generativeai not installed — Gemini verification disabled")
+        except Exception as e:
+            print(f"[WARN] Gemini init failed: {e}")
+
+    GEMINI_PROMPT = """You are an expert media analyst. Evaluate this article for credibility.
+
+ARTICLE:
+{text}
+
+EVALUATE:
+1. Writing style — professional journalism or sensationalized?
+2. Source attribution — named sources, or anonymous/vague?
+3. Specificity — dates, names, verifiable details?
+4. Tone — neutral and factual, or emotionally manipulative?
+5. Red flags — conspiracy language, clickbait, ALL CAPS, fabricated quotes?
+
+RESPOND IN THIS EXACT FORMAT:
+CREDIBILITY: HIGH/MEDIUM/LOW
+CONFIDENCE: 0-100
+VERDICT: LIKELY_TRUE/MIXED/LIKELY_FALSE/UNVERIFIABLE
+ANALYSIS: (2-3 sentence summary of key findings)"""
+
+    class GeminiRequest(BaseModel):
+        text: str
+
+    @app.post("/api/v1/gemini-verify")
+    @limiter.limit("15/minute")
+    async def gemini_verify(req: GeminiRequest, request: Request):
+        if not _gemini_model:
+            raise HTTPException(503, "Gemini AI not configured. Set GEMINI_API_KEY env var.")
+
+        text = req.text.strip()[:3000]
+        if len(text) < 10:
+            raise HTTPException(400, "Text too short for verification")
+
+        try:
+            response = _gemini_model.generate_content(GEMINI_PROMPT.format(text=text))
+            result_text = response.text
+
+            # Parse structured response
+            credibility = "MEDIUM"
+            confidence = 50
+            verdict = "UNVERIFIABLE"
+            analysis = result_text
+
+            for line in result_text.upper().split("\n"):
+                stripped = line.strip().lstrip("-* ")
+                if stripped.startswith("CREDIBILITY"):
+                    for level in ["HIGH", "LOW", "MEDIUM"]:
+                        if level in stripped:
+                            credibility = level
+                            break
+                elif stripped.startswith("CONFIDENCE"):
+                    import re as _re
+                    nums = _re.findall(r'\d+', stripped)
+                    if nums:
+                        confidence = min(100, max(0, int(nums[0])))
+                elif stripped.startswith("VERDICT"):
+                    for v in ["LIKELY_TRUE", "LIKELY_FALSE", "MIXED", "UNVERIFIABLE"]:
+                        if v in stripped:
+                            verdict = v
+                            break
+                elif stripped.startswith("ANALYSIS"):
+                    # Get the original (non-uppercased) analysis text
+                    for orig_line in result_text.split("\n"):
+                        if orig_line.strip().upper().startswith("ANALYSIS"):
+                            analysis = orig_line.split(":", 1)[-1].strip()
+                            break
+
+            # Convert to credibility score (0.0 - 1.0)
+            score_map = {"HIGH": 0.85, "MEDIUM": 0.5, "LOW": 0.2}
+            credibility_score = score_map.get(credibility, 0.5)
+
+            return {
+                "credibility": credibility,
+                "credibility_score": credibility_score,
+                "confidence": confidence,
+                "verdict": verdict,
+                "analysis": analysis,
+                "available": True
+            }
+        except Exception as e:
+            print(f"[ERR] Gemini verification failed: {e}")
+            raise HTTPException(502, f"Gemini verification failed: {str(e)}")
+
     @app.post("/api/v1/batch")
     @limiter.limit("10/minute")
     async def analyze_batch(request: Request, batch: BatchRequest):

@@ -297,35 +297,60 @@ function renderResults(data) {
   document.getElementById('verdictScore').textContent = conf + '%';
   document.getElementById('verdictScore').style.color = isReal ? 'var(--accent)' : 'var(--danger)';
 
-  // Rings — all derived from real ML API response data
+  // Rings — ML and Confidence from API response
   const mlPct = Math.round(data.real_probability * 100);
-  const redFlagPct = Math.round(Math.max(0, 100 - (data.red_flag_score || 0) * 100));
   const confPct = Math.round(data.confidence);
 
   animateRing('ringML', mlPct, 'ringMLText');
-  animateRing('ringGemini', redFlagPct, 'ringGeminiText');
   animateRing('ringWeb', confPct, 'ringWebText');
 
   document.getElementById('mlDetail').textContent = isReal ? 'High structural consistency.' : 'Structural anomalies detected.';
-  document.getElementById('geminiDetail').textContent = redFlagPct >= 80 ? 'Low red-flag indicators.' : 'Elevated red-flag indicators.';
   document.getElementById('webDetail').textContent = `Overall confidence: ${data.confidence_tier || 'N/A'}`;
 
   // Ring colors
   setRingColor('ringML', mlPct);
-  setRingColor('ringGemini', redFlagPct);
   setRingColor('ringWeb', confPct);
+
+  // Gemini AI Verification — async call to middle card
+  document.getElementById('geminiDetail').textContent = 'Verifying with Gemini AI...';
+  animateRing('ringGemini', 0, 'ringGeminiText');
+  document.getElementById('ringGeminiText').textContent = '...';
+
+  fetch(API_BASE + '/api/v1/gemini-verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: document.getElementById('articleInput').value.trim() })
+  })
+  .then(r => r.ok ? r.json() : Promise.reject(r))
+  .then(g => {
+    const geminiPct = Math.round(g.credibility_score * 100);
+    animateRing('ringGemini', geminiPct, 'ringGeminiText');
+    setRingColor('ringGemini', geminiPct);
+    const verdictMap = { 'LIKELY_TRUE': 'Likely True', 'LIKELY_FALSE': 'Likely False', 'MIXED': 'Mixed signals', 'UNVERIFIABLE': 'Unverifiable' };
+    document.getElementById('geminiDetail').textContent = verdictMap[g.verdict] || g.verdict;
+
+    // Update the analysis section with Gemini insights
+    document.getElementById('geminiBadge').className = 'badge badge-green';
+    document.getElementById('geminiBadge').textContent = 'GEMINI AI';
+    document.getElementById('geminiAnalysisText').textContent = g.analysis || 'No additional analysis available.';
+  })
+  .catch(() => {
+    // Fallback to red-flag data if Gemini is unavailable
+    const redFlagPct = Math.round(Math.max(0, 100 - (data.red_flag_score || 0) * 100));
+    animateRing('ringGemini', redFlagPct, 'ringGeminiText');
+    setRingColor('ringGemini', redFlagPct);
+    document.getElementById('geminiDetail').textContent = redFlagPct >= 80 ? 'Low red-flag indicators.' : 'Elevated red-flag indicators.';
+    document.getElementById('geminiBadge').className = 'badge badge-green';
+    document.getElementById('geminiBadge').textContent = 'ML ANALYSIS';
+    const realProbPct = (data.real_probability * 100).toFixed(1);
+    const fakeProbPct = (data.fake_probability * 100).toFixed(1);
+    document.getElementById('geminiAnalysisText').textContent =
+      `Real: ${realProbPct}% | Fake: ${fakeProbPct}% | Red flags: ${((data.red_flag_score || 0) * 100).toFixed(0)}% | ${data.confidence_tier || 'N/A'}`;
+  });
 
   // Web sources — honest message
   const sourcesList = document.getElementById('webSourcesList');
-  sourcesList.innerHTML = '<div class="source-item"><div class="source-item-info"><span class="source-item-name">ML Ensemble</span><span class="source-item-date">5-model stacking classifier (LR, RF, SGD, SVC, LightGBM)</span></div></div>';
-
-  // Analysis summary — real data
-  document.getElementById('geminiBadge').className = 'badge badge-green';
-  document.getElementById('geminiBadge').textContent = 'ML ANALYSIS';
-  const realProbPct = (data.real_probability * 100).toFixed(1);
-  const fakeProbPct = (data.fake_probability * 100).toFixed(1);
-  document.getElementById('geminiAnalysisText').textContent =
-    `Real probability: ${realProbPct}% | Fake probability: ${fakeProbPct}% | Red flag score: ${((data.red_flag_score || 0) * 100).toFixed(0)}% | Quality: ${data.input_quality || 'sufficient'} | Tier: ${data.confidence_tier || 'N/A'}`;
+  sourcesList.innerHTML = '<div class="source-item"><div class="source-item-info"><span class="source-item-name">ML Ensemble</span><span class="source-item-date">5-model voting classifier (LR, RF, SGD, SVC, LightGBM)</span></div></div>';
 }
 
 function animateRing(ringId, pct, textId) {
