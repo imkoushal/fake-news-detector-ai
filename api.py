@@ -503,19 +503,34 @@ else:
         )
 
     # ── Gemini AI Verification Endpoint ──
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     _gemini_model = None
+    _gemini_init_attempted = False
 
-    if GEMINI_API_KEY:
+    def _get_gemini_model():
+        """Lazy-init Gemini model on first request (resilient to startup failures)."""
+        nonlocal _gemini_model, _gemini_init_attempted
+        if _gemini_model is not None:
+            return _gemini_model
+        if _gemini_init_attempted:
+            return None  # Already tried and failed — don't retry every request
+        _gemini_init_attempted = True
+
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        if not api_key:
+            print("[WARN] GEMINI_API_KEY not set — Gemini verification disabled")
+            return None
         try:
             import google.generativeai as genai
-            genai.configure(api_key=GEMINI_API_KEY)
+            genai.configure(api_key=api_key)
             _gemini_model = genai.GenerativeModel("gemini-2.0-flash")
-            print("[OK] Gemini AI initialized for verification")
+            print("[OK] Gemini AI initialized for verification (lazy)")
+            return _gemini_model
         except ImportError:
             print("[WARN] google-generativeai not installed — Gemini verification disabled")
+            return None
         except Exception as e:
             print(f"[WARN] Gemini init failed: {e}")
+            return None
 
     GEMINI_PROMPT = """You are an expert media analyst. Evaluate this article for credibility.
 
@@ -541,7 +556,8 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
     @app.post("/api/v1/gemini-verify")
     @limiter.limit("15/minute")
     async def gemini_verify(req: GeminiRequest, request: Request):
-        if not _gemini_model:
+        model = _get_gemini_model()
+        if not model:
             raise HTTPException(503, "Gemini AI not configured. Set GEMINI_API_KEY env var.")
 
         text = req.text.strip()[:3000]
@@ -549,7 +565,7 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
             raise HTTPException(400, "Text too short for verification")
 
         try:
-            response = _gemini_model.generate_content(GEMINI_PROMPT.format(text=text))
+            response = model.generate_content(GEMINI_PROMPT.format(text=text))
             result_text = response.text
 
             # Parse structured response
