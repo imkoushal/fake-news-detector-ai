@@ -315,9 +315,9 @@ function renderResults(data) {
     if (gnewsScore !== null) { sources.push({ score: gnewsScore, weight: 0.2 }); totalWeight += 0.2; }
 
     const combined = sources.reduce((sum, s) => sum + s.score * s.weight, 0) / totalWeight;
-    const combinedPct = Math.round(combined * 100);
     const combinedReal = combined > 0.5;
-    const conf = Math.round(Math.abs(combined - 0.5) * 200);
+    // Confidence = probability of the predicted class (e.g. 63% fake → 63% confidence)
+    const conf = Math.round((combinedReal ? combined : 1 - combined) * 100);
 
     // Update banner with combined verdict
     const banner = document.getElementById('verdictBanner');
@@ -327,7 +327,7 @@ function renderResults(data) {
     if (conf >= 90) tier = combinedReal ? 'Verified Real' : 'Confirmed Fake';
     else if (conf >= 75) tier = combinedReal ? 'Likely Real' : 'Likely Fake';
     else if (conf >= 60) tier = combinedReal ? 'Leaning Real' : 'Leaning Fake';
-    else if (conf >= 50) tier = 'Suspicious';
+    else if (conf >= 52) tier = 'Suspicious';
     else tier = 'Inconclusive';
     document.getElementById('verdictText').textContent = tier.toUpperCase();
     document.getElementById('verdictText').style.color = combinedReal ? 'var(--accent)' : 'var(--danger)';
