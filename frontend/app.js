@@ -334,12 +334,12 @@ function renderResults(data) {
     document.getElementById('geminiBadge').textContent = 'GEMINI AI';
     document.getElementById('geminiAnalysisText').textContent = g.analysis || 'No additional analysis available.';
   })
-  .catch(() => {
-    // Fallback to red-flag data if Gemini is unavailable
-    const redFlagPct = Math.round(Math.max(0, 100 - (data.red_flag_score || 0) * 100));
-    animateRing('ringGemini', redFlagPct, 'ringGeminiText');
-    setRingColor('ringGemini', redFlagPct);
-    document.getElementById('geminiDetail').textContent = redFlagPct >= 80 ? 'Low red-flag indicators.' : 'Elevated red-flag indicators.';
+  .catch((err) => {
+    // Gemini unavailable — show a clear message, not red-flag data
+    console.warn('Gemini verification unavailable:', err);
+    animateRing('ringGemini', 0, 'ringGeminiText');
+    document.getElementById('ringGeminiText').textContent = '—';
+    document.getElementById('geminiDetail').textContent = 'Gemini AI unavailable';
     document.getElementById('geminiBadge').className = 'badge badge-green';
     document.getElementById('geminiBadge').textContent = 'ML ANALYSIS';
     const realProbPct = (data.real_probability * 100).toFixed(1);
