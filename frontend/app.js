@@ -327,8 +327,8 @@ function renderResults(data) {
     if (conf >= 90) tier = combinedReal ? 'Verified Real' : 'Confirmed Fake';
     else if (conf >= 75) tier = combinedReal ? 'Likely Real' : 'Likely Fake';
     else if (conf >= 60) tier = combinedReal ? 'Leaning Real' : 'Leaning Fake';
-    else if (conf >= 52) tier = 'Suspicious';
-    else tier = 'Inconclusive';
+    else if (conf >= 52) tier = combinedReal ? 'Slightly Real' : 'Slightly Fake';
+    else tier = combinedReal ? 'Borderline Real' : 'Borderline Fake';
     document.getElementById('verdictText').textContent = tier.toUpperCase();
     document.getElementById('verdictText').style.color = combinedReal ? 'var(--accent)' : 'var(--danger)';
     document.getElementById('verdictScore').textContent = conf + '%';
