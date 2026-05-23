@@ -27,6 +27,7 @@ try:
     from typing import Optional, List
     import joblib
     import re
+    import requests
     from datetime import datetime, timedelta
     import bcrypt
     import secrets
