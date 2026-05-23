@@ -502,24 +502,9 @@ else:
             red_flag_score=red_flag_score, timestamp=datetime.now().isoformat()
         )
 
-    # ── Gemini AI Verification Endpoint ──
+    # ── AI Verification Endpoint (Groq — free, no billing required) ──
 
-    def _make_gemini_client():
-        """Create a fresh Gemini client from the current env var."""
-        api_key = os.getenv("GEMINI_API_KEY", "")
-        if not api_key:
-            return None
-        try:
-            from google import genai
-            return genai.Client(api_key=api_key)
-        except ImportError:
-            print("[WARN] google-genai not installed — Gemini disabled")
-            return None
-        except Exception as e:
-            print(f"[WARN] Gemini client creation failed: {e}")
-            return None
-
-    GEMINI_PROMPT = """You are an expert media analyst. Evaluate this article for credibility.
+    AI_VERIFY_PROMPT = """You are an expert media analyst. Evaluate this article for credibility.
 
 ARTICLE:
 {text}
@@ -531,7 +516,7 @@ EVALUATE:
 4. Tone — neutral and factual, or emotionally manipulative?
 5. Red flags — conspiracy language, clickbait, ALL CAPS, fabricated quotes?
 
-RESPOND IN THIS EXACT FORMAT:
+RESPOND IN THIS EXACT FORMAT (no markdown, no extra text):
 CREDIBILITY: HIGH/MEDIUM/LOW
 CONFIDENCE: 0-100
 VERDICT: LIKELY_TRUE/MIXED/LIKELY_FALSE/UNVERIFIABLE
@@ -543,80 +528,87 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
     @app.post("/api/v1/gemini-verify")
     @limiter.limit("15/minute")
     async def gemini_verify(req: GeminiRequest, request: Request):
-        client = _make_gemini_client()
-        if not client:
-            raise HTTPException(503, "Gemini AI not configured. Set GEMINI_API_KEY env var.")
+        groq_key = os.getenv("GROQ_API_KEY", "")
+        if not groq_key:
+            raise HTTPException(503, "AI verification not configured. Set GROQ_API_KEY env var.")
 
         text = req.text.strip()[:3000]
         if len(text) < 10:
             raise HTTPException(400, "Text too short for verification")
 
-        # Try primary model, then fallback
-        models_to_try = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]
-        last_error = None
+        # Groq API (OpenAI-compatible REST endpoint)
+        headers = {
+            "Authorization": f"Bearer {groq_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": "You are an expert media analyst and fact-checker."},
+                {"role": "user", "content": AI_VERIFY_PROMPT.format(text=text)}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 500
+        }
 
-        for model_name in models_to_try:
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=GEMINI_PROMPT.format(text=text)
-                )
-                result_text = response.text
+        try:
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers, json=payload, timeout=15
+            )
 
-                # Parse structured response
-                credibility = "MEDIUM"
-                confidence = 50
-                verdict = "UNVERIFIABLE"
-                analysis = result_text
+            if resp.status_code != 200:
+                error_msg = resp.json().get("error", {}).get("message", resp.text[:200])
+                print(f"[ERR] Groq API error {resp.status_code}: {error_msg}")
+                raise HTTPException(502, f"AI verification failed: {error_msg}")
 
-                for line in result_text.upper().split("\n"):
-                    stripped = line.strip().lstrip("-* ")
-                    if stripped.startswith("CREDIBILITY"):
-                        for level in ["HIGH", "LOW", "MEDIUM"]:
-                            if level in stripped:
-                                credibility = level
-                                break
-                    elif stripped.startswith("CONFIDENCE"):
-                        import re as _re
-                        nums = _re.findall(r'\d+', stripped)
-                        if nums:
-                            confidence = min(100, max(0, int(nums[0])))
-                    elif stripped.startswith("VERDICT"):
-                        for v in ["LIKELY_TRUE", "LIKELY_FALSE", "MIXED", "UNVERIFIABLE"]:
-                            if v in stripped:
-                                verdict = v
-                                break
-                    elif stripped.startswith("ANALYSIS"):
-                        for orig_line in result_text.split("\n"):
-                            if orig_line.strip().upper().startswith("ANALYSIS"):
-                                analysis = orig_line.split(":", 1)[-1].strip()
-                                break
+            result_text = resp.json()["choices"][0]["message"]["content"]
 
-                # Convert to credibility score (0.0 - 1.0)
-                score_map = {"HIGH": 0.85, "MEDIUM": 0.5, "LOW": 0.2}
-                credibility_score = score_map.get(credibility, 0.5)
+            # Parse structured response
+            credibility = "MEDIUM"
+            confidence = 50
+            verdict = "UNVERIFIABLE"
+            analysis = result_text
 
-                return {
-                    "credibility": credibility,
-                    "credibility_score": credibility_score,
-                    "confidence": confidence,
-                    "verdict": verdict,
-                    "analysis": analysis,
-                    "available": True
-                }
-            except Exception as e:
-                last_error = e
-                error_str = str(e)
-                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                    print(f"[WARN] Gemini {model_name} rate-limited, trying next model...")
-                    continue  # Try next model
-                else:
-                    print(f"[ERR] Gemini {model_name} failed: {e}")
-                    break  # Non-rate-limit error, don't retry
+            for line in result_text.upper().split("\n"):
+                stripped = line.strip().lstrip("-* ")
+                if stripped.startswith("CREDIBILITY"):
+                    for level in ["HIGH", "LOW", "MEDIUM"]:
+                        if level in stripped:
+                            credibility = level
+                            break
+                elif stripped.startswith("CONFIDENCE"):
+                    nums = re.findall(r'\d+', stripped)
+                    if nums:
+                        confidence = min(100, max(0, int(nums[0])))
+                elif stripped.startswith("VERDICT"):
+                    for v in ["LIKELY_TRUE", "LIKELY_FALSE", "MIXED", "UNVERIFIABLE"]:
+                        if v in stripped:
+                            verdict = v
+                            break
+                elif stripped.startswith("ANALYSIS"):
+                    for orig_line in result_text.split("\n"):
+                        if orig_line.strip().upper().startswith("ANALYSIS"):
+                            analysis = orig_line.split(":", 1)[-1].strip()
+                            break
 
-        # All models failed
-        print(f"[ERR] All Gemini models failed: {last_error}")
-        raise HTTPException(502, f"Gemini verification failed: {str(last_error)}")
+            # Convert to credibility score (0.0 - 1.0)
+            score_map = {"HIGH": 0.85, "MEDIUM": 0.5, "LOW": 0.2}
+            credibility_score = score_map.get(credibility, 0.5)
+
+            return {
+                "credibility": credibility,
+                "credibility_score": credibility_score,
+                "confidence": confidence,
+                "verdict": verdict,
+                "analysis": analysis,
+                "available": True
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[ERR] AI verification failed: {e}")
+            raise HTTPException(502, f"AI verification failed: {str(e)}")
 
     # ── GNews Web Verification Endpoint ──
     GNEWS_API_KEY = os.getenv("GNEWS_API_KEY", "")
