@@ -469,11 +469,11 @@ else:
         elif confidence >= 75:
             confidence_tier = "Likely Real" if prediction == "REAL" else "Likely Fake"
         elif confidence >= 60:
-            confidence_tier = "Leaning Real" if prediction == "REAL" else "Leaning Fake"
+            confidence_tier = "Slightly Real" if prediction == "REAL" else "Slightly Fake"
         elif confidence >= 50:
-            confidence_tier = "Suspicious"
+            confidence_tier = "Borderline Real" if prediction == "REAL" else "Borderline Fake"
         else:
-            confidence_tier = "Inconclusive"
+            confidence_tier = "Borderline Real" if prediction == "REAL" else "Borderline Fake"
 
         # Save analysis to DB if user is authenticated
         user_id = _get_user_from_token(request)
