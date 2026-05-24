@@ -475,10 +475,11 @@ else:
         else:
             confidence_tier = "Borderline Real" if prediction == "REAL" else "Borderline Fake"
 
-        # Save analysis to DB if user is authenticated
+        # Save analysis to DB only if input is long enough to be reliable
+        # Short claims (< 30 words) produce dampened scores — don't pollute history
         user_id = _get_user_from_token(request)
-        if user_id:
-            preview = text[:200].replace("'", "")
+        if user_id and input_quality == "sufficient":
+            preview = text[:200].encode('ascii', errors='ignore').decode().strip()
             conn = get_db()
             c = conn.cursor()
             try:
@@ -493,8 +494,10 @@ else:
                 conn.rollback()
             finally:
                 conn.close()
+        elif user_id and input_quality != "sufficient":
+            print(f"[INFO] Analysis NOT saved — input too short ({input_quality}), skipping DB write")
         else:
-            print("[WARN] No user_id found, analysis NOT saved")
+            print("[INFO] No authenticated user — analysis not saved")
 
         return PredictionResponse(
             prediction=prediction, confidence=confidence,
