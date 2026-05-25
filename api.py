@@ -6,9 +6,18 @@ Run locally:  uvicorn api:app --reload
 Deploy:       Render / Railway / Fly.io
 """
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
+
+# ── Structured logging setup (2.4) ──
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S"
+)
+logger = logging.getLogger("fake_news_api")
 
 import numpy as np
 from scipy.sparse import hstack
@@ -78,12 +87,13 @@ else:
         try:
             import psycopg2
             USE_POSTGRES = True
-            print("[OK] PostgreSQL mode — persistent cloud database")
         except ImportError:
-            print("[WARN] psycopg2 not installed, falling back to SQLite")
+            pass
 
-    if not USE_POSTGRES:
-        print("[OK] SQLite mode — local development")
+    if USE_POSTGRES:
+        logger.info("PostgreSQL mode — persistent cloud database")
+    else:
+        logger.info("SQLite mode — local development")
 
     # Connection pool for PostgreSQL (reuse connections instead of opening/closing each request)
     _pg_pool = None
@@ -93,9 +103,9 @@ else:
             from psycopg2 import pool as pg_pool
             url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
             _pg_pool = pg_pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=url)
-            print(f"[OK] PostgreSQL connection pool created (1-10 connections)")
+            logger.info("PostgreSQL connection pool created (1-10 connections)")
         except Exception as e:
-            print(f"[WARN] Failed to create connection pool: {e}")
+            logger.warning(f"Failed to create connection pool: {e}")
             _pg_pool = None
 
     class _PooledConnection:
@@ -398,10 +408,10 @@ else:
         tfidf = joblib.load(MODEL_DIR / "tfidf.joblib")
         scaler = joblib.load(MODEL_DIR / "scaler.joblib")
         MODEL_LOADED = True
-        print("[OK] Model loaded successfully.")
+        logger.info("Model loaded successfully.")
     except Exception as e:
         MODEL_LOADED = False
-        print(f"[WARN] Model could not be loaded: {e}")
+        logger.warning(f"Model could not be loaded: {e}")
 
     # ── Helper Functions ──
     # clean_text, compute_meta_features (extract_single), and detect_fake_news_red_flags
@@ -497,9 +507,9 @@ else:
             finally:
                 conn.close()
         elif user_id and input_quality != "sufficient":
-            print(f"[INFO] Analysis NOT saved — input too short ({input_quality}), skipping DB write")
+            logger.info(f"Analysis NOT saved — input too short ({input_quality}), skipping DB write")
         else:
-            print("[INFO] No authenticated user — analysis not saved")
+            logger.info("No authenticated user — analysis not saved")
 
         return PredictionResponse(
             prediction=prediction, confidence=confidence,
@@ -826,6 +836,119 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
                 "items": rows, "total": total_count,
                 "page": page, "limit": limit, "pages": max(1, -(-total_count // limit))
             }
+        finally:
+            conn.close()
+
+    # ── URL Fetch Endpoint (Tier 2.2) ──
+    class FetchUrlRequest(BaseModel):
+        url: str
+
+    @app.post("/api/v1/fetch-url")
+    @limiter.limit("10/minute")
+    async def fetch_url(req: FetchUrlRequest, request: Request):
+        """Fetch and extract article text from a URL."""
+        url = req.url.strip()
+        if not url.startswith(("http://", "https://")):
+            raise HTTPException(400, "Invalid URL — must start with http:// or https://")
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; FakeNewsDetector/5.0; +https://fake-news-detector-8djq.onrender.com)",
+                "Accept": "text/html,application/xhtml+xml"
+            }
+            resp = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+            resp.raise_for_status()
+
+            # Extract text using simple HTML stripping (no extra dependencies)
+            import re as _re
+            html = resp.text
+            # Remove scripts, styles, nav, footer
+            html = _re.sub(r'<(script|style|nav|footer|header)[^>]*>.*?</\1>', '', html, flags=_re.DOTALL|_re.IGNORECASE)
+            # Extract title
+            title_match = _re.search(r'<title[^>]*>(.*?)</title>', html, _re.IGNORECASE|_re.DOTALL)
+            title = title_match.group(1).strip() if title_match else ""
+            # Strip remaining HTML tags
+            text = _re.sub(r'<[^>]+>', ' ', html)
+            # Collapse whitespace
+            text = _re.sub(r'\s+', ' ', text).strip()
+            # Remove very short lines (menus, cookie banners etc.)
+            lines = [l.strip() for l in text.split('.') if len(l.strip()) > 60]
+            clean_text_out = '. '.join(lines[:80])  # Cap at ~80 sentences
+
+            word_count = len(clean_text_out.split())
+            if word_count < 20:
+                raise HTTPException(422, "Could not extract enough text from this URL. Try pasting the article text directly.")
+
+            return {"text": clean_text_out, "title": title, "word_count": word_count, "url": url}
+        except HTTPException:
+            raise
+        except requests.exceptions.Timeout:
+            raise HTTPException(504, "URL fetch timed out. The site may be slow or blocking scrapers.")
+        except Exception as e:
+            logger.warning(f"URL fetch failed for {url}: {e}")
+            raise HTTPException(502, f"Could not fetch article: {str(e)}")
+
+    # ── Feedback Endpoint (Tier 2.5) ──
+    class FeedbackRequest(BaseModel):
+        text: str
+        model_prediction: str
+        user_correction: str
+        reason: Optional[str] = None
+
+    def _init_feedback_table():
+        """Create feedback table if it doesn't exist."""
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            if USE_POSTGRES:
+                c.execute('''CREATE TABLE IF NOT EXISTS feedback (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER,
+                    text_preview TEXT NOT NULL,
+                    model_prediction TEXT NOT NULL,
+                    user_correction TEXT NOT NULL,
+                    reason TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )''')
+            else:
+                c.execute('''CREATE TABLE IF NOT EXISTS feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    text_preview TEXT NOT NULL,
+                    model_prediction TEXT NOT NULL,
+                    user_correction TEXT NOT NULL,
+                    reason TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )''')
+            conn.commit()
+        finally:
+            conn.close()
+    _init_feedback_table()
+
+    @app.post("/api/v1/feedback")
+    @limiter.limit("20/minute")
+    async def submit_feedback(req: FeedbackRequest, request: Request):
+        """Accept user correction on a model prediction for future retraining."""
+        if req.model_prediction not in ("REAL", "FAKE") or req.user_correction not in ("REAL", "FAKE"):
+            raise HTTPException(400, "model_prediction and user_correction must be REAL or FAKE")
+        if len(req.text.strip()) < 20:
+            raise HTTPException(400, "Text too short")
+
+        user_id = _get_user_from_token(request)  # Optional — anonymous feedback allowed
+        preview = req.text.strip()[:300].encode('ascii', errors='ignore').decode()
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            c.execute(
+                f"INSERT INTO feedback (user_id, text_preview, model_prediction, user_correction, reason) VALUES ({ph(5)})",
+                (user_id, preview, req.model_prediction, req.user_correction, req.reason)
+            )
+            conn.commit()
+            logger.info(f"Feedback received: model={req.model_prediction} -> user={req.user_correction}")
+            return {"ok": True, "message": "Feedback recorded. Thank you!"}
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Failed to save feedback: {e}")
+            raise HTTPException(500, "Failed to save feedback")
         finally:
             conn.close()
 

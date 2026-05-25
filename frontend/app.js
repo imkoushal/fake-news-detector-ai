@@ -233,6 +233,60 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
+// ===== URL INPUT TAB (2.2) =====
+function switchInputTab(tab) {
+  document.getElementById('tabText').classList.toggle('active', tab === 'text');
+  document.getElementById('tabUrl').classList.toggle('active', tab === 'url');
+  document.getElementById('inputText').classList.toggle('hidden', tab !== 'text');
+  document.getElementById('inputUrl').classList.toggle('hidden', tab !== 'url');
+}
+
+async function fetchArticleFromUrl() {
+  const url = document.getElementById('articleUrl').value.trim();
+  if (!url) { showToast('Please enter a URL.'); return; }
+  const btn = document.getElementById('fetchUrlBtn');
+  const status = document.getElementById('urlStatus');
+  btn.textContent = 'Fetching...';
+  btn.disabled = true;
+  status.textContent = 'Extracting article text from URL...';
+  try {
+    const res = await fetch(API_BASE + '/api/v1/fetch-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to fetch article');
+    const ta = document.getElementById('articleTextFromUrl');
+    ta.value = data.text;
+    ta.classList.remove('hidden');
+    // Also populate the main textarea so analysis works
+    document.getElementById('articleText').value = data.text;
+    status.textContent = `✅ Extracted ${data.word_count} words from: ${data.title || url}`;
+    showToast('Article fetched! Click Analyze Article to continue.');
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    showToast('Failed to fetch URL: ' + e.message);
+  }
+  btn.textContent = 'Fetch Article';
+  btn.disabled = false;
+}
+
+// ===== FEEDBACK (2.5) =====
+async function submitFeedback(articleText, modelPrediction, userCorrection) {
+  const token = getToken();
+  try {
+    await fetch(API_BASE + '/api/v1/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': 'Bearer ' + token } : {}) },
+      body: JSON.stringify({ text: articleText, model_prediction: modelPrediction, user_correction: userCorrection })
+    });
+    showToast('✅ Feedback submitted — thank you for helping improve the model!');
+  } catch (e) {
+    showToast('Could not submit feedback. Please try again.');
+  }
+}
+
 // ===== ANALYZE =====
 async function runAnalysis() {
   const text = document.getElementById('articleText').value.trim();
@@ -335,37 +389,47 @@ function renderResults(data) {
     document.getElementById('verdictScore').style.color = combinedReal ? 'var(--accent)' : 'var(--danger)';
 
     const srcCount = 1 + (geminiScore !== null ? 1 : 0) + (gnewsScore !== null ? 1 : 0);
-    document.getElementById('verdictSub').textContent = `Combined analysis from ${srcCount} source${srcCount > 1 ? 's' : ''}: ML Model${geminiScore !== null ? ' + Gemini AI' : ''}${gnewsScore !== null ? ' + GNews' : ''}`;
+    document.getElementById('verdictSub').textContent = `Combined analysis from ${srcCount} source${srcCount > 1 ? 's' : ''}: ML Model${geminiScore !== null ? ' + AI Analysis' : ''}${gnewsScore !== null ? ' + GNews' : ''}`;
   }
 
   // Initial verdict from ML only
   updateCombinedVerdict();
 
-  // ── Card 2: Gemini AI (async) ──
-  document.getElementById('geminiDetail').textContent = 'Verifying with Gemini AI...';
+  // ── Card 2: AI Analysis via Groq (async, 10s timeout) ──
+  document.getElementById('geminiDetail').textContent = 'Analyzing with AI...';
   animateRing('ringGemini', 0, 'ringGeminiText');
   document.getElementById('ringGeminiText').textContent = '...';
+
+  const aiController = new AbortController();
+  const aiTimeout = setTimeout(() => aiController.abort(), 10000); // 10 second timeout
 
   fetch(API_BASE + '/api/v1/gemini-verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: articleText })
+    body: JSON.stringify({ text: articleText }),
+    signal: aiController.signal
   })
   .then(r => r.ok ? r.json() : Promise.reject(r))
   .then(g => {
+    clearTimeout(aiTimeout);
     geminiScore = g.credibility_score;
     const geminiPct = Math.round(geminiScore * 100);
     animateRing('ringGemini', geminiPct, 'ringGeminiText');
     setRingColor('ringGemini', geminiPct);
     const verdictMap = { 'LIKELY_TRUE': 'Likely True', 'LIKELY_FALSE': 'Likely False', 'MIXED': 'Mixed signals', 'UNVERIFIABLE': 'Unverifiable' };
     document.getElementById('geminiDetail').textContent = verdictMap[g.verdict] || g.verdict;
-    document.getElementById('geminiBadge').textContent = 'GEMINI AI';
+    document.getElementById('geminiBadge').textContent = 'AI ANALYSIS';
     document.getElementById('geminiAnalysisText').textContent = g.analysis || 'No additional analysis.';
     updateCombinedVerdict();
   })
-  .catch(() => {
+  .catch(err => {
+    clearTimeout(aiTimeout);
     document.getElementById('ringGeminiText').textContent = '—';
-    document.getElementById('geminiDetail').textContent = 'Gemini AI unavailable';
+    if (err.name === 'AbortError') {
+      document.getElementById('geminiDetail').textContent = 'AI Analysis timed out — try again';
+    } else {
+      document.getElementById('geminiDetail').textContent = 'AI Analysis unavailable';
+    }
     document.getElementById('geminiBadge').textContent = 'UNAVAILABLE';
   });
 

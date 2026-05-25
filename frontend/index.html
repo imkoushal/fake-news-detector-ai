@@ -7,7 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Verify — AI-Powered News Verification</title>
   <meta name="description"
-    content="AI-powered fake news detector combining ML ensemble models, Gemini AI, and real-time web verification.">
+    content="AI-powered fake news detector combining ML ensemble models, Groq AI, and real-time web verification.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
@@ -225,7 +225,24 @@
       </div>
 
       <div class="card analyze-input-card">
-        <textarea id="articleText" placeholder="Paste your text here for analysis..." rows="8"></textarea>
+        <!-- Input mode tabs -->
+        <div class="input-tabs">
+          <button class="input-tab active" id="tabText" onclick="switchInputTab('text')">📝 Paste Text</button>
+          <button class="input-tab" id="tabUrl" onclick="switchInputTab('url')">🔗 From URL</button>
+        </div>
+        <!-- Text input -->
+        <div id="inputText">
+          <textarea id="articleText" placeholder="Paste your article, news text, or claim here for analysis..." rows="8"></textarea>
+        </div>
+        <!-- URL input -->
+        <div id="inputUrl" class="hidden">
+          <div class="url-input-wrap">
+            <input type="url" id="articleUrl" placeholder="https://example.com/news-article" class="url-input">
+            <button class="btn btn-secondary" id="fetchUrlBtn" onclick="fetchArticleFromUrl()">Fetch Article</button>
+          </div>
+          <p class="url-hint" id="urlStatus">Enter a URL to automatically extract the article text.</p>
+          <textarea id="articleTextFromUrl" placeholder="Fetched article text will appear here..." rows="6" class="hidden"></textarea>
+        </div>
         <div class="analyze-controls">
           <label class="toggle-label"><input type="checkbox" id="translateToggle"> Translate to English</label>
           <div class="sensitivity-control">
@@ -270,7 +287,7 @@
           </div>
           <div class="source-card">
             <div class="source-icon">✨</div>
-            <h3>Gemini AI</h3>
+            <h3>AI Analysis</h3>
             <div class="progress-ring-wrap">
               <svg class="progress-ring" viewBox="0 0 80 80">
                 <circle class="ring-bg" cx="40" cy="40" r="34" />
@@ -319,11 +336,11 @@
           </div>
         </div>
 
-        <!-- Gemini Analysis -->
+        <!-- AI Analysis -->
         <div class="card">
-          <div class="card-header-row">
-            <h3>📊 ML Analysis Breakdown</h3>
-            <span class="badge badge-green" id="geminiBadge">ML ANALYSIS</span>
+          <div class="card-header">
+            <h3>AI Analysis</h3>
+            <span class="badge badge-green" id="geminiBadge">AI ANALYSIS</span>
           </div>
           <blockquote id="geminiAnalysisText" class="analysis-quote">Analysis will appear here after processing.
           </blockquote>
@@ -494,7 +511,7 @@
           </div>
           <div class="pipe-arrow">→</div>
           <div class="pipe-step"><span class="pipe-num">4</span>
-            <h4>Gemini AI</h4>
+            <h4>AI Analysis</h4>
             <p>Credibility check</p>
           </div>
           <div class="pipe-arrow">→</div>
