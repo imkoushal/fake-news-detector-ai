@@ -74,7 +74,12 @@ else:
         allow_headers=["*"],
     )
 
-    limiter = Limiter(key_func=get_remote_address)
+    limiter = Limiter(
+        key_func=lambda request: (
+            # Per-user rate limiting (3.8): use user_id for auth'd users, IP for anonymous
+            request.headers.get("Authorization", "").replace("Bearer ", "") or get_remote_address(request)
+        )
+    )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -284,6 +289,8 @@ else:
         fake_probability: float
         red_flag_score: float
         input_quality: str = "sufficient"
+        fake_indicator_words: List[str] = []
+        real_indicator_words: List[str] = []
         category: Optional[str] = None
         timestamp: str
         model_version: str = "5.0"
@@ -401,17 +408,74 @@ else:
             conn.close()
         return {"ok": True}
 
-    # ── Load ML Model ──
+    # ── Load ML Model + version info (3.1) ──
     MODEL_DIR = BASE_DIR / "models"
+    MODEL_VERSION = "5.0"  # fallback
+    MODEL_METRICS = {}
     try:
         model = joblib.load(MODEL_DIR / "model.joblib")
         tfidf = joblib.load(MODEL_DIR / "tfidf.joblib")
         scaler = joblib.load(MODEL_DIR / "scaler.joblib")
         MODEL_LOADED = True
-        logger.info("Model loaded successfully.")
+        # Load version & metrics from config.json if present
+        cfg_path = MODEL_DIR / "config.json"
+        if cfg_path.exists():
+            import json as _json
+            with open(cfg_path) as f:
+                cfg = _json.load(f)
+            MODEL_VERSION = cfg.get("version", MODEL_VERSION)
+            MODEL_METRICS = {
+                "accuracy": cfg.get("accuracy"),
+                "f1_score": cfg.get("f1_score"),
+                "roc_auc": cfg.get("roc_auc"),
+                "training_date": cfg.get("training_date"),
+                "total_features": cfg.get("total_features"),
+                "model_type": cfg.get("model_type"),
+                "total_training_samples": cfg.get("total_training_samples"),
+            }
+        logger.info(f"Model v{MODEL_VERSION} loaded successfully.")
     except Exception as e:
         MODEL_LOADED = False
         logger.warning(f"Model could not be loaded: {e}")
+
+    # ── Word Explainability Helper (3.7) ──
+    def _get_top_words(text: str, top_n: int = 6):
+        """Return top words pushing toward FAKE and REAL using LR base estimator."""
+        try:
+            cleaned = clean_text(text)
+            feature_names = tfidf.get_feature_names_out()
+            tfidf_vec = tfidf.transform([cleaned])
+
+            # Extract LR base estimator from VotingClassifier
+            lr_estimator = None
+            for name, est in zip(model.estimators, model.estimators_):
+                if hasattr(est, 'coef_'):  # LogisticRegression
+                    lr_estimator = est
+                    break
+
+            if lr_estimator is None:
+                return [], []
+
+            coef = lr_estimator.coef_[0]  # shape: (n_tfidf_features + n_meta,)
+            tfidf_coef = coef[:len(feature_names)]  # Only TF-IDF portion
+
+            # Get TF-IDF scores for this document
+            doc_tfidf = tfidf_vec.toarray()[0]
+
+            # Weight = coefficient * tfidf_score — tells which words actually influenced this doc
+            weights = tfidf_coef * doc_tfidf
+
+            # Non-zero only (words present in doc)
+            nonzero = [(feature_names[i], float(weights[i])) for i in range(len(weights)) if doc_tfidf[i] > 0]
+            nonzero.sort(key=lambda x: x[1])
+
+            fake_words = [w for w, s in nonzero[:top_n] if s < 0]   # Negative coef = push toward FAKE
+            real_words = [w for w, s in reversed(nonzero[-top_n:]) if s > 0]  # Positive = REAL
+
+            return fake_words, real_words
+        except Exception as e:
+            logger.debug(f"Explainability failed: {e}")
+            return [], []
 
     # ── Helper Functions ──
     # clean_text, compute_meta_features (extract_single), and detect_fake_news_red_flags
@@ -422,15 +486,21 @@ else:
     @app.get("/api/v1/info")
     async def api_info():
         return {
-            "name": "Fake News Detector API", "version": "5.0",
+            "name": "Fake News Detector API",
+            "version": MODEL_VERSION,
             "status": "operational" if MODEL_LOADED else "model_not_loaded",
+            "metrics": MODEL_METRICS
         }
 
     @app.get("/health")
     async def health_check():
-        return {"status": "healthy" if MODEL_LOADED else "unhealthy", "model_loaded": MODEL_LOADED,
-                "db_mode": "postgresql" if USE_POSTGRES else "sqlite",
-                "timestamp": datetime.now().isoformat()}
+        return {
+            "status": "healthy" if MODEL_LOADED else "unhealthy",
+            "model_loaded": MODEL_LOADED,
+            "model_version": MODEL_VERSION,
+            "db_mode": "postgresql" if USE_POSTGRES else "sqlite",
+            "timestamp": datetime.now().isoformat()
+        }
 
     # Debug endpoint removed — was leaking DB schema unauthenticated (Issue #6)
 
@@ -511,11 +581,22 @@ else:
         else:
             logger.info("No authenticated user — analysis not saved")
 
+        # ── Word explainability (3.7) ──
+        fake_words, real_words = _get_top_words(text)
+
+        # ── Remaining print() calls use logger (2.4 cleanup) ──
+        if user_id and input_quality == "sufficient":
+            logger.info(f"Analysis saved for user {user_id}: {prediction} ({confidence_tier})")
+
         return PredictionResponse(
             prediction=prediction, confidence=confidence,
             confidence_tier=confidence_tier, input_quality=input_quality,
             real_probability=real_prob, fake_probability=fake_prob,
-            red_flag_score=red_flag_score, timestamp=datetime.now().isoformat()
+            red_flag_score=red_flag_score,
+            fake_indicator_words=fake_words,
+            real_indicator_words=real_words,
+            model_version=MODEL_VERSION,
+            timestamp=datetime.now().isoformat()
         )
 
     # ── AI Verification Endpoint (Groq — free, no billing required) ──
@@ -949,6 +1030,73 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
             conn.rollback()
             logger.error(f"Failed to save feedback: {e}")
             raise HTTPException(500, "Failed to save feedback")
+        finally:
+            conn.close()
+
+    # ── Admin Dashboard Endpoint (Tier 3.4) ──
+    ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
+
+    @app.get("/api/v1/admin/stats")
+    async def admin_stats(request: Request):
+        """Protected admin endpoint — returns global platform stats."""
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if not ADMIN_SECRET or token != ADMIN_SECRET:
+            raise HTTPException(403, "Admin access required")
+
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            # Global analysis totals
+            c.execute("SELECT COUNT(*), COALESCE(AVG(confidence),0) FROM analyses")
+            total_analyses, avg_conf = c.fetchone()
+
+            c.execute("SELECT COUNT(*) FROM analyses WHERE prediction='FAKE'")
+            total_fake = c.fetchone()[0]
+
+            c.execute("SELECT COUNT(*) FROM users")
+            total_users = c.fetchone()[0]
+
+            c.execute("SELECT COUNT(*) FROM feedback")
+            total_feedback = c.fetchone()[0]
+
+            # Daily trend (last 14 days)
+            if USE_POSTGRES:
+                c.execute("""SELECT DATE(created_at) as d, prediction, COUNT(*) FROM analyses
+                    WHERE created_at >= CURRENT_DATE - INTERVAL '13 days'
+                    GROUP BY d, prediction ORDER BY d""")
+            else:
+                c.execute("""SELECT DATE(created_at) as d, prediction, COUNT(*) FROM analyses
+                    WHERE created_at >= DATE('now', '-13 days')
+                    GROUP BY d, prediction ORDER BY d""")
+            trend_raw = c.fetchall()
+            trend = {}
+            for row in trend_raw:
+                day = str(row[0])
+                if day not in trend:
+                    trend[day] = {"real": 0, "fake": 0}
+                trend[day][row[1].lower()] = row[2]
+
+            # Recent feedback (last 20)
+            c.execute("""SELECT model_prediction, user_correction, text_preview, created_at
+                FROM feedback ORDER BY created_at DESC LIMIT 20""")
+            recent_feedback = [
+                {"model": r[0], "user": r[1], "preview": r[2][:80], "date": str(r[3])}
+                for r in c.fetchall()
+            ]
+
+            return {
+                "total_analyses": total_analyses,
+                "total_fake": total_fake,
+                "total_real": total_analyses - total_fake,
+                "avg_confidence": round(float(avg_conf), 1),
+                "total_users": total_users,
+                "total_feedback": total_feedback,
+                "model_version": MODEL_VERSION,
+                "model_metrics": MODEL_METRICS,
+                "daily_trend": trend,
+                "recent_feedback": recent_feedback,
+                "generated_at": datetime.now().isoformat()
+            }
         finally:
             conn.close()
 

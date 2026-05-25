@@ -327,6 +327,10 @@
                 <p>No suspicious phrases detected.</p>
               </div>
             </details>
+            <!-- Word Explainability (3.7) -->
+            <div id="explainWords" style="margin-top:16px">
+              <p class="text-muted">Run an analysis to see which words influenced the verdict.</p>
+            </div>
           </div>
           <div class="card">
             <h3>Web Sources</h3>
@@ -346,16 +350,12 @@
           </blockquote>
         </div>
 
-        <!-- Feedback -->
+        <!-- Feedback (2.5) -->
         <div class="card">
-          <h3>📝 Rate This Analysis</h3>
-          <div class="feedback-row">
-            <div class="feedback-slider">
-              <input type="range" id="feedbackSlider" min="1" max="5" value="3" class="slider">
-              <div class="feedback-labels"><span>❌ Wrong</span><span>⚠️ Poor</span><span>😐 OK</span><span>👍
-                  Good</span><span>✅ Perfect</span></div>
-            </div>
-            <button class="btn btn-primary" id="submitFeedback">Submit Rating</button>
+          <h3>📝 Was This Correct?</h3>
+          <p class="text-muted" style="margin-bottom:12px">Help us improve by reporting incorrect predictions.</p>
+          <div id="feedbackBtns" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="text-muted" style="font-size:.85rem">Run an analysis first to enable feedback.</span>
           </div>
         </div>
       </div>

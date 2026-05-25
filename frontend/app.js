@@ -357,6 +357,32 @@ function renderResults(data) {
   setRingColor('ringML', mlPct);
   document.getElementById('mlDetail').textContent = isReal ? 'High structural consistency.' : 'Structural anomalies detected.';
 
+  // ── Explainability words (3.7) ──
+  const explainEl = document.getElementById('explainWords');
+  if (explainEl) {
+    const fakeWords = data.fake_indicator_words || [];
+    const realWords = data.real_indicator_words || [];
+    if (fakeWords.length || realWords.length) {
+      explainEl.innerHTML =
+        (fakeWords.length ? `<div class="explain-group"><span class="explain-label fake-label">🚩 Fake Signals</span> ${fakeWords.map(w => `<span class="word-chip fake-chip">${w}</span>`).join('')}</div>` : '') +
+        (realWords.length ? `<div class="explain-group"><span class="explain-label real-label">✅ Real Signals</span> ${realWords.map(w => `<span class="word-chip real-chip">${w}</span>`).join('')}</div>` : '');
+    } else {
+      explainEl.innerHTML = '<p class="text-muted">Explainability not available for this input.</p>';
+    }
+  }
+
+  // ── Feedback buttons ──
+  const feedbackEl = document.getElementById('feedbackBtns');
+  if (feedbackEl) {
+    const articleTextVal = document.getElementById('articleText').value.trim();
+    feedbackEl.innerHTML = `
+      <span style="font-size:.85rem;color:var(--text2)">Was this result correct?</span>
+      <button class="btn btn-sm btn-outline" onclick="submitFeedback(${JSON.stringify(articleTextVal)}, '${data.prediction}', 'REAL')">👍 It's Real</button>
+      <button class="btn btn-sm btn-outline" onclick="submitFeedback(${JSON.stringify(articleTextVal)}, '${data.prediction}', 'FAKE')">👎 It's Fake</button>
+    `;
+  }
+
+
   // Track scores from all 3 sources for combined verdict
   let geminiScore = null, gnewsScore = null;
   const articleText = document.getElementById('articleText').value.trim();
