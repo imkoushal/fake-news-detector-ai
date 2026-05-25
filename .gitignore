@@ -72,3 +72,7 @@ build/
 
 # Docker
 .docker/
+
+# Debug / scratch scripts — never commit these
+test_gemini_key.py
+scratch_*.py

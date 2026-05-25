@@ -343,12 +343,14 @@ else:
                 raise HTTPException(401, "Invalid email or password")
 
             # Auto-upgrade legacy SHA-256 hashes to bcrypt on successful login
+            # Commit upgrade immediately so it persists even if session creation fails
             if user[4] != "bcrypt" and not user[3].startswith("$2b$"):
                 new_hash = _hash_password(req.password)
                 c.execute(
                     f"UPDATE users SET password_hash = {ph()}, salt = {ph()} WHERE id = {ph()}",
                     (new_hash, "bcrypt", user[0])
                 )
+                conn.commit()  # Commit hash upgrade independently
                 print(f"[OK] Auto-upgraded password hash to bcrypt for user {user[0]}")
 
             token = secrets.token_urlsafe(32)

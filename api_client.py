@@ -1,20 +1,7 @@
 import requests
 import streamlit as st
-try:
-    import google.generativeai as genai
-    HAS_GEMINI = True
-except ImportError:
-    HAS_GEMINI = False
-
-def get_gemini_client(api_key):
-    """Initialize Gemini client"""
-    if HAS_GEMINI and api_key and api_key != "YOUR_GEMINI_API_KEY_HERE":
-        try:
-            genai.configure(api_key=api_key)
-            return genai.GenerativeModel('gemini-2.5-flash')
-        except Exception as e:
-            pass
-    return None
+# Note: Gemini/google-generativeai removed — AI verification now handled
+# via Groq REST API in api.py. This client only handles GNews searches.
 
 def gemini_verify_claim(text, api_key):
     """Use Gemini AI to verify the credibility of a claim"""
