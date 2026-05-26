@@ -1,8 +1,27 @@
 """
-FastAPI application — industry-grade rewrite.
+⚠️  DEPRECATED — This modular API rewrite is NOT the production entrypoint.
 
-Run with: uvicorn src.api.app:app --reload
+The production server is the root `api.py` which includes:
+  - User authentication (signup/login/logout/sessions)
+  - Groq AI verification (/api/v1/gemini-verify)
+  - GNews web verification (/api/v1/gnews-search)
+  - User history & dashboard stats
+  - Feedback collection (/api/v1/feedback)
+  - Admin dashboard (/api/v1/admin/stats)
+  - Word-level explainability (XAI)
+
+This file exists as a reference for the modular architecture pattern.
+DO NOT deploy this file. Use `uvicorn api:app` instead.
+
+Run with: uvicorn src.api.app:app --reload  (DEV ONLY)
 """
+import warnings
+warnings.warn(
+    "src.api.app is DEPRECATED and lacks feature parity with the production api.py. "
+    "Use `uvicorn api:app` for the production server.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from datetime import datetime
 

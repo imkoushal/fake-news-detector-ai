@@ -31,7 +31,7 @@ try:
     from fastapi import FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, JSONResponse
     from pydantic import BaseModel
     from typing import Optional, List
     import joblib
@@ -41,7 +41,7 @@ try:
     import bcrypt
     import secrets
     import sqlite3
-    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi import Limiter
     from slowapi.util import get_remote_address
     from slowapi.errors import RateLimitExceeded
 
@@ -81,7 +81,22 @@ else:
         )
     )
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    # ── Custom structured JSON rate-limit handler (Codex Fix #4) ──
+    async def _custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+        """Return a clean JSON payload instead of the default plain-text error."""
+        logger.warning(f"Rate limit exceeded for {request.url.path} — {exc.detail}")
+        return JSONResponse(
+            status_code=429,
+            content={
+                "status": "error",
+                "message": "Too many requests. Please slow down.",
+                "detail": str(exc.detail),
+                "retry_after": "see Retry-After header"
+            },
+            headers={"Retry-After": "60"}
+        )
+    app.add_exception_handler(RateLimitExceeded, _custom_rate_limit_handler)
 
     # ── Database Layer (PostgreSQL in production, SQLite locally) ──
     BASE_DIR = Path(__file__).resolve().parent
@@ -145,6 +160,36 @@ else:
         """Return SQL placeholder(s) — %s for PostgreSQL, ? for SQLite."""
         p = "%s" if USE_POSTGRES else "?"
         return ", ".join([p] * n)
+
+    # ── Centralized DB Execution Helper (Codex Fix #2) ──
+    def execute_db(query: str, params: tuple = (), *, fetch: str = "none", commit: bool = False):
+        """Run a SQL query with guaranteed connection cleanup.
+        
+        Args:
+            query:  SQL string with placeholders.
+            params: Tuple of parameter values.
+            fetch:  'none' | 'one' | 'all' — what to return from the cursor.
+            commit: Whether to commit the transaction.
+        
+        Returns:
+            None, a single row tuple, or a list of row tuples.
+        """
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            c.execute(query, params)
+            if commit:
+                conn.commit()
+            if fetch == "one":
+                return c.fetchone()
+            elif fetch == "all":
+                return c.fetchall()
+            return None
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
 
     def _init_auth_db():
         conn = get_db()
@@ -210,7 +255,7 @@ else:
                 c.execute("ALTER TABLE sessions ADD COLUMN expires_at TIMESTAMP")
             else:
                 c.execute("ALTER TABLE sessions ADD COLUMN expires_at DATETIME")
-            print("[OK] Migrated sessions table: added expires_at column")
+            logger.info("Migrated sessions table: added expires_at column")
         except Exception:
             pass  # Column already exists — this is expected
 
@@ -238,6 +283,17 @@ else:
 
     # ── Session token TTL (7 days) ──
     SESSION_TTL_DAYS = 7
+
+    def _sanitize_preview(text: str, max_len: int = 200) -> str:
+        """Unicode-safe text preview sanitizer (Manus AI Fix #5).
+        Strips control characters but preserves accented letters, quotes, and international text.
+        """
+        # Strip control characters (U+0000-U+001F, U+007F-U+009F) but keep printable Unicode
+        sanitized = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
+        # Collapse excessive whitespace
+        sanitized = re.sub(r'\s+', ' ', sanitized).strip()
+        # Truncate safely
+        return sanitized[:max_len]
 
     def _get_user_from_token(request: Request):
         """Extract user_id from auth token. Rejects expired tokens."""
@@ -362,13 +418,14 @@ else:
             # Auto-upgrade legacy SHA-256 hashes to bcrypt on successful login
             # Commit upgrade immediately so it persists even if session creation fails
             if user[4] != "bcrypt" and not user[3].startswith("$2b$"):
+                logger.warning(f"Legacy SHA-256 hash detected for user {user[0]} — auto-upgrading to bcrypt. Consider prompting this user to change their password.")
                 new_hash = _hash_password(req.password)
                 c.execute(
                     f"UPDATE users SET password_hash = {ph()}, salt = {ph()} WHERE id = {ph()}",
                     (new_hash, "bcrypt", user[0])
                 )
                 conn.commit()  # Commit hash upgrade independently
-                print(f"[OK] Auto-upgraded password hash to bcrypt for user {user[0]}")
+                logger.info(f"Auto-upgraded password hash to bcrypt for user {user[0]}")
 
             token = secrets.token_urlsafe(32)
             expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
@@ -401,11 +458,17 @@ else:
     async def logout(request: Request):
         token = request.headers.get("Authorization", "").replace("Bearer ", "")
         if token:
+            # Codex Fix #3: Wrap in try/finally to prevent connection leak on error
             conn = get_db()
             c = conn.cursor()
-            c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (token,))
-            conn.commit()
-            conn.close()
+            try:
+                c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (token,))
+                conn.commit()
+            except Exception as e:
+                logger.error(f"Logout session cleanup failed: {e}")
+                conn.rollback()
+            finally:
+                conn.close()
         return {"ok": True}
 
     # ── Load ML Model + version info (3.1) ──
@@ -561,7 +624,7 @@ else:
         # Short claims (< 30 words) produce dampened scores — don't pollute history
         user_id = _get_user_from_token(request)
         if user_id and input_quality == "sufficient":
-            preview = text[:200].encode('ascii', errors='ignore').decode().strip()
+            preview = _sanitize_preview(text, max_len=200)
             conn = get_db()
             c = conn.cursor()
             try:
@@ -570,9 +633,9 @@ else:
                     (user_id, preview, prediction, confidence, real_prob, fake_prob, red_flag_score)
                 )
                 conn.commit()
-                print(f"[OK] Analysis saved for user {user_id}: {prediction} ({confidence_tier})")
+                logger.info(f"Analysis saved for user {user_id}: {prediction} ({confidence_tier})")
             except Exception as e:
-                print(f"[ERR] Failed to save analysis: {e}")
+                logger.error(f"Failed to save analysis: {e}")
                 conn.rollback()
             finally:
                 conn.close()
@@ -583,10 +646,6 @@ else:
 
         # ── Word explainability (3.7) ──
         fake_words, real_words = _get_top_words(text)
-
-        # ── Remaining print() calls use logger (2.4 cleanup) ──
-        if user_id and input_quality == "sufficient":
-            logger.info(f"Analysis saved for user {user_id}: {prediction} ({confidence_tier})")
 
         return PredictionResponse(
             prediction=prediction, confidence=confidence,
@@ -656,7 +715,7 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
 
             if resp.status_code != 200:
                 error_msg = resp.json().get("error", {}).get("message", resp.text[:200])
-                print(f"[ERR] Groq API error {resp.status_code}: {error_msg}")
+                logger.error(f"Groq API error {resp.status_code}: {error_msg}")
                 raise HTTPException(502, f"AI verification failed: {error_msg}")
 
             result_text = resp.json()["choices"][0]["message"]["content"]
@@ -704,7 +763,7 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
         except HTTPException:
             raise
         except Exception as e:
-            print(f"[ERR] AI verification failed: {e}")
+            logger.error(f"AI verification failed: {e}")
             raise HTTPException(502, f"AI verification failed: {str(e)}")
 
     # ── GNews Web Verification Endpoint ──
@@ -786,7 +845,7 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
         except HTTPException:
             raise
         except Exception as e:
-            print(f"[ERR] GNews search failed: {e}")
+            logger.error(f"GNews search failed: {e}")
             raise HTTPException(502, f"GNews search failed: {str(e)}")
 
     @app.post("/api/v1/batch")
@@ -1015,7 +1074,7 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
             raise HTTPException(400, "Text too short")
 
         user_id = _get_user_from_token(request)  # Optional — anonymous feedback allowed
-        preview = req.text.strip()[:300].encode('ascii', errors='ignore').decode()
+        preview = _sanitize_preview(req.text.strip(), max_len=300)
         conn = get_db()
         c = conn.cursor()
         try:

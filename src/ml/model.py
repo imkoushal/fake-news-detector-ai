@@ -54,8 +54,9 @@ class FakeNewsModel(BaseEstimator, ClassifierMixin):
         """Run full prediction on cleaned text with metrics recording."""
         start = time.perf_counter()
         proba = self.predict_proba([cleaned_text])[0]
-        real_prob = float(proba[0])
-        fake_prob = float(proba[1])
+        # Convention: classes_ = [FAKE=0, REAL=1] — matches production api.py
+        fake_prob = float(proba[0])
+        real_prob = float(proba[1])
         prediction = "FAKE" if fake_prob > 0.5 else "REAL"
         confidence = max(real_prob, fake_prob) * 100
         latency_ms = (time.perf_counter() - start) * 1000

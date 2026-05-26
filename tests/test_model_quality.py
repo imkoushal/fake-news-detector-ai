@@ -1,5 +1,5 @@
 """
-Phase 5.4 — Model Quality Test Suite
+Model Quality Test Suite — Updated for current architecture.
 
 Automated regression tests to ensure model quality is maintained
 across training runs.  These tests load the production model and
@@ -24,9 +24,13 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 @pytest.fixture(scope="module")
 def pipeline():
-    """Load the production model pipeline (once per module)."""
+    """Load the production model pipeline (once per module).
+
+    Uses FinalModel from app.py which wraps vectorizer + scaler + model
+    with combined TF-IDF and meta-feature inference.
+    Convention: classes_ = [FAKE=0, REAL=1]
+    """
     from joblib import load
-    import os
 
     models_dir = PROJECT_ROOT / "models"
     if not (models_dir / "model.joblib").exists():
@@ -38,7 +42,7 @@ def pipeline():
     scaler = None
     if (models_dir / "scaler.joblib").exists():
         scaler = load(models_dir / "scaler.joblib")
-    
+
     ood_detector = None
     if (models_dir / "ood_centroid.npy").exists():
         try:
@@ -147,20 +151,22 @@ class TestMinimumQuality:
 
 
 class TestRealArticleDetection:
-    """Known real articles should be classified as REAL (class 0)."""
+    """Known real articles should be classified as REAL.
+    Convention: classes_ = [FAKE=0, REAL=1] → proba[1] = real_prob
+    """
 
-    @pytest.mark.parametrize("article", REAL_ARTICLES, ids=["reuters_fed", "ap_infrastructure"])
+    @pytest.mark.parametrize("article", REAL_ARTICLES, ids=["reuters_fed", "reuters_stocks"])
     def test_real_article_prediction(self, pipeline, article):
         from utils import clean_text
         cleaned = clean_text(article)
         proba = pipeline.predict_proba([cleaned], raw_texts=[article])[0]
-        # Model: class 0=FAKE, class 1=REAL
+        # classes_ = [FAKE=0, REAL=1]
         real_prob = float(proba[1])
         assert real_prob > 0.5, (
             f"Real article misclassified: real_prob={real_prob:.3f}"
         )
 
-    @pytest.mark.parametrize("article", REAL_ARTICLES, ids=["reuters_fed", "ap_infrastructure"])
+    @pytest.mark.parametrize("article", REAL_ARTICLES, ids=["reuters_fed", "reuters_stocks"])
     def test_real_article_confidence(self, pipeline, article):
         """Real articles should have > 60% confidence."""
         from utils import clean_text
@@ -171,14 +177,16 @@ class TestRealArticleDetection:
 
 
 class TestFakeArticleDetection:
-    """Known fake articles should be classified as FAKE (class 1)."""
+    """Known fake articles should be classified as FAKE.
+    Convention: classes_ = [FAKE=0, REAL=1] → proba[0] = fake_prob
+    """
 
     @pytest.mark.parametrize("article", FAKE_ARTICLES, ids=["clickbait_medical", "conspiracy_deepstate"])
     def test_fake_article_prediction(self, pipeline, article):
         from utils import clean_text
         cleaned = clean_text(article)
         proba = pipeline.predict_proba([cleaned], raw_texts=[article])[0]
-        # Model: class 0=FAKE, class 1=REAL → fake_prob = proba[0]
+        # classes_ = [FAKE=0, REAL=1] → fake_prob = proba[0]
         fake_prob = float(proba[0])
         assert fake_prob > 0.5, (
             f"Fake article misclassified: fake_prob={fake_prob:.3f}"
@@ -195,7 +203,7 @@ class TestFakeArticleDetection:
 
 
 class TestOODDetection:
-    """Phase 5.1: OOD detector should flag unusual inputs."""
+    """OOD detector should flag unusual inputs."""
 
     def test_ood_on_normal_article(self, pipeline):
         """Normal English news article should NOT be OOD."""
@@ -221,6 +229,8 @@ class TestOODDetection:
 
     def test_ood_returns_details(self, pipeline):
         """OOD detector should return useful detail keys."""
+        if pipeline.ood is None:
+            pytest.skip("OOD centroid not yet computed (run train.py first)")
         _, details = pipeline.ood_score("Test article text")
         assert "ood_score" in details
         assert "is_ood" in details
@@ -228,13 +238,15 @@ class TestOODDetection:
 
     def test_ood_score_range(self, pipeline):
         """OOD score should be between 0 and 1."""
+        if pipeline.ood is None:
+            pytest.skip("OOD centroid not yet computed (run train.py first)")
         for article in REAL_ARTICLES + FAKE_ARTICLES:
             score, _ = pipeline.ood_score(article)
             assert 0.0 <= score <= 1.0, f"OOD score out of range: {score}"
 
 
 class TestDynamicWeights:
-    """Phase 5.2: Dynamic weight computation."""
+    """Dynamic weight computation."""
 
     def test_normal_weights(self):
         from ood_detector import get_dynamic_weights
@@ -258,7 +270,7 @@ class TestDynamicWeights:
 
 
 class TestConfidenceCalibration:
-    """Phase 5.3: Confidence calibration."""
+    """Confidence calibration."""
 
     def test_in_distribution_confidence(self):
         from ood_detector import calibrate_confidence
@@ -279,7 +291,7 @@ class TestConfidenceCalibration:
     def test_min_confidence_floor(self):
         from ood_detector import calibrate_confidence
         cal = calibrate_confidence(20.0, 0.0)
-        assert cal >= 30.0, "In-distribution confidence floor is 50%"
+        assert cal >= 30.0, "In-distribution confidence floor is 30%"
 
 
 class TestEdgeCases:
@@ -304,7 +316,7 @@ class TestEdgeCases:
     def test_special_characters(self, pipeline):
         """Special characters should not crash."""
         from utils import clean_text
-        text = "!!!@@@###$$$%%%^^^&&&***((()))"
+        text = "!!!@@@###$$$%%%^^^&&&***((())) testing special chars article"
         cleaned = clean_text(text)
         if cleaned.strip():
             proba = pipeline.predict_proba([cleaned])[0]
@@ -314,6 +326,24 @@ class TestEdgeCases:
         """Numeric-only text should not crash."""
         from utils import clean_text
         cleaned = clean_text("123456789 0.5 3.14 100%")
+        if cleaned.strip():
+            proba = pipeline.predict_proba([cleaned])[0]
+            assert len(proba) == 2
+
+    def test_unicode_text(self, pipeline):
+        """Unicode text should not crash the pipeline."""
+        from utils import clean_text
+        text = "El presidente anunció nuevas medidas económicas según fuentes oficiales del gobierno"
+        cleaned = clean_text(text)
+        if cleaned.strip():
+            proba = pipeline.predict_proba([cleaned])[0]
+            assert len(proba) == 2
+
+    def test_mixed_language_text(self, pipeline):
+        """Mixed language text should not crash."""
+        from utils import clean_text
+        text = "Breaking news from Tokyo 東京 — officials say the earthquake measured 5.2 on the Richter scale"
+        cleaned = clean_text(text)
         if cleaned.strip():
             proba = pipeline.predict_proba([cleaned])[0]
             assert len(proba) == 2
