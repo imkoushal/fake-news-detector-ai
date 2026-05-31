@@ -164,6 +164,12 @@ Run the monitoring test suite:
 pytest tests/test_monitoring.py -v
 ```
 
+### WelFake Dataset Evaluation
+Test the model against the 72K+ article WelFake dataset (merged Kaggle, McIntire, Reuters, BuzzFeed):
+```bash
+python eval_welfake.py
+```
+
 ---
 
 ## 📈 Model Performance
@@ -178,7 +184,15 @@ pytest tests/test_monitoring.py -v
 | F1-Score | 94.66% |
 | ROC-AUC | 99.17% |
 
-*Note: While accuracy is slightly adjusted from older overfit baselines, the model's cross-domain robustness and OOD resilience are significantly improved.*
+**Cross-Domain Evaluation: WelFake Dataset (72K Articles)**
+
+| Metric | Score |
+|--------|-------|
+| **Accuracy** | **97.72%** |
+| **ROC-AUC**  | **99.78%** |
+| **High Confidence (≥90%) Accuracy** | **99.97%** |
+
+*Note: While base accuracy is slightly adjusted from older overfit baselines, the model's cross-domain robustness and OOD resilience are significantly improved, achieving near-perfect accuracy on high-confidence predictions.*
 
 ---
 
@@ -196,6 +210,7 @@ fake news detector/
 ├── enhanced_features.py        # Meta-feature generation
 ├── utils.py                    # Core text cleaning & NLP utilities
 ├── cross_domain_eval.py        # Cross-dataset validation matrix
+├── eval_welfake.py             # WelFake cross-domain evaluation script
 ├── tests/
 │   ├── test_model_quality.py   # Prediction assertions
 │   └── test_monitoring.py      # Health monitor unit tests
