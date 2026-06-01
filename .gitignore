@@ -37,6 +37,7 @@ models/v_*/
 !models/model.joblib
 !models/tfidf.joblib
 !models/scaler.joblib
+!models/ood_centroid.npy
 
 # IDE
 .vscode/
