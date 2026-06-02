@@ -1,0 +1,297 @@
+\documentclass[11pt,a4paper,oneside]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1.0in]{geometry}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tcolorbox}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{microtype}
+\usepackage{tabularx}
+\usepackage{colortbl}
+
+% --- Custom Color Palette (Modern Deep Slate & Teal Theme) ---
+\definecolor{primary}{HTML}{0F172A}      % Deep Slate Blue
+\definecolor{secondary}{HTML}{0D9488}    % Bright Teal
+\definecolor{danger}{HTML}{E11D48}       % Deep Coral Red
+\definecolor{accent}{HTML}{2563EB}       % Classic Accent Blue
+\definecolor{lightbg}{HTML}{F8FAFC}      % Light background gray
+\definecolor{border}{HTML}{E2E8F0}       % Border gray
+
+% --- Page Style & Typography Configuration ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=accent,
+    filecolor=accent,      
+    urlcolor=secondary,
+    citecolor=accent,
+    pdftitle={Hybrid Fake News Detector - Technical Project Report},
+    pdfpagemode=FullScreen,
+}
+
+% Section formatting
+\titleformat{\section}{\color{primary}\normalfont\Large\bfseries}{\thesection}{1em}{}[{\color{border}\titlerule}]
+\titleformat{\subsection}{\color{secondary}\normalfont\large\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\color{primary}\normalfont\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+% Headers & Footers
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyhead[L]{\textcolor{primary}{\small\bfseries Technical Project Report: Hybrid Fake News Detector}}
+\fancyhead[R]{\textcolor{secondary}{\small\bfseries System Version 5.0 (Phase 6)}}
+\fancyfoot[C]{\textcolor{primary}{\thepage}}
+\fancyfoot[R]{\textcolor{secondary}{\small\bfseries CONFIDENTIAL}}
+
+% TColorBox settings
+\tcbset{
+    colback=lightbg,
+    colframe=border,
+    arc=4pt,
+    boxrule=0.8pt,
+    left=8pt,
+    right=8pt,
+    top=8pt,
+    bottom=8pt
+}
+
+% --- Begin Document ---
+\begin{document}
+
+% =============================================================================
+% COVER PAGE (Excluded from 4-Page limit)
+% =============================================================================
+\begin{titlepage}
+    \centering
+    \vspace*{2.0cm}
+    
+    % Logo Placeholder / Graphic Accent
+    \begin{tcolorbox}[colback=primary, colframe=primary, halign=center, width=2.5cm, height=2.5cm, arc=10pt]
+        \vspace*{0.25cm}
+        \textcolor{white}{\Huge\bfseries 🔍}
+    \end{tcolorbox}
+    
+    \vspace{0.8cm}
+    {\Huge\bfseries Hybrid Fake News Detector}\\[0.4cm]
+    {\large\textcolor{secondary}{\bfseries Production-Ready Stacking Classifier Ensemble, Dynamic Out-of-Distribution (OOD) Detection, and Automated Telemetry Health Monitoring}}\\[1.5cm]
+    
+    \begin{tcolorbox}[colback=lightbg, colframe=secondary, title=\textbf{Executive Core Summary}, coltitle=white, colbacktitle=secondary]
+        This technical report outlines the comprehensive engineering, architecture, and validation of the \textbf{Hybrid Fake News Detector v5.0 (Phase 6)}. Engineered over six iterative improvement phases, the system combines a robust machine learning stacking classifier ensemble, Google Gemini AI semantic analysis, and GNews real-time web verification. Features include dynamic Out-of-Distribution (OOD) input routing, 20 handcrafted stylometric meta-features, calibrated prediction probabilities, and database-backed model drift monitoring. The integrated system achieves an empirical accuracy of \textbf{94.74\%} and a ROC-AUC of \textbf{99.17\%} with high cross-domain resilience.
+    \end{tcolorbox}
+    
+    \vfill
+    
+    % Metadata Table
+    \begin{tabular}{ll}
+        \textbf{Document Type:} & High-Fidelity Technical Project Report \\
+        \textbf{Author:} & Hybrid Fake News Detector Team \\
+        \textbf{System Accuracy:} & \textbf{94.74\%} (ISOT, WELFake, Kaggle, LIAR, FakeTrue) \\
+        \textbf{Calibration Layer:} & Calibrated Isotonic Regression \\
+        \textbf{OOD Safeguard:} & Cosine Distance Training Centroid Mapping \\
+        \textbf{Monitoring Engine:} & SQLite Production Telemetry \\
+        \textbf{Report Date:} & May 20, 2026
+    \end{tabular}
+    
+    \vspace{1.5cm}
+    \textcolor{secondary}{\rule{0.6\textwidth}{1.2pt}}\\[0.2cm]
+    {\small Absolute clinical objectivity in an era of information volatility.}
+\end{titlepage}
+
+\newpage
+% =============================================================================
+% PAGE 1: SYSTEM ARCHITECTURE & CORE DATA PIPELINE
+% =============================================================================
+\section{System Architecture \& Core Data Pipeline}
+\label{sec:architecture}
+
+The \textbf{Hybrid Fake News Detector} is engineered as a multi-tiered forensic verification pipeline. Misinformation is statistically, semantically, and temporally interrogated through three independent verification layers. This structural diversity allows the system to remain highly accurate even when processing adversarial claims, breaking news, or texts that diverge from the training distribution.
+
+\subsection{The Three-Layer Hybrid Verification Hierarchy}
+\begin{enumerate}
+    \item \textbf{Statistical ML Layer (Stacking Ensemble):} Interrogates structural indicators, readability levels, emotional polarization, and word frequencies. Features standard scaling and 15,000 TF-IDF features coupled with 20 custom handcrafted linguistic features.
+    \item \textbf{Semantic AI Layer (Google Gemini AI):} Conducts deep logical credibility assessments, entity extraction, and reasoning verification. Gemini parses the claim’s cognitive structure, checks for factual consistency, and isolates unverified assertions.
+    \item \textbf{Temporal Web Layer (GNews API Engine):} Cross-references extracted entities and key terms against high-trust real-time news sources in parallel. It checks the temporal consensus of the claim to verify if reputable agencies have corroborated the story.
+\end{enumerate}
+
+\subsection{Pipeline Architecture and Routing Topology}
+Input articles are parsed via a standardized preprocessing and feature extraction workflow, routed dynamically based on their distribution properties, and outputted as a unified verdict with calibrated confidence scores.
+
+\begin{tcolorbox}[title=\textbf{Forensic Data Flow and Ingestion Pipeline}]
+    \centering
+    \small
+    \textbf{Input Document} $\rightarrow$ \textbf{Linguistic Extraction} (Raw Character Metrics, Quoted Citations, Readability Scores) \\
+    $\downarrow$ \\
+    \textbf{Cleaning Engine} (Unicode Regularization, Contraction Expansion, Lowercasing, Stopword Removal) \\
+    $\downarrow$ \\
+    \textbf{Dual Feature Vectorization} (TF-IDF 15,000 $N$-grams $\oplus$ StandardScaler scaled 20 Meta-Features) \\
+    $\downarrow$ \\
+    \textbf{Out-of-Distribution (OOD) Analysis} (Distance to Training Centroid $\rightarrow$ OOD Score $S_{\text{ood}}$) \\
+    $\downarrow$ \\
+    \textbf{Prediction Execution \& Dynamic Weight Shifting} \\
+    $\swarrow \quad \quad \quad \quad \quad \quad \quad \downarrow \quad \quad \quad \quad \quad \quad \quad \searrow$ \\
+    \textbf{ML Stacking Ensemble} ($W_{\text{ml}}$) \quad \textbf{Gemini Fact Check} ($W_{\text{ai}}$) \quad \textbf{GNews Temporal Verification} ($W_{\text{web}}$) \\
+    $\searrow \quad \quad \quad \quad \quad \quad \quad \downarrow \quad \quad \quad \quad \quad \quad \quad \swarrow$ \\
+    \textbf{Dynamic Verdict Aggregator} $\rightarrow$ \textbf{Calibrated Probability} $\rightarrow$ \textbf{Production Telemetry Log}
+\end{tcolorbox}
+
+\subsection{Raw Text Ingestion & Foreign Language Normalization}
+The ingestion layer features a \textbf{Global Translation Matrix} powered by Gemini. To prevent translation artifacts from throwing off the statistical ML features (e.g. altering sentence structure and word counts), the translation occurs \textit{before} meta-feature extraction. The system normalizes foreign-language articles into standard English while retaining exact capitalization, punctuation ratios, and quotation formats, ensuring consistent stylometric extraction.
+
+\newpage
+% =============================================================================
+% PAGE 2: HANDCRAFTED LINGUISTIC FEATURE ENGINEERING
+% =============================================================================
+\section{Linguistic Feature Engineering \& Stylometrics}
+\label{sec:features}
+
+While N-gram frequency mapping (TF-IDF) captures keyword-level markers, it is blind to rhetorical manipulation, emotional pleading, and structural style. Phase 2 of the system introduced \textbf{20 handcrafted linguistic meta-features}. These features are extracted from the \textit{raw, uncleaned} text to capture capitalization anomalies, punctuation markers, and structural indicators that cleaning pipelines strip away.
+
+\subsection{Linguistic Feature Classifications}
+The 20 meta-features are mathematically extracted and categorized into five critical forensic vectors:
+\begin{itemize}
+    \item \textbf{Structural Complexity:} Character counts, absolute word counts, total sentences, and average sentence length. Highly erratic sentence-length patterns frequently correlate with sensationalist text.
+    \item \textbf{Punctuation \& Case Anomaly:} Ratios of exclamation marks, question marks, uppercase words, title-case words, and capital letters. Sensationalism relies on excessive capitalization and multiple exclamation symbols.
+    \item \textbf{Vocabulary Diversity:} Lexical diversity score (unique words / total words) and average word length. Academic and objective text exhibits high lexical diversity, whereas misinformation repeats core emotional phrases.
+    \item \textbf{Stylistic & Sentiment Pointers:} Ratios of first-person pronouns (I, we, our), quoted source counts (representing direct attributions), number counts (statistics), and URL counts. Objective news relies on third-person reportage.
+    \item \textbf{Cognitive Bias Red-Flags:} Conspiracy index, sensationalism ratio, clickbait score, Flesch-Kincaid grade level, and verified citation markers (has\_attribution). High clickbait indicators trigger warnings.
+\end{itemize}
+
+\subsection{Linguistic Meta-Feature Registry}
+\begin{table}[h]
+    \centering
+    \caption{Linguistic Meta-Features Extracted by System (Phase 2)}
+    \label{tab:meta_features}
+    \small
+    \begin{tabularx}{\textwidth}{lXl}
+        \toprule
+        \textbf{Feature Name} & \textbf{Forensic/Mathematical Extraction Definition} & \textbf{Expected Clean Trend} \\
+        \midrule
+        \rowcolor{lightbg} \texttt{sentence\_count} & Counts terminal markers (\texttt{.}, \texttt{!}, \texttt{?}) & High (length dependent) \\
+        \texttt{avg\_sentence\_length} & Ratio of total words to total sentence count & 15.0 -- 25.0 words \\
+        \rowcolor{lightbg} \texttt{word\_count} & Absolute split space count & High (articles, not tweets) \\
+        \texttt{exclamation\_ratio} & Occurrences of \texttt{!} / total words & $\approx$ 0.0 (strictly flat) \\
+        \rowcolor{lightbg} \texttt{question\_ratio} & Occurrences of \texttt{?} / total words & Low ($\approx$ 0.0 -- 0.02) \\
+        \texttt{all\_caps\_ratio} & Uppercase words ($L > 1$) / total words & Low ($\approx$ 0.0 -- 0.01) \\
+        \rowcolor{lightbg} \texttt{title\_case\_ratio} & Title-case words / total words & Standard capitalization \\
+        \texttt{caps\_char\_ratio} & Uppercase characters / alphabetical chars & $\approx$ 0.04 -- 0.06 \\
+        \rowcolor{lightbg} \texttt{lexical\_diversity} & Unique lowercased tokens / total words & High ($> 0.45$) \\
+        \texttt{avg\_word\_length} & Characters in words / total words & $\approx$ 4.5 -- 5.5 chars \\
+        \rowcolor{lightbg} \texttt{first\_person\_ratio} & Count of first-person pronouns / total words & $\approx$ 0.0 (third-person) \\
+        \texttt{quoted\_source\_count} & Count of quotation pairs (\texttt{"..."}, \texttt{“...”}) & High ($\ge 1.0$ per article) \\
+        \rowcolor{lightbg} \texttt{number\_count} & Count of statistics, percentages, and numbers & High (empirical basis) \\
+        \texttt{url\_count} & Count of hyperlinked URLs in text & Medium \\
+        \rowcolor{lightbg} \texttt{conspiracy\_score} & Density of frozen conspiracy keywords & 0.0 (strictly flat) \\
+        \texttt{sensationalism\_score}& Density of frozen sensational words & Low \\
+        \rowcolor{lightbg} \texttt{red\_flag\_score} & Frequency of clickbait regular expressions & 0.0 \\
+        \texttt{flesch\_kincaid\_grade} & $0.39 \times \text{AvgSentLen} + 11.8 \times \text{AvgSylPerWord} - 15.59$ & Grade 9.0 -- 12.0 \\
+        \rowcolor{lightbg} \texttt{has\_attribution} & Boolean match of authority markers (e.g., "according to") & 1.0 (highly expected) \\
+        \texttt{clickbait\_score} & normalized sum of clickbait matches & 0.0 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Standard Feature Scaling}
+Because handcrafted meta-features possess highly divergent numerical domains (e.g. \texttt{word\_count} can exceed 2000, while \texttt{exclamation\_ratio} resides between 0.0 and 0.05), they are scaled using \textbf{StandardScaler} based on training population means and standard deviations. The scaled meta-features are then horizontally stacked with the 15,000 TF-IDF features to form a final hybrid feature vector.
+
+\newpage
+% =============================================================================
+% PAGE 3: ADVANCED STACKING ENSEMBLE CLASSIFIER
+% =============================================================================
+\section{Advanced Stacking Ensemble \& Calibration}
+\label{sec:ensemble}
+
+The mathematical core of the Statistical ML Layer is an advanced \textbf{Stacking Ensemble Classifier} optimized during Phase 4. Instead of relying on a single estimator that might overfit specific domain vocabulary, the ensemble uses five highly diverse base models whose predictions are aggregated by a calibrated meta-learner.
+
+\subsection{Base Estimator Selection and Diversification}
+Five classifiers are trained on the combined feature matrix, selecting distinct algorithmic paradigms to cover diverse failure modes:
+\begin{enumerate}
+    \item \textbf{Logistic Regression (LR):} A robust, high-bias linear model utilizing L2 regularization. It establishes a strong structural baseline.
+    \item \textbf{Random Forest Classifier (RF):} A non-linear bagging ensemble of decision trees. It excels at parsing interactive relationships between linguistic meta-features.
+    \item \textbf{Stochastic Gradient Descent Classifier (SGD):} An online linear classifier utilizing elastic net regularization, offering excellent generalization on sparse TF-IDF spaces.
+    \item \textbf{Linear Support Vector Classifier (LinearSVC):} Optimizes a maximum-margin boundary to isolate subtle, high-dimensional textual differences.
+    \item \textbf{Light Gradient Boosting Machine (LightGBM):} A fast, leaf-wise gradient boosting framework that captures complex non-linear boundary splits across meta-features.
+\end{enumerate}
+
+\subsection{Meta-Learner Architecture & Calibration Layer}
+The base models output their raw predictions and class probabilities into a cross-validated prediction matrix. A meta-learner consisting of a \textbf{Logistic Regression} model is then trained on this matrix, learning how to weight each base model's prediction depending on the context.
+
+To provide reliable probability metrics rather than raw binary outputs, the meta-learner is wrapped in an **Isotonic Regression Calibration Layer**. Calibration ensures that if the system reports a confidence score of \textbf{90\%}, the claim is statistically real exactly 90\% of the time in replication tests.
+
+\subsection{Empirical Validation Results}
+The calibrated stacking ensemble was evaluated across a unified dataset of over 105,266 samples (consisting of ISOT, WELFake, Kaggle, LIAR, and synthetic datasets). 
+
+\begin{table}[h]
+    \centering
+    \caption{Stacking Ensemble Empirical Classification Metrics}
+    \label{tab:performance}
+    \small
+    \begin{tabular}{ccccc}
+        \toprule
+        \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{ROC-AUC} \\
+        \midrule
+        \textbf{94.74\%} & 96.33\% & 93.04\% & 94.66\% & \textbf{99.17\%} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{tcolorbox}[title=\textbf{Technical Calibration Insight}]
+    By migrating from a simple single-estimator model to a calibrated stacking ensemble, the system successfully addressed the **"Honest Baseline Gap"**. Earlier versions reported artificially high accuracy (close to 100\%) due to training leakages and duplicate articles. Retraining on a diversified cross-dataset matrix resolved overfitting, producing a highly robust, generalizable model.
+\tcolorbox}
+
+\newpage
+% =============================================================================
+% PAGE 4: OOD DETECTION, DYNAMIC ROUTING & PRODUCTION MONITORING
+% =============================================================================
+\section{Out-of-Distribution Detection, Dynamic Weighting \& Telemetry}
+\label{sec:ood_monitoring}
+
+When deployed in production, machine learning models face "semantic drift" — breaking news, new slang, or un-seen domains can cause standard classifiers to fail silently with high confidence. Phase 5 introduced an **Out-of-Distribution (OOD) Safeguard** combined with a SQLite-backed production telemetry system.
+
+\subsection{The Out-of-Distribution (OOD) Mathematical Score}
+The OOD Detector computes a score $S_{\text{ood}} \in [0, 1]$ using a weighted combination of three distinct textual markers:
+\begin{equation}
+    S_{\text{ood}} = 0.40 \cdot D_{\text{cosine}} + 0.35 \cdot (1 - O_{\text{vocab}}) + 0.25 \cdot H_{\text{structural}}
+\end{equation}
+Where:
+\begin{itemize}
+    \item \textbf{$D_{\text{cosine}}$ (Cosine Distance to Training Centroid):} Represents the cosine distance of the input's TF-IDF vector against the training set mean centroid vector $\mathbf{c}_{\text{train}}$:
+    \begin{equation}
+        D_{\text{cosine}} = 1 - \frac{\mathbf{v}_{\text{input}} \cdot \mathbf{c}_{\text{train}}}{\|\mathbf{v}_{\text{input}}\|_2 \cdot \|\mathbf{c}_{\text{train}}\|_2}
+    \end{equation}
+    \item \textbf{$O_{\text{vocab}}$ (Vocabulary Overlap Ratio):} The fraction of input tokens that actually exist in the TF-IDF vocabulary. Low overlap represents high out-of-vocabulary (OOV) counts.
+    \item \textbf{$H_{\text{structural}}$ (Structural Heuristics):} Flags non-Latin scripts, extremely short articles (under 30 words), or text containing mostly numerical characters.
+\end{itemize}
+
+\subsection{Dynamic Weighting Engine}
+When the OOD score $S_{\text{ood}} > 0.30$, the system shifts weight away from the statistical ML predictions toward Gemini AI semantic logic and GNews real-time web verification, ensuring robust operation:
+\begin{table}[h]
+    \centering
+    \caption{Dynamic Weight Allocation Based on OOD Score}
+    \label{tab:dynamic_weights}
+    \small
+    \begin{tabular}{ccccc}
+        \toprule
+        \textbf{OOD Condition} & \textbf{Routing Status} & \textbf{ML Weight ($W_{\text{ml}}$)} & \textbf{Gemini Weight ($W_{\text{ai}}$)} & \textbf{Web Weight ($W_{\text{web}}$)} \\
+        \midrule
+        $S_{\text{ood}} \le 0.30$ & Standard In-Distribution & 50.0\% & 30.0\% & 20.0\% \\
+        $S_{\text{ood}} = 0.60$ & Moderately Out-of-Distribution & 30.0\% & 42.0\% & 28.0\% \\
+        $S_{\text{ood}} \ge 0.80$ & Extreme Anomaly (OOD) & 20.0\% & 48.0\% & 32.0\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Production Telemetry & Model Monitor}
+A production monitoring backend writes every analysis query, model prediction, OOD score, and user feedback rating to an active SQLite database (`analysis_history.db`). The \textbf{Model Monitor} daemon aggregates this telemetry to detect:
+\begin{enumerate}
+    \item \textbf{Prediction Drift:} Flags if the ratio of FAKE-to-REAL classifications shifts by more than 20\% over a rolling 7-day period.
+    \item \textbf{OOD Frequency Spike:} Alerts administrators if the average OOD score increases by 30\%, suggesting an influx of un-seen document categories requiring model retraining.
+    \item \textbf{Confidence Decay:} Tracks rolling average calibrated confidence scores. A drop below 70\% indicates systemic performance decay.
+\end{enumerate}
+
+\end{document}

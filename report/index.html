@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hybrid Fake News Detector — Interactive Project Report</title>
+  <meta name="description" content="Technical project report for the Hybrid Fake News Detector. An interactive, premium web dashboard.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ===== NAVIGATION ===== -->
+  <nav id="navbar">
+    <div class="nav-inner">
+      <div class="nav-brand">
+        <span class="nav-logo">🔍</span>
+        <span>Verify Report</span>
+      </div>
+      <div class="nav-links" id="navLinks">
+        <button class="nav-link active" data-slide="0">Cover</button>
+        <button class="nav-link" data-slide="1">Page 1: Architecture</button>
+        <button class="nav-link" data-slide="2">Page 2: Features</button>
+        <button class="nav-link" data-slide="3">Page 3: Stacking Ensemble</button>
+        <button class="nav-link" data-slide="4">Page 4: OOD & Telemetry</button>
+      </div>
+      <div class="nav-actions">
+        <button class="icon-btn" id="themeToggle" title="Toggle theme">
+          <span class="theme-icon">🌙</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ===== MAIN CONTAINER ===== -->
+  <main id="deck">
+
+    <!-- ==================== SLIDE 0: COVER PAGE ==================== -->
+    <section id="slide-0" class="slide active">
+      <div class="hero">
+        <div class="hero-glow"></div>
+        <div class="hero-content">
+          <div class="logo-accent">🔍</div>
+          <h1>Hybrid Fake News Detector<br><span class="accent">Technical Project Report</span></h1>
+          <p class="hero-sub">A production-ready machine learning system powered by a Stacking Ensemble, dynamic Out-of-Distribution (OOD) routing, and active model health telemetry.</p>
+          <div class="action-row">
+            <button class="btn btn-primary" onclick="goToSlide(1)">Enter Report</button>
+            <a href="project_report.tex" class="btn btn-outline" download>📥 Download LaTeX Code</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-stats">
+        <div class="stat-pill"><span class="stat-val">94.74%</span><span class="stat-label">System Accuracy</span></div>
+        <div class="stat-pill"><span class="stat-val">99.17%</span><span class="stat-label">ROC-AUC Rating</span></div>
+        <div class="stat-pill"><span class="stat-val">20</span><span class="stat-label">Meta-Features</span></div>
+        <div class="stat-pill"><span class="stat-val">SQLite</span><span class="stat-label">Active Telemetry</span></div>
+      </div>
+
+      <div class="section-card abstract-card">
+        <h3>Executive Overview</h3>
+        <p>The <strong>Hybrid Fake News Detector v5.0 (Phase 6)</strong> represents the culmination of a rigorous 6-phase machine learning enhancement cycle. Designed for highly volatile environments, the system solves the typical vulnerabilities of standard models—namely overfitting and silent domain drift—by establishing an independent three-layer verification pipeline. Operating across a Statistical ML layer, an AI semantic checker, and real-time news consensus scrapers, the system provides clinical objectivity. This report breaks down the foundational architecture, handcrafted stylometric features, calibrated ensemble classifiers, cosine OOD routing mechanics, and database-backed monitors.</p>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 1: ARCHITECTURE ==================== -->
+    <section id="slide-1" class="slide">
+      <div class="slide-header">
+        <span class="slide-num">Page 1 of 4</span>
+        <h2>System Architecture & Core Data Pipeline</h2>
+        <p>A multi-layered hierarchy evaluating text through statistical, semantic, and temporal lenses.</p>
+      </div>
+
+      <div class="card-grid two">
+        <div class="card">
+          <h3>The Three Verification Columns</h3>
+          <div class="list-item">
+            <div class="list-icon">🧠</div>
+            <div class="list-info">
+              <h4>1. Statistical ML Layer (Stacking Classifier)</h4>
+              <p>Extracts 15,000 TF-IDF features and 20 handcrafted stylometric features to classify text based on syntactic and formatting patterns.</p>
+            </div>
+          </div>
+          <div class="list-item">
+            <div class="list-icon">✨</div>
+            <div class="list-info">
+              <h4>2. Semantic AI Layer (Google Gemini)</h4>
+              <p>Performs logical claims auditing, checks semantic coherence, identifies red-flag rhetoric, and handles multi-lingual translation.</p>
+            </div>
+          </div>
+          <div class="list-item">
+            <div class="list-icon">🌐</div>
+            <div class="list-info">
+              <h4>3. Temporal Web Layer (GNews Search)</h4>
+              <p>Scrapes high-trust publishers and government databases in real-time to check if breaking claims are corroborated by the consensus.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Interactive Forensic Pipeline Flow</h3>
+          <div class="svg-wrap">
+            <svg viewBox="0 0 400 320" class="flow-svg">
+              <!-- Grid Background -->
+              <defs>
+                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--bg-grid)" stroke-width="1"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+              
+              <!-- Nodes -->
+              <rect x="130" y="10" width="140" height="30" rx="6" class="svg-node primary" />
+              <text x="200" y="30" class="svg-text header">Input Article Text</text>
+              
+              <path d="M 200 40 L 200 60" class="svg-arrow" />
+              
+              <rect x="90" y="60" width="220" height="35" rx="6" class="svg-node secondary" />
+              <text x="200" y="82" class="svg-text">Linguistic Extraction & Normalization</text>
+              
+              <path d="M 200 95 L 200 115" class="svg-arrow" />
+              
+              <rect x="70" y="115" width="260" height="35" rx="6" class="svg-node accent" />
+              <text x="200" y="137" class="svg-text bold">Out-of-Distribution Centroid Mapping</text>
+              
+              <path d="M 120 150 L 60 180" class="svg-arrow" />
+              <path d="M 200 150 L 200 180" class="svg-arrow" />
+              <path d="M 280 150 L 340 180" class="svg-arrow" />
+              
+              <rect x="10" y="180" width="100" height="40" rx="4" class="svg-node border" />
+              <text x="60" y="205" class="svg-text small">ML Stacking</text>
+              
+              <rect x="140" y="180" width="120" height="40" rx="4" class="svg-node border" />
+              <text x="200" y="205" class="svg-text small">Gemini Fact-Check</text>
+              
+              <rect x="290" y="180" width="100" height="40" rx="4" class="svg-node border" />
+              <text x="340" y="205" class="svg-text small">GNews Web</text>
+              
+              <path d="M 60 220 L 120 250" class="svg-arrow" />
+              <path d="M 200 220 L 200 250" class="svg-arrow" />
+              <path d="M 340 220 L 280 250" class="svg-arrow" />
+              
+              <rect x="110" y="250" width="180" height="35" rx="6" class="svg-node success" />
+              <text x="200" y="272" class="svg-text success-text">Dynamic Calibrated Verdict</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-wide">
+        <h3>Forensic Ingestion & Translation Normalization</h3>
+        <p>Stylometric classifiers are fragile: parsing a machine-translated article directly alters structural footprints (such as vocabulary diversity, average sentence lengths, and pronoun ratios). The system bypasses this by utilizing a <strong>Global Translation Matrix</strong> powered by Gemini. Translation occurs <em>prior</em> to meta-feature computation, guaranteeing that articles written in foreign scripts are structurally and semantically normalized without diluting critical stylometric markers.</p>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 2: FEATURES ==================== -->
+    <section id="slide-2" class="slide">
+      <div class="slide-header">
+        <span class="slide-num">Page 2 of 4</span>
+        <h2>Handcrafted Feature Engineering & Stylometrics</h2>
+        <p>20 custom linguistic descriptors engineered to identify psychological manipulation and emotional formatting.</p>
+      </div>
+
+      <div class="feature-categories">
+        <div class="feat-cat-card">
+          <h4>Structural</h4>
+          <p>Sentence Counts, Average Sentence Lengths, Total Word Count. Measures syntax complexity.</p>
+        </div>
+        <div class="feat-cat-card">
+          <h4>Formatting</h4>
+          <p>Exclamation Ratios, Question Densities, Uppercase Word Count, Caps-character ratios.</p>
+        </div>
+        <div class="feat-cat-card">
+          <h4>Diversity</h4>
+          <p>Lexical Diversity scores, Average word lengths. Tells apart academic writing from repeating propaganda.</p>
+        </div>
+        <div class="feat-cat-card">
+          <h4>Style & Trust</h4>
+          <p>First-Person pronoun ratios, Quoted source citation density, Numerical citation counts, hyperlinked URLs.</p>
+        </div>
+      </div>
+
+      <div class="card card-wide">
+        <h3>The 20 Meta-Features Directory</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Feature Category</th>
+                <th>Feature Technical Name</th>
+                <th>Extraction Formula & Rationale</th>
+                <th>Clean Target Trend</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Structural</strong></td>
+                <td><code class="code-pill">avg_sentence_length</code></td>
+                <td><span class="math">Words / Sentences</span>. Sensationalists favor extremely short or long sentences.</td>
+                <td>15.0 – 25.0 words</td>
+              </tr>
+              <tr>
+                <td><strong>Punctuation</strong></td>
+                <td><code class="code-pill">exclamation_ratio</code></td>
+                <td><span class="math">Count(!) / Words</span>. High densities mark intense rhetorical pressure.</td>
+                <td>$\approx$ 0.0 (strictly flat)</td>
+              </tr>
+              <tr>
+                <td><strong>Caps</strong></td>
+                <td><code class="code-pill">all_caps_ratio</code></td>
+                <td><span class="math">All-Caps Words / Words</span>. Captures urgent clickbait formatting.</td>
+                <td>$\approx$ 0.0 (strictly flat)</td>
+              </tr>
+              <tr>
+                <td><strong>Diversity</strong></td>
+                <td><code class="code-pill">lexical_diversity</code></td>
+                <td><span class="math">Unique Lowercase / Words</span>. High values represent rich technical content.</td>
+                <td>High ($> 0.45$)</td>
+              </tr>
+              <tr>
+                <td><strong>Style</strong></td>
+                <td><code class="code-pill">first_person_ratio</code></td>
+                <td><span class="math">Pronouns (I, we, our) / Words</span>. Objective journalism relies on third-person.</td>
+                <td>$\approx$ 0.0</td>
+              </tr>
+              <tr>
+                <td><strong>Trust</strong></td>
+                <td><code class="code-pill">quoted_source_count</code></td>
+                <td>Counts quotation pairs. Objective reports cite authoritative statements.</td>
+                <td>High ($\ge 1.0$)</td>
+              </tr>
+              <tr>
+                <td><strong>Readability</strong></td>
+                <td><code class="code-pill">flesch_kincaid_grade</code></td>
+                <td>Grade level approximation. Clickbait maps to a lower readability grade.</td>
+                <td>Grade 9.0 – 12.0</td>
+              </tr>
+              <tr>
+                <td><strong>Red Flags</strong></td>
+                <td><code class="code-pill">clickbait_score</code></td>
+                <td>Regex patterns scanning for clickbait hooks (e.g. *you won't believe*).</td>
+                <td>0.0 (strictly flat)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 3: STACKING ENSEMBLE ==================== -->
+    <section id="slide-3" class="slide">
+      <div class="slide-header">
+        <span class="slide-num">Page 3 of 4</span>
+        <h2>Stacking Ensemble & Isotonic Calibration</h2>
+        <p>Combining five diverse estimators with calibrated voting schemas for reliable confidence scores.</p>
+      </div>
+
+      <div class="card-grid two">
+        <div class="card">
+          <h3>The Stacking Architecture</h3>
+          <p>Instead of pinning system performance on a single classification style, the pipeline trains five independent base classifiers covering divergent mathematical paradigms:</p>
+          <ul>
+            <li><strong>Logistic Regression (LR):</strong> Standard regularized linear baseline.</li>
+            <li><strong>Random Forest (RF):</strong> Bagging ensemble mapping meta-feature bounds.</li>
+            <li><strong>SGD Classifier (SGD):</strong> Elastic-net linear classifier for sparse spaces.</li>
+            <li><strong>Linear SVC:</strong> Support vector machine isolating high-dimensional planes.</li>
+            <li><strong>LightGBM:</strong> Tree-boosting estimator capturing complex boundaries.</li>
+          </ul>
+          <div class="callout warning">
+            <strong>Isotonic Calibration:</strong> Aggregated base predictions are combined via a secondary Logistic Regression meta-learner and calibrated using Isotonic Regression. This translates raw boundary margins into honest, mathematically rigorous confidence probabilities.
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Phase-over-Phase Trajectory Comparison</h3>
+          <div class="chart-wrap">
+            <canvas id="trajectoryChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-grid three">
+        <div class="stat-card accent">
+          <div class="stat-label">ACCURACY</div>
+          <div class="stat-value">94.74%</div>
+          <p class="stat-sub">Empirical validation rating</p>
+        </div>
+        <div class="stat-card success">
+          <div class="stat-label">PRECISION</div>
+          <div class="stat-value">96.33%</div>
+          <p class="stat-sub">Low false-alarm rating</p>
+        </div>
+        <div class="stat-card border">
+          <div class="stat-label">ROC-AUC</div>
+          <div class="stat-value">99.17%</div>
+          <p class="stat-sub">High separating power</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 4: OOD & MONITORING ==================== -->
+    <section id="slide-4" class="slide">
+      <div class="slide-header">
+        <span class="slide-num">Page 4 of 4</span>
+        <h2>OOD Safeguards & Production Telemetry Monitoring</h2>
+        <p>Protecting the pipeline from silent domain drift and mapping operational database health in production.</p>
+      </div>
+
+      <div class="card-grid two">
+        <div class="card">
+          <h3>Out-of-Distribution (OOD) Routing</h3>
+          <p>Unfamiliar scientific domains, breaking news events, or foreign texts generate high OOD ratings. The OOD score $S_{ood} \in [0, 1]$ is computed as:</p>
+          <div class="math-box">
+            S_{ood} = 0.40 \cdot D_{cosine} + 0.35 \cdot (1 - O_{vocab}) + 0.25 \cdot H_{structural}
+          </div>
+          <ul>
+            <li><strong>$D_{cosine}$:</strong> Cosine distance to precomputed training TF-IDF centroid.</li>
+            <li><strong>$O_{vocab}$:</strong> Overlap ratio against training vocabulary.</li>
+            <li><strong>$H_{structural}$:</strong> Structural length anomalies and non-Latin character maps.</li>
+          </ul>
+          <h4>Dynamic Weight Shifting</h4>
+          <p>When $S_{ood} > 0.30$, the system shifts weight away from the statistical ML layer to Google Gemini AI semantic fact-checking and GNews temporal web corroboration:</p>
+          <div class="table-wrap">
+            <table class="data-table compact">
+              <thead>
+                <tr>
+                  <th>OOD Rating</th>
+                  <th>ML Weight</th>
+                  <th>Gemini Weight</th>
+                  <th>Web Weight</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>$\le 0.30$ (Normal)</td>
+                  <td>50%</td>
+                  <td>30%</td>
+                  <td>20%</td>
+                </tr>
+                <tr>
+                  <td>$0.60$ (Moderate)</td>
+                  <td>30%</td>
+                  <td>42%</td>
+                  <td>28%</td>
+                </tr>
+                <tr>
+                  <td>$\ge 0.80$ (Severe)</td>
+                  <td>20%</td>
+                  <td>48%</td>
+                  <td>32%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Active Production Telemetry Monitor</h3>
+          <p>All queries, predictions, confidence ratings, and OOD metrics are logged in real-time to an active SQLite database (<code>analysis_history.db</code>). A monitoring daemon continuously evaluates rolling 30-day windows to trigger automated alerts:</p>
+          <div class="alert-box danger">
+            <strong>⚠️ Prediction Drift:</strong> Triggered if the FAKE-to-REAL classification ratio shifts by more than 20% over 7 days.
+          </div>
+          <div class="alert-box warning">
+            <strong>⚠️ OOD Spike:</strong> Triggered if rolling average OOD score spikes by 30%, suggesting current news cycles have drifted away from the training baseline.
+          </div>
+          <div class="alert-box info">
+            <strong>⚠️ Confidence Decay:</strong> Triggered if rolling calibrated confidence falls below 70%, notifying administrators that a model retrain cycle is required.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer id="footer">
+    <div class="footer-inner">
+      <span class="footer-copy">© 2026 Verify Platform. Absolute Clinical Objectivity.</span>
+      <div class="footer-nav">
+        <button class="btn btn-sm" onclick="prevSlide()">◀ Previous Page</button>
+        <button class="btn btn-sm" onclick="nextSlide()">Next Page ▶</button>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
