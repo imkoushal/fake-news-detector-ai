@@ -998,21 +998,101 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
             resp = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
             resp.raise_for_status()
 
-            # Extract text using simple HTML stripping (no extra dependencies)
+            # ── Smart Article Extraction (BeautifulSoup) ──
+            from bs4 import BeautifulSoup
             import re as _re
+
             html = resp.text
-            # Remove scripts, styles, nav, footer
-            html = _re.sub(r'<(script|style|nav|footer|header)[^>]*>.*?</\1>', '', html, flags=_re.DOTALL|_re.IGNORECASE)
-            # Extract title
-            title_match = _re.search(r'<title[^>]*>(.*?)</title>', html, _re.IGNORECASE|_re.DOTALL)
-            title = title_match.group(1).strip() if title_match else ""
-            # Strip remaining HTML tags
-            text = _re.sub(r'<[^>]+>', ' ', html)
-            # Collapse whitespace
-            text = _re.sub(r'\s+', ' ', text).strip()
-            # Remove very short lines (menus, cookie banners etc.)
-            lines = [l.strip() for l in text.split('.') if len(l.strip()) > 60]
-            clean_text_out = '. '.join(lines[:80])  # Cap at ~80 sentences
+            soup = BeautifulSoup(html, "lxml")
+
+            # 1. Extract title early
+            title = ""
+            if soup.title and soup.title.string:
+                title = soup.title.string.strip()
+            # Try og:title for cleaner article title
+            og_title = soup.find("meta", property="og:title")
+            if og_title and og_title.get("content"):
+                title = og_title["content"].strip()
+
+            # 2. Remove ALL non-article noise elements
+            NOISE_TAGS = [
+                "script", "style", "nav", "footer", "header", "aside",
+                "form", "iframe", "noscript", "svg", "figure", "figcaption",
+                "button", "input", "select", "textarea", "label",
+            ]
+            for tag in NOISE_TAGS:
+                for el in soup.find_all(tag):
+                    el.decompose()
+
+            # 3. Remove elements with ad/noise class names or IDs
+            AD_PATTERNS = _re.compile(
+                r'(ads?[-_]|advert|banner|sidebar|widget|comment|social|share|'
+                r'related|popular|trending|newsletter|subscribe|signup|sign-up|'
+                r'cookie|consent|popup|modal|promo|sponsor|recommendation|'
+                r'breadcrumb|pagination|menu|toolbar|footer|masthead|'
+                r'disclaimer|copyright)',
+                _re.IGNORECASE
+            )
+            to_remove = []
+            for el in soup.find_all(True):
+                if el.attrs is None:
+                    continue
+                el_class = " ".join(el.get("class") or [])
+                el_id = el.get("id") or ""
+                if AD_PATTERNS.search(el_class) or AD_PATTERNS.search(el_id):
+                    to_remove.append(el)
+            for el in to_remove:
+                el.decompose()
+
+            # 4. Try to find the article body using semantic HTML5 tags
+            article_container = None
+            # Priority 1: <article> tag
+            article_tag = soup.find("article")
+            if article_tag:
+                article_container = article_tag
+            # Priority 2: <main> tag
+            if not article_container:
+                main_tag = soup.find("main")
+                if main_tag:
+                    article_container = main_tag
+            # Priority 3: Common content class/id patterns
+            if not article_container:
+                CONTENT_PATTERNS = _re.compile(
+                    r'(article[-_]?body|article[-_]?content|post[-_]?body|post[-_]?content|'
+                    r'entry[-_]?content|story[-_]?body|story[-_]?content|'
+                    r'content[-_]?body|main[-_]?content|page[-_]?content)',
+                    _re.IGNORECASE
+                )
+                for el in soup.find_all("div"):
+                    el_class = " ".join(el.get("class") or [])
+                    el_id = el.get("id") or ""
+                    if CONTENT_PATTERNS.search(el_class) or CONTENT_PATTERNS.search(el_id):
+                        article_container = el
+                        break
+
+            # 5. Extract paragraphs from article container, or fall back to full page
+            source = article_container if article_container else soup.body or soup
+            paragraphs = source.find_all("p")
+
+            # Filter: keep only paragraphs with meaningful text (>40 chars)
+            clean_paragraphs = []
+            for p in paragraphs:
+                text = p.get_text(separator=" ", strip=True)
+                # Skip short fragments (nav items, captions, cookie text)
+                if len(text) < 40:
+                    continue
+                # Skip paragraphs that look like boilerplate
+                lower = text.lower()
+                if any(kw in lower for kw in [
+                    "cookie", "subscribe", "sign up", "newsletter",
+                    "copyright", "all rights reserved", "terms of",
+                    "privacy policy", "click here", "read more",
+                    "advertisement", "sponsored"
+                ]):
+                    continue
+                clean_paragraphs.append(text)
+
+            clean_text_out = " ".join(clean_paragraphs[:80])  # Cap at ~80 paragraphs
 
             word_count = len(clean_text_out.split())
             if word_count < 20:
