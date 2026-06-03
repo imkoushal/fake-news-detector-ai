@@ -979,133 +979,177 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
         finally:
             conn.close()
 
-    # ── URL Fetch Endpoint (Tier 2.2) ──
+    # ── URL Fetch Endpoint (Tier 2.2) — 3-Tier Extraction ──
     class FetchUrlRequest(BaseModel):
         url: str
 
-    @app.post("/api/v1/fetch-url")
-    @limiter.limit("10/minute")
-    async def fetch_url(req: FetchUrlRequest, request: Request):
-        """Fetch and extract article text from a URL."""
-        url = req.url.strip()
-        if not url.startswith(("http://", "https://")):
-            raise HTTPException(400, "Invalid URL — must start with http:// or https://")
-        try:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (compatible; FakeNewsDetector/5.0; +https://fake-news-detector-8djq.onrender.com)",
-                "Accept": "text/html,application/xhtml+xml"
-            }
-            resp = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
-            resp.raise_for_status()
+    def _extract_article_from_html(html: str) -> dict:
+        """
+        Given raw HTML, extract article text using BeautifulSoup.
+        Returns dict with 'text', 'title', 'word_count'.
+        """
+        from bs4 import BeautifulSoup
+        import re as _re
 
-            # ── Smart Article Extraction (BeautifulSoup) ──
-            from bs4 import BeautifulSoup
-            import re as _re
+        soup = BeautifulSoup(html, "lxml")
 
-            html = resp.text
-            soup = BeautifulSoup(html, "lxml")
+        # Extract title
+        title = ""
+        if soup.title and soup.title.string:
+            title = soup.title.string.strip()
+        og_title = soup.find("meta", property="og:title")
+        if og_title and og_title.get("content"):
+            title = og_title["content"].strip()
 
-            # 1. Extract title early
-            title = ""
-            if soup.title and soup.title.string:
-                title = soup.title.string.strip()
-            # Try og:title for cleaner article title
-            og_title = soup.find("meta", property="og:title")
-            if og_title and og_title.get("content"):
-                title = og_title["content"].strip()
+        # Remove noise tags
+        NOISE_TAGS = [
+            "script", "style", "nav", "footer", "header", "aside",
+            "form", "iframe", "noscript", "svg", "figure", "figcaption",
+            "button", "input", "select", "textarea", "label",
+        ]
+        for tag in NOISE_TAGS:
+            for el in soup.find_all(tag):
+                el.decompose()
 
-            # 2. Remove ALL non-article noise elements
-            NOISE_TAGS = [
-                "script", "style", "nav", "footer", "header", "aside",
-                "form", "iframe", "noscript", "svg", "figure", "figcaption",
-                "button", "input", "select", "textarea", "label",
-            ]
-            for tag in NOISE_TAGS:
-                for el in soup.find_all(tag):
-                    el.decompose()
+        # Remove ad/noise elements by class/id
+        AD_PATTERNS = _re.compile(
+            r'(ads?[-_]|advert|banner|sidebar|widget|comment|social|share|'
+            r'related|popular|trending|newsletter|subscribe|signup|sign-up|'
+            r'cookie|consent|popup|modal|promo|sponsor|recommendation|'
+            r'breadcrumb|pagination|menu|toolbar|footer|masthead|'
+            r'disclaimer|copyright)',
+            _re.IGNORECASE
+        )
+        to_remove = []
+        for el in soup.find_all(True):
+            if el.attrs is None:
+                continue
+            el_class = " ".join(el.get("class") or [])
+            el_id = el.get("id") or ""
+            if AD_PATTERNS.search(el_class) or AD_PATTERNS.search(el_id):
+                to_remove.append(el)
+        for el in to_remove:
+            el.decompose()
 
-            # 3. Remove elements with ad/noise class names or IDs
-            AD_PATTERNS = _re.compile(
-                r'(ads?[-_]|advert|banner|sidebar|widget|comment|social|share|'
-                r'related|popular|trending|newsletter|subscribe|signup|sign-up|'
-                r'cookie|consent|popup|modal|promo|sponsor|recommendation|'
-                r'breadcrumb|pagination|menu|toolbar|footer|masthead|'
-                r'disclaimer|copyright)',
+        # Find article container: <article> > <main> > content class patterns
+        article_container = None
+        article_tag = soup.find("article")
+        if article_tag:
+            article_container = article_tag
+        if not article_container:
+            main_tag = soup.find("main")
+            if main_tag:
+                article_container = main_tag
+        if not article_container:
+            CONTENT_PATTERNS = _re.compile(
+                r'(article[-_]?body|article[-_]?content|post[-_]?body|post[-_]?content|'
+                r'entry[-_]?content|story[-_]?body|story[-_]?content|'
+                r'content[-_]?body|main[-_]?content|page[-_]?content)',
                 _re.IGNORECASE
             )
-            to_remove = []
-            for el in soup.find_all(True):
+            for el in soup.find_all("div"):
                 if el.attrs is None:
                     continue
                 el_class = " ".join(el.get("class") or [])
                 el_id = el.get("id") or ""
-                if AD_PATTERNS.search(el_class) or AD_PATTERNS.search(el_id):
-                    to_remove.append(el)
-            for el in to_remove:
-                el.decompose()
+                if CONTENT_PATTERNS.search(el_class) or CONTENT_PATTERNS.search(el_id):
+                    article_container = el
+                    break
 
-            # 4. Try to find the article body using semantic HTML5 tags
-            article_container = None
-            # Priority 1: <article> tag
-            article_tag = soup.find("article")
-            if article_tag:
-                article_container = article_tag
-            # Priority 2: <main> tag
-            if not article_container:
-                main_tag = soup.find("main")
-                if main_tag:
-                    article_container = main_tag
-            # Priority 3: Common content class/id patterns
-            if not article_container:
-                CONTENT_PATTERNS = _re.compile(
-                    r'(article[-_]?body|article[-_]?content|post[-_]?body|post[-_]?content|'
-                    r'entry[-_]?content|story[-_]?body|story[-_]?content|'
-                    r'content[-_]?body|main[-_]?content|page[-_]?content)',
-                    _re.IGNORECASE
+        # Extract paragraphs
+        source = article_container if article_container else soup.body or soup
+        paragraphs = source.find_all("p")
+
+        BOILERPLATE_KW = [
+            "cookie", "subscribe", "sign up", "newsletter",
+            "copyright", "all rights reserved", "terms of",
+            "privacy policy", "click here", "read more",
+            "advertisement", "sponsored", "login", "register",
+        ]
+        clean_paragraphs = []
+        for p in paragraphs:
+            text = p.get_text(separator=" ", strip=True)
+            if len(text) < 40:
+                continue
+            lower = text.lower()
+            if any(kw in lower for kw in BOILERPLATE_KW):
+                continue
+            clean_paragraphs.append(text)
+
+        article_text = " ".join(clean_paragraphs[:80])
+        return {"text": article_text, "title": title, "word_count": len(article_text.split())}
+
+    @app.post("/api/v1/fetch-url")
+    @limiter.limit("10/minute")
+    async def fetch_url(req: FetchUrlRequest, request: Request):
+        """Fetch and extract article text from a URL using 3-tier extraction."""
+        url = req.url.strip()
+        if not url.startswith(("http://", "https://")):
+            raise HTTPException(400, "Invalid URL — must start with http:// or https://")
+
+        extraction_method = "unknown"
+
+        # ── TIER 1: newspaper4k (fast, purpose-built for news articles) ──
+        try:
+            from newspaper import Article
+            article = Article(url)
+            article.download()
+            article.parse()
+            if article.text and len(article.text.split()) >= 30:
+                logger.info(f"URL extraction via newspaper4k: {len(article.text.split())} words from {url}")
+                return {
+                    "text": article.text[:15000],
+                    "title": article.title or "",
+                    "word_count": len(article.text.split()),
+                    "url": url,
+                    "extraction_method": "newspaper4k",
+                }
+        except Exception as e:
+            logger.info(f"newspaper4k failed for {url}: {e}")
+
+        # ── TIER 2: Playwright headless browser (renders JavaScript) ──
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    viewport={"width": 1280, "height": 720},
                 )
-                for el in soup.find_all("div"):
-                    el_class = " ".join(el.get("class") or [])
-                    el_id = el.get("id") or ""
-                    if CONTENT_PATTERNS.search(el_class) or CONTENT_PATTERNS.search(el_id):
-                        article_container = el
-                        break
+                page = context.new_page()
+                page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                page.wait_for_timeout(3000)  # Let JS render
+                html = page.content()
+                browser.close()
 
-            # 5. Extract paragraphs from article container, or fall back to full page
-            source = article_container if article_container else soup.body or soup
-            paragraphs = source.find_all("p")
+            result = _extract_article_from_html(html)
+            if result["word_count"] >= 20:
+                logger.info(f"URL extraction via Playwright: {result['word_count']} words from {url}")
+                return {**result, "url": url, "extraction_method": "playwright"}
+        except Exception as e:
+            logger.info(f"Playwright failed for {url}: {e}")
 
-            # Filter: keep only paragraphs with meaningful text (>40 chars)
-            clean_paragraphs = []
-            for p in paragraphs:
-                text = p.get_text(separator=" ", strip=True)
-                # Skip short fragments (nav items, captions, cookie text)
-                if len(text) < 40:
-                    continue
-                # Skip paragraphs that look like boilerplate
-                lower = text.lower()
-                if any(kw in lower for kw in [
-                    "cookie", "subscribe", "sign up", "newsletter",
-                    "copyright", "all rights reserved", "terms of",
-                    "privacy policy", "click here", "read more",
-                    "advertisement", "sponsored"
-                ]):
-                    continue
-                clean_paragraphs.append(text)
+        # ── TIER 3: requests + BeautifulSoup (lightweight fallback) ──
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+            }
+            resp = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+            resp.raise_for_status()
 
-            clean_text_out = " ".join(clean_paragraphs[:80])  # Cap at ~80 paragraphs
-
-            word_count = len(clean_text_out.split())
-            if word_count < 20:
-                raise HTTPException(422, "Could not extract enough text from this URL. Try pasting the article text directly.")
-
-            return {"text": clean_text_out, "title": title, "word_count": word_count, "url": url}
-        except HTTPException:
-            raise
+            result = _extract_article_from_html(resp.text)
+            if result["word_count"] >= 20:
+                logger.info(f"URL extraction via requests+BS4: {result['word_count']} words from {url}")
+                return {**result, "url": url, "extraction_method": "beautifulsoup"}
         except requests.exceptions.Timeout:
             raise HTTPException(504, "URL fetch timed out. The site may be slow or blocking scrapers.")
         except Exception as e:
-            logger.warning(f"URL fetch failed for {url}: {e}")
-            raise HTTPException(502, f"Could not fetch article: {str(e)}")
+            logger.warning(f"All extraction tiers failed for {url}: {e}")
+
+        raise HTTPException(422, "Could not extract enough text from this URL. Try pasting the article text directly.")
 
     # ── Feedback Endpoint (Tier 2.5) ──
     class FeedbackRequest(BaseModel):
