@@ -15,6 +15,8 @@ from pathlib import Path
 import pytest
 import numpy as np
 
+from typing import Any, Dict
+
 # Ensure project root is importable
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -23,7 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # ─── Fixtures ───
 
 @pytest.fixture(scope="module")
-def pipeline():
+def pipeline() -> Any:
     """Load the production model pipeline (once per module).
 
     Uses FinalModel from app.py which wraps vectorizer + scaler + model
@@ -56,7 +58,7 @@ def pipeline():
 
 
 @pytest.fixture(scope="module")
-def config():
+def config() -> Dict[str, Any]:
     """Load model config."""
     import json
     config_path = PROJECT_ROOT / "models" / "config.json"
