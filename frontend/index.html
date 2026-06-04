@@ -358,6 +358,20 @@
             <span class="text-muted" style="font-size:.85rem">Run an analysis first to enable feedback.</span>
           </div>
         </div>
+
+        <!-- Export Report -->
+        <div class="card export-card" id="exportReportCard">
+          <h3>📤 Export Report</h3>
+          <p class="text-muted" style="margin-bottom:14px">Download a detailed verification report with all analysis results.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary" id="exportPdfBtn" onclick="exportReportPDF()">
+              📄 Export as PDF
+            </button>
+            <button class="btn btn-outline" id="exportTxtBtn" onclick="exportReportText()">
+              📝 Export as Text
+            </button>
+          </div>
+        </div>
       </div>
     </section>
 

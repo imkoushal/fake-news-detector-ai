@@ -807,10 +807,200 @@ async function loadHistory() {
   }
 }
 
-// ===== EXPORT =====
-document.getElementById('exportHistory')?.addEventListener('click', () => {
-  showToast('Export started — downloading...');
-});
-document.getElementById('exportDashboard')?.addEventListener('click', () => {
-  showToast('Dashboard export started.');
-});
+// ===== EXPORT REPORT =====
+// Global store for the last analysis data (populated by renderResults)
+let lastAnalysisData = null;
+let lastAnalysisText = '';
+let lastGeminiAnalysis = '';
+let lastWebSources = [];
+
+// Helper: get current displayed values from DOM
+function _getReportData() {
+  return {
+    verdict: document.getElementById('verdictText')?.textContent || 'N/A',
+    confidence: document.getElementById('verdictScore')?.textContent || 'N/A',
+    verdictSub: document.getElementById('verdictSub')?.textContent || '',
+    mlScore: document.getElementById('ringMLText')?.textContent || 'N/A',
+    mlDetail: document.getElementById('mlDetail')?.textContent || '',
+    aiScore: document.getElementById('ringGeminiText')?.textContent || 'N/A',
+    aiDetail: document.getElementById('geminiDetail')?.textContent || '',
+    aiBadge: document.getElementById('geminiBadge')?.textContent || '',
+    aiAnalysis: document.getElementById('geminiAnalysisText')?.textContent || '',
+    webScore: document.getElementById('ringWebText')?.textContent || 'N/A',
+    webDetail: document.getElementById('webDetail')?.textContent || '',
+    articleText: document.getElementById('articleText')?.value?.trim() || '',
+    timestamp: new Date().toLocaleString(),
+    userName: currentUser?.name || 'Anonymous',
+  };
+}
+
+function exportReportPDF() {
+  const d = _getReportData();
+  if (!d.articleText) { showToast('No analysis to export.'); return; }
+
+  const isReal = d.verdict.toLowerCase().includes('real');
+  const verdictColor = isReal ? '#22C55E' : '#EF4444';
+  const verdictBg = isReal ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.08)';
+  const verdictIcon = isReal ? '✅' : '❌';
+  const preview = d.articleText.length > 500 ? d.articleText.substring(0, 500) + '...' : d.articleText;
+
+  const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>Verify — Analysis Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',system-ui,sans-serif;color:#1a1a2e;background:#fff;padding:48px 56px;max-width:800px;margin:0 auto;line-height:1.7}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:20px;border-bottom:2px solid #e2e8f0}
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo svg{width:32px;height:32px}
+  .logo span{font-size:1.5rem;font-weight:800;letter-spacing:-.5px}
+  .meta{text-align:right;color:#64748b;font-size:.82rem;line-height:1.8}
+  .verdict-box{background:${verdictBg};border:2px solid ${verdictColor}22;border-radius:16px;padding:24px 28px;display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+  .verdict-left{display:flex;align-items:center;gap:14px}
+  .verdict-icon{font-size:2.2rem}
+  .verdict-label{font-size:1.4rem;font-weight:800;color:${verdictColor};text-transform:uppercase;letter-spacing:.5px}
+  .verdict-sub{font-size:.82rem;color:#64748b;margin-top:2px}
+  .verdict-score{font-size:2.4rem;font-weight:800;color:${verdictColor}}
+  .verdict-score-label{font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;text-align:center}
+  h2{font-size:1.1rem;font-weight:700;color:#1B3A4B;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0}
+  .scores-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:8px}
+  .score-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:18px;text-align:center}
+  .score-card .label{font-size:.75rem;color:#64748b;text-transform:uppercase;font-weight:600;letter-spacing:.5px}
+  .score-card .value{font-size:1.8rem;font-weight:800;color:#1B3A4B;margin:6px 0 4px}
+  .score-card .detail{font-size:.78rem;color:#64748b}
+  .article-preview{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px;font-size:.85rem;color:#475569;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:hidden}
+  .ai-analysis{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:18px;font-size:.88rem;color:#166534;font-style:italic;line-height:1.7}
+  .footer{margin-top:40px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:.75rem}
+  .web-detail{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 18px;font-size:.85rem;color:#475569}
+  @media print{body{padding:24px 32px}
+    .verdict-box{break-inside:avoid}}
+</style>
+</head><body>
+
+<div class="header">
+  <div class="logo">
+    <svg viewBox="0 0 36 36" fill="none">
+      <path d="M6 20L15 30L32 6" stroke="#1B3A4B" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 20L15 26L32 5" stroke="#4ADE80" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span>Verify</span>
+  </div>
+  <div class="meta">
+    <div><strong>Analysis Report</strong></div>
+    <div>${d.timestamp}</div>
+    <div>Analyst: ${d.userName}</div>
+  </div>
+</div>
+
+<div class="verdict-box">
+  <div class="verdict-left">
+    <span class="verdict-icon">${verdictIcon}</span>
+    <div>
+      <div class="verdict-label">${d.verdict}</div>
+      <div class="verdict-sub">${d.verdictSub}</div>
+    </div>
+  </div>
+  <div style="text-align:center">
+    <div class="verdict-score">${d.confidence}</div>
+    <span class="verdict-score-label">Confidence</span>
+  </div>
+</div>
+
+<h2>📊 Source Scores</h2>
+<div class="scores-grid">
+  <div class="score-card">
+    <div class="label">🧠 ML Model</div>
+    <div class="value">${d.mlScore}</div>
+    <div class="detail">${d.mlDetail}</div>
+  </div>
+  <div class="score-card">
+    <div class="label">✨ AI Analysis</div>
+    <div class="value">${d.aiScore}</div>
+    <div class="detail">${d.aiDetail}</div>
+  </div>
+  <div class="score-card">
+    <div class="label">🌐 GNews API</div>
+    <div class="value">${d.webScore}</div>
+    <div class="detail">${d.webDetail}</div>
+  </div>
+</div>
+
+${d.aiAnalysis && d.aiAnalysis !== 'Analysis will appear here after processing.' ? `
+<h2>✨ AI Analysis Detail</h2>
+<div class="ai-analysis">${d.aiAnalysis}</div>
+` : ''}
+
+<h2>📰 Analyzed Article</h2>
+<div class="article-preview">${preview}</div>
+
+<div class="footer">
+  <p>Generated by <strong>Verify</strong> — AI-Powered News Verification Platform</p>
+  <p>This report is auto-generated. Cross-check critical claims with multiple sources.</p>
+</div>
+
+</body></html>`;
+
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  printWindow.document.write(html);
+  printWindow.document.close();
+  // Trigger print after fonts load
+  printWindow.onload = () => {
+    setTimeout(() => printWindow.print(), 400);
+  };
+  showToast('PDF report opened — use Save as PDF in the print dialog.');
+}
+
+function exportReportText() {
+  const d = _getReportData();
+  if (!d.articleText) { showToast('No analysis to export.'); return; }
+
+  const divider = '═'.repeat(60);
+  const thinDiv = '─'.repeat(60);
+  const preview = d.articleText.length > 800 ? d.articleText.substring(0, 800) + '...' : d.articleText;
+
+  const report = `${divider}
+  VERIFY — AI-Powered News Verification Report
+${divider}
+
+Date:     ${d.timestamp}
+Analyst:  ${d.userName}
+
+${thinDiv}
+  VERDICT
+${thinDiv}
+
+  Result:     ${d.verdict}
+  Confidence: ${d.confidence}
+  Summary:    ${d.verdictSub}
+
+${thinDiv}
+  SOURCE SCORES
+${thinDiv}
+
+  🧠 ML Model:     ${d.mlScore}  —  ${d.mlDetail}
+  ✨ AI Analysis:   ${d.aiScore}  —  ${d.aiDetail}
+  🌐 GNews API:     ${d.webScore}  —  ${d.webDetail}
+
+${d.aiAnalysis && d.aiAnalysis !== 'Analysis will appear here after processing.' ? `${thinDiv}
+  AI ANALYSIS DETAIL
+${thinDiv}
+
+${d.aiAnalysis}
+` : ''}
+${thinDiv}
+  ANALYZED ARTICLE
+${thinDiv}
+
+${preview}
+
+${divider}
+Generated by Verify — AI-Powered News Verification Platform
+This report is auto-generated. Cross-check critical claims with multiple sources.
+${divider}
+`;
+
+  downloadFile(report, `verify_report_${Date.now()}.txt`, 'text/plain');
+  showToast('Text report downloaded!');
+}
