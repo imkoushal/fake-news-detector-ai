@@ -653,6 +653,7 @@ function downloadFile(content, filename, type) {
 // ===== DASHBOARD =====
 let chartsInit = false;
 let predChart, topicsChart, trendChart;
+let dashboardStats = null; // Store for export
 
 async function initDashboard() {
   const token = getToken();
@@ -662,8 +663,9 @@ async function initDashboard() {
     const res = await fetch(API_BASE + '/api/v1/user/stats', {
       headers: { 'Authorization': 'Bearer ' + token }
     });
-    if (!res.ok) throw new Error('Failed to load stats');
+    if (!res.ok) throw new Error('Failed to load stats: ' + res.status);
     const stats = await res.json();
+    dashboardStats = stats; // Store for export
 
     // Update stat cards with per-user data
     document.getElementById('statTotal').textContent = (stats.total || 0).toLocaleString();
@@ -680,26 +682,34 @@ async function initDashboard() {
     if (topicsChart) topicsChart.destroy();
     if (trendChart) trendChart.destroy();
 
-    // Prediction Distribution (doughnut)
+    // Prediction Distribution (doughnut) — show gray placeholder if no data
+    const hasData = (stats.real_count || 0) + (stats.fake_count || 0) > 0;
     predChart = new Chart(document.getElementById('chartPrediction'), {
       type: 'doughnut',
       data: {
-        labels: ['Real', 'Fake'],
-        datasets: [{ data: [stats.real_count, stats.fake_count], backgroundColor: [chartColors.green, chartColors.red], borderWidth: 0 }]
+        labels: hasData ? ['Real', 'Fake'] : ['No data yet'],
+        datasets: [{
+          data: hasData ? [stats.real_count, stats.fake_count] : [1],
+          backgroundColor: hasData ? [chartColors.green, chartColors.red] : ['#1F2937'],
+          borderWidth: 0
+        }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'right', labels: { color: '#94A3B8', padding: 16 } } },
+        plugins: {
+          legend: { position: 'right', labels: { color: '#94A3B8', padding: 16 } },
+          tooltip: { enabled: hasData }
+        },
         cutout: '65%'
       }
     });
 
-    // Confidence distribution as bar (fake vs real count by confidence ranges)
+    // Topic Breakdown as bar chart
     topicsChart = new Chart(document.getElementById('chartTopics'), {
       type: 'bar',
       data: {
         labels: ['Total Real', 'Total Fake', 'Avg Confidence'],
-        datasets: [{ data: [stats.real_count, stats.fake_count, stats.avg_confidence], backgroundColor: [chartColors.green, chartColors.red, chartColors.teal], borderRadius: 4, barThickness: 20 }]
+        datasets: [{ data: [stats.real_count || 0, stats.fake_count || 0, stats.avg_confidence || 0], backgroundColor: [chartColors.green, chartColors.red, chartColors.teal], borderRadius: 4, barThickness: 20 }]
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -711,19 +721,26 @@ async function initDashboard() {
       }
     });
 
-    // Trend line (last 7 days)
-    const trendDays = Object.keys(stats.trend).sort();
-    const realData = trendDays.map(d => stats.trend[d].real || 0);
-    const fakeData = trendDays.map(d => stats.trend[d].fake || 0);
-    const labels = trendDays.map(d => {
-      const dt = new Date(d);
+    // Trend line (last 7 days) — fill in missing days
+    const today = new Date();
+    const last7 = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      last7.push(d.toISOString().split('T')[0]);
+    }
+    const trend = stats.trend || {};
+    const realData = last7.map(d => (trend[d] && trend[d].real) || 0);
+    const fakeData = last7.map(d => (trend[d] && trend[d].fake) || 0);
+    const labels = last7.map(d => {
+      const dt = new Date(d + 'T00:00:00');
       return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     });
 
     trendChart = new Chart(document.getElementById('chartTrend'), {
       type: 'line',
       data: {
-        labels: labels.length ? labels : ['No data yet'],
+        labels,
         datasets: [
           { label: 'Real', data: realData, borderColor: chartColors.green, backgroundColor: 'rgba(74,222,128,0.1)', fill: true, tension: 0.4, pointRadius: 4 },
           { label: 'Fake', data: fakeData, borderColor: chartColors.red, backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4, pointRadius: 4 }
@@ -734,7 +751,7 @@ async function initDashboard() {
         plugins: { legend: { labels: { color: '#94A3B8' } } },
         scales: {
           x: { grid: { color: '#1F2937' }, ticks: { color: '#94A3B8' } },
-          y: { grid: { color: '#1F2937' }, ticks: { color: '#94A3B8', stepSize: 1 } }
+          y: { grid: { color: '#1F2937' }, ticks: { color: '#94A3B8', stepSize: 1 }, beginAtZero: true }
         }
       }
     });
@@ -742,7 +759,7 @@ async function initDashboard() {
     // Recent analyses table
     const tbody = document.getElementById('recentBody');
     tbody.innerHTML = '';
-    if (stats.recent.length === 0) {
+    if (!stats.recent || stats.recent.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">No analyses yet. Go to Analyze to get started!</td></tr>';
     } else {
       stats.recent.forEach(r => {
@@ -754,7 +771,7 @@ async function initDashboard() {
     }
 
   } catch (e) {
-    console.warn('Dashboard load failed:', e.message);
+    console.error('Dashboard load failed:', e);
     document.getElementById('statTotal').textContent = '0';
     document.getElementById('statConfidence').textContent = '0';
     document.getElementById('statFake').textContent = '0';
@@ -1004,3 +1021,81 @@ ${divider}
   downloadFile(report, `verify_report_${Date.now()}.txt`, 'text/plain');
   showToast('Text report downloaded!');
 }
+
+// ===== DASHBOARD EXPORT =====
+document.getElementById('exportDashboard')?.addEventListener('click', () => {
+  if (!dashboardStats) { showToast('No dashboard data to export. Visit the dashboard first.'); return; }
+  const s = dashboardStats;
+  const timestamp = new Date().toLocaleString();
+
+  // Build CSV with summary + recent analyses
+  let csv = `Verify Dashboard Export — ${timestamp}\n\n`;
+  csv += `Metric,Value\n`;
+  csv += `Total Analyzed,${s.total || 0}\n`;
+  csv += `Real Count,${s.real_count || 0}\n`;
+  csv += `Fake Count,${s.fake_count || 0}\n`;
+  csv += `Avg Confidence,${s.avg_confidence || 0}%\n`;
+  csv += `Global Total,${s.global_total || 0}\n`;
+  csv += `Global Fake Count,${s.global_fake_count || 0}\n\n`;
+
+  // Trend data
+  if (s.trend && Object.keys(s.trend).length > 0) {
+    csv += `\nDaily Trend\nDate,Real,Fake\n`;
+    Object.keys(s.trend).sort().forEach(day => {
+      csv += `${day},${s.trend[day].real || 0},${s.trend[day].fake || 0}\n`;
+    });
+  }
+
+  // Recent analyses
+  if (s.recent && s.recent.length > 0) {
+    csv += `\nRecent Analyses\nDate,Prediction,Confidence,Red Flag Score,Preview\n`;
+    s.recent.forEach(r => {
+      const preview = (r.preview || '').replace(/"/g, '""');
+      csv += `${r.date},${r.prediction},${r.confidence}%,${r.red_flags}%,"${preview}"\n`;
+    });
+  }
+
+  downloadFile(csv, `verify_dashboard_${Date.now()}.csv`, 'text/csv');
+  showToast('Dashboard data exported!');
+});
+
+// ===== HISTORY EXPORT =====
+document.getElementById('exportHistory')?.addEventListener('click', async () => {
+  const token = getToken();
+  if (!token) { showToast('Please sign in to export history.'); return; }
+
+  const formatEl = document.getElementById('exportFormat');
+  const isJSON = formatEl && formatEl.value.includes('JSON');
+  const activeFilter = document.querySelector('.filter-pills .pill.active')?.dataset.filter || 'all';
+
+  showToast('Fetching history for export...');
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/v1/user/history?page=1&limit=1000&filter=${activeFilter}`,
+      { headers: { 'Authorization': 'Bearer ' + token } }
+    );
+    if (!res.ok) throw new Error('Failed to fetch history');
+    const data = await res.json();
+
+    if (!data.items || data.items.length === 0) {
+      showToast('No history data to export.');
+      return;
+    }
+
+    if (isJSON) {
+      const json = JSON.stringify(data.items, null, 2);
+      downloadFile(json, `verify_history_${Date.now()}.json`, 'application/json');
+    } else {
+      let csv = 'Date,Prediction,Confidence,Real Probability,Red Flag Score,Preview\n';
+      data.items.forEach(r => {
+        const preview = (r.preview || '').replace(/"/g, '""');
+        csv += `${r.date},${r.prediction},${r.confidence}%,${r.real_prob || ''},${r.red_flags}%,"${preview}"\n`;
+      });
+      downloadFile(csv, `verify_history_${Date.now()}.csv`, 'text/csv');
+    }
+
+    showToast(`Exported ${data.items.length} records!`);
+  } catch (e) {
+    showToast('Export failed: ' + e.message);
+  }
+});
