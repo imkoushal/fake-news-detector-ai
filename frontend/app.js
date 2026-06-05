@@ -452,83 +452,77 @@ function renderResults(data) {
   // Initial verdict from ML only
   updateCombinedVerdict();
 
-  // ── Card 2: AI Analysis via Groq (async, 10s timeout) ──
-  document.getElementById('geminiDetail').textContent = 'Analyzing with AI...';
+  // ── Cards 2 & 3: RAG-powered Smart Verify (GNews → Groq in one call) ──
+  document.getElementById('geminiDetail').textContent = 'Searching live news...';
+  document.getElementById('webDetail').textContent = 'Waiting for AI...';
   animateRing('ringGemini', 0, 'ringGeminiText');
+  animateRing('ringWeb', 0, 'ringWebText');
   document.getElementById('ringGeminiText').textContent = '...';
+  document.getElementById('ringWebText').textContent = '...';
 
-  const aiController = new AbortController();
-  const aiTimeout = setTimeout(() => aiController.abort(), 10000); // 10 second timeout
+  const smartController = new AbortController();
+  const smartTimeout = setTimeout(() => smartController.abort(), 20000); // 20s (GNews + Groq)
 
-  fetch(API_BASE + '/api/v1/gemini-verify', {
+  fetch(API_BASE + '/api/v1/smart-verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: articleText }),
-    signal: aiController.signal
+    signal: smartController.signal
   })
   .then(r => r.ok ? r.json() : Promise.reject(r))
-  .then(g => {
-    clearTimeout(aiTimeout);
-    geminiScore = g.credibility_score;
+  .then(result => {
+    clearTimeout(smartTimeout);
+
+    // ── Update AI Analysis ring (Card 2) ──
+    geminiScore = result.credibility_score;
     const geminiPct = Math.round(geminiScore * 100);
     animateRing('ringGemini', geminiPct, 'ringGeminiText');
     setRingColor('ringGemini', geminiPct);
     const verdictMap = { 'LIKELY_TRUE': 'Likely True', 'LIKELY_FALSE': 'Likely False', 'MIXED': 'Mixed signals', 'UNVERIFIABLE': 'Unverifiable' };
-    document.getElementById('geminiDetail').textContent = verdictMap[g.verdict] || g.verdict;
-    document.getElementById('geminiBadge').textContent = 'AI ANALYSIS';
-    document.getElementById('geminiAnalysisText').textContent = g.analysis || 'No additional analysis.';
-    updateCombinedVerdict();
-  })
-  .catch(err => {
-    clearTimeout(aiTimeout);
-    document.getElementById('ringGeminiText').textContent = '—';
-    if (err.name === 'AbortError') {
-      document.getElementById('geminiDetail').textContent = 'AI Analysis timed out — try again';
-    } else {
-      document.getElementById('geminiDetail').textContent = 'AI Analysis unavailable';
-    }
-    document.getElementById('geminiBadge').textContent = 'UNAVAILABLE';
-  });
+    document.getElementById('geminiDetail').textContent = verdictMap[result.verdict] || result.verdict;
+    const modeLabel = result.mode === 'rag' ? 'AI + LIVE NEWS' : 'AI ANALYSIS';
+    document.getElementById('geminiBadge').textContent = modeLabel;
+    document.getElementById('geminiAnalysisText').textContent = result.analysis || 'No additional analysis.';
 
-  // ── Card 3: GNews API (async) ──
-  document.getElementById('webDetail').textContent = 'Searching news sources...';
-  animateRing('ringWeb', 0, 'ringWebText');
-  document.getElementById('ringWebText').textContent = '...';
-
-  fetch(API_BASE + '/api/v1/gnews-search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: articleText })
-  })
-  .then(r => r.ok ? r.json() : Promise.reject(r))
-  .then(g => {
-    gnewsScore = g.web_score;
+    // ── Update Web Sources ring (Card 3) ──
+    const web = result.web || {};
+    gnewsScore = web.web_score || 0.3;
     const webPct = Math.round(gnewsScore * 100);
     animateRing('ringWeb', webPct, 'ringWebText');
     setRingColor('ringWeb', webPct);
-    const detail = g.trusted_count > 0
-      ? `${g.trusted_count} trusted source${g.trusted_count > 1 ? 's' : ''} found (${g.total_articles} total)`
-      : g.total_articles > 0
-        ? `${g.total_articles} article${g.total_articles > 1 ? 's' : ''} found, no trusted sources`
+    const detail = (web.trusted_count || 0) > 0
+      ? `${web.trusted_count} trusted source${web.trusted_count > 1 ? 's' : ''} found (${web.total_articles} total)`
+      : (web.total_articles || 0) > 0
+        ? `${web.total_articles} article${web.total_articles > 1 ? 's' : ''} found, no trusted sources`
         : 'No matching articles found';
     document.getElementById('webDetail').textContent = detail;
 
     // Show sources in Web Sources section
     const sourcesList = document.getElementById('webSourcesList');
-    if (g.articles && g.articles.length > 0) {
-      sourcesList.innerHTML = g.articles.map(a =>
+    if (web.articles && web.articles.length > 0) {
+      sourcesList.innerHTML = web.articles.map(a =>
         `<div class="source-item"><div class="source-item-info"><a href="${a.url}" target="_blank" class="source-item-name">${a.source}</a><span class="source-item-date">${a.title}</span></div></div>`
       ).join('');
     } else {
       sourcesList.innerHTML = '<p class="text-muted">No matching news articles found.</p>';
     }
+
     updateCombinedVerdict();
   })
-  .catch(() => {
+  .catch(err => {
+    clearTimeout(smartTimeout);
+    // Fallback: try old endpoints separately
+    if (err.name === 'AbortError') {
+      document.getElementById('geminiDetail').textContent = 'Verification timed out';
+      document.getElementById('webDetail').textContent = 'Search timed out';
+    } else {
+      document.getElementById('geminiDetail').textContent = 'AI Analysis unavailable';
+      document.getElementById('webDetail').textContent = 'Web search unavailable';
+    }
+    document.getElementById('ringGeminiText').textContent = '—';
     document.getElementById('ringWebText').textContent = '—';
-    document.getElementById('webDetail').textContent = 'GNews API unavailable';
-    const sourcesList = document.getElementById('webSourcesList');
-    sourcesList.innerHTML = '<p class="text-muted">GNews API not available.</p>';
+    document.getElementById('geminiBadge').textContent = 'UNAVAILABLE';
+    document.getElementById('webSourcesList').innerHTML = '<p class="text-muted">Verification service unavailable.</p>';
   });
 }
 

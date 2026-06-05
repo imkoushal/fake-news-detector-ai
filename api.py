@@ -663,7 +663,8 @@ else:
 
     # ── AI Verification Endpoint (Groq — free, no billing required) ──
 
-    AI_VERIFY_PROMPT = """You are an expert media analyst. Evaluate this article for credibility.
+    # Legacy prompt (used when GNews is unavailable)
+    AI_VERIFY_PROMPT_SIMPLE = """You are an expert media analyst. Evaluate this article for credibility.
 
 ARTICLE:
 {text}
@@ -681,12 +682,246 @@ CONFIDENCE: 0-100
 VERDICT: LIKELY_TRUE/MIXED/LIKELY_FALSE/UNVERIFIABLE
 ANALYSIS: (2-3 sentence summary of key findings)"""
 
+    # RAG-enhanced prompt (used when live news context is available)
+    AI_VERIFY_PROMPT_RAG = """You are an expert fact-checker and media analyst with access to LIVE NEWS from trusted sources.
+
+ARTICLE TO VERIFY:
+{text}
+
+LIVE NEWS CONTEXT (from real news sources, last 24 hours):
+{live_context}
+
+INSTRUCTIONS:
+1. Compare the article's specific claims, names, dates, and statistics against the live news context above.
+2. If multiple trusted sources corroborate the article's claims, this strongly suggests it is real.
+3. If the live news contradicts the article's claims, or if no relevant coverage exists for extraordinary claims, this is suspicious.
+4. Also evaluate writing style: professional journalism vs sensationalized/emotional/clickbait language.
+5. Look for red flags: conspiracy language, ALL CAPS, "SHARE BEFORE DELETED", anonymous sources, miracle cures, etc.
+
+RESPOND IN THIS EXACT FORMAT (no markdown, no extra text):
+CREDIBILITY: HIGH/MEDIUM/LOW
+CONFIDENCE: 0-100
+VERDICT: LIKELY_TRUE/MIXED/LIKELY_FALSE/UNVERIFIABLE
+ANALYSIS: (2-3 sentence summary comparing the article against live news evidence and writing quality)"""
+
     class GeminiRequest(BaseModel):
         text: str
+
+    def _run_gnews_search(text: str):
+        """Internal helper: run GNews search and return structured results."""
+        gnews_key = os.getenv("GNEWS_API_KEY", "")
+        if not gnews_key or len(text.strip()) < 10:
+            return None
+
+        try:
+            from utils import extract_keywords
+            keywords = extract_keywords(text, max_keywords=5)
+            if not keywords:
+                keywords = " ".join(text.split()[:5])
+
+            import requests as req_lib
+            params = {
+                "q": keywords,
+                "apikey": gnews_key,
+                "lang": "en",
+                "max": 10,
+                "sortby": "relevance"
+            }
+            resp = req_lib.get("https://gnews.io/api/v4/search", params=params, timeout=10)
+            if resp.status_code != 200:
+                return None
+
+            data = resp.json()
+            articles = data.get("articles", []) if isinstance(data, dict) else []
+
+            quality = []
+            for a in articles:
+                if a.get("title") and a.get("source", {}).get("name") and a.get("url"):
+                    quality.append({
+                        "title": a["title"],
+                        "source": a["source"]["name"],
+                        "url": a["url"],
+                        "publishedAt": a.get("publishedAt", ""),
+                        "description": a.get("description", ""),
+                    })
+
+            # Calculate web corroboration score
+            trusted = ['reuters', 'apnews', 'bbc', 'nytimes', 'washingtonpost',
+                       'theguardian', 'bloomberg', 'wsj', 'cnn', 'npr', 'pbs',
+                       'abcnews', 'cbsnews', 'nbcnews', 'usatoday', 'associated press']
+            trusted_count = sum(1 for a in quality if any(t in a["source"].lower() for t in trusted))
+            total = len(quality)
+
+            if total == 0:
+                web_score = 0.3
+            elif trusted_count >= 3:
+                web_score = 0.9
+            elif trusted_count >= 1:
+                web_score = 0.7
+            elif total >= 3:
+                web_score = 0.5
+            else:
+                web_score = 0.4
+
+            return {
+                "web_score": web_score,
+                "total_articles": total,
+                "trusted_count": trusted_count,
+                "articles": quality[:5],
+                "keywords": keywords,
+            }
+        except Exception as e:
+            logger.error(f"GNews search failed (internal): {e}")
+            return None
+
+    def _call_groq(prompt_text: str):
+        """Internal helper: call Groq LLaMA API and return parsed result."""
+        groq_key = os.getenv("GROQ_API_KEY", "")
+        if not groq_key:
+            return None
+
+        headers = {
+            "Authorization": f"Bearer {groq_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": "You are an expert media analyst and fact-checker with access to live news feeds."},
+                {"role": "user", "content": prompt_text}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 500
+        }
+
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers, json=payload, timeout=15
+        )
+
+        if resp.status_code != 200:
+            error_msg = resp.json().get("error", {}).get("message", resp.text[:200])
+            logger.error(f"Groq API error {resp.status_code}: {error_msg}")
+            return None
+
+        result_text = resp.json()["choices"][0]["message"]["content"]
+
+        # Parse structured response
+        credibility = "MEDIUM"
+        confidence = 50
+        verdict = "UNVERIFIABLE"
+        analysis = result_text
+
+        for line in result_text.upper().split("\n"):
+            stripped = line.strip().lstrip("-* ")
+            if stripped.startswith("CREDIBILITY"):
+                for level in ["HIGH", "LOW", "MEDIUM"]:
+                    if level in stripped:
+                        credibility = level
+                        break
+            elif stripped.startswith("CONFIDENCE"):
+                nums = re.findall(r'\d+', stripped)
+                if nums:
+                    confidence = min(100, max(0, int(nums[0])))
+            elif stripped.startswith("VERDICT"):
+                for v in ["LIKELY_TRUE", "LIKELY_FALSE", "MIXED", "UNVERIFIABLE"]:
+                    if v in stripped:
+                        verdict = v
+                        break
+            elif stripped.startswith("ANALYSIS"):
+                for orig_line in result_text.split("\n"):
+                    if orig_line.strip().upper().startswith("ANALYSIS"):
+                        analysis = orig_line.split(":", 1)[-1].strip()
+                        break
+
+        score_map = {"HIGH": 0.85, "MEDIUM": 0.5, "LOW": 0.2}
+        credibility_score = score_map.get(credibility, 0.5)
+
+        return {
+            "credibility": credibility,
+            "credibility_score": credibility_score,
+            "confidence": confidence,
+            "verdict": verdict,
+            "analysis": analysis,
+        }
+
+    # ── NEW: RAG-powered Smart Verify (GNews → Groq) ──
+
+    @app.post("/api/v1/smart-verify")
+    @limiter.limit("15/minute")
+    async def smart_verify(req: GeminiRequest, request: Request):
+        """
+        RAG-powered verification: runs GNews FIRST, then injects live news
+        context into the Groq LLaMA prompt for real-time fact-checking.
+        """
+        text = req.text.strip()[:3000]
+        if len(text) < 10:
+            raise HTTPException(400, "Text too short for verification")
+
+        # Step 1: Run GNews search for live context
+        gnews_result = _run_gnews_search(text)
+
+        # Step 2: Build the prompt — RAG or simple depending on GNews results
+        if gnews_result and gnews_result["total_articles"] > 0:
+            # Build live context block from search results
+            context_lines = []
+            for i, a in enumerate(gnews_result["articles"][:5], 1):
+                pub = a.get("publishedAt", "")[:10] or "recent"
+                desc = a.get("description", "")[:120]
+                context_lines.append(f"{i}. [{a['source']}] \"{a['title']}\" — {pub}\n   {desc}")
+            live_context = "\n".join(context_lines) if context_lines else "No relevant live news found."
+
+            prompt = AI_VERIFY_PROMPT_RAG.format(text=text, live_context=live_context)
+            logger.info(f"Smart verify: RAG mode with {gnews_result['total_articles']} live articles")
+        else:
+            # Fallback: no live context available
+            prompt = AI_VERIFY_PROMPT_SIMPLE.format(text=text)
+            logger.info("Smart verify: fallback mode (no live news context)")
+
+        # Step 3: Call Groq with the enriched prompt
+        ai_result = _call_groq(prompt)
+
+        if not ai_result:
+            groq_key = os.getenv("GROQ_API_KEY", "")
+            if not groq_key:
+                raise HTTPException(503, "AI verification not configured. Set GROQ_API_KEY env var.")
+            raise HTTPException(502, "AI verification failed")
+
+        # Step 4: Return combined response
+        response = {
+            **ai_result,
+            "available": True,
+            "mode": "rag" if (gnews_result and gnews_result["total_articles"] > 0) else "standalone",
+        }
+
+        # Attach web search results so frontend can update both rings
+        if gnews_result:
+            response["web"] = {
+                "web_score": gnews_result["web_score"],
+                "total_articles": gnews_result["total_articles"],
+                "trusted_count": gnews_result["trusted_count"],
+                "articles": gnews_result["articles"],
+                "keywords": gnews_result["keywords"],
+                "available": True,
+            }
+        else:
+            response["web"] = {
+                "web_score": 0.3,
+                "total_articles": 0,
+                "trusted_count": 0,
+                "articles": [],
+                "keywords": "",
+                "available": False,
+            }
+
+        return response
+
+    # ── LEGACY: Keep old endpoints as fallbacks ──
 
     @app.post("/api/v1/gemini-verify")
     @limiter.limit("15/minute")
     async def gemini_verify(req: GeminiRequest, request: Request):
+        """Legacy endpoint — calls Groq without live news context."""
         groq_key = os.getenv("GROQ_API_KEY", "")
         if not groq_key:
             raise HTTPException(503, "AI verification not configured. Set GROQ_API_KEY env var.")
@@ -695,79 +930,11 @@ ANALYSIS: (2-3 sentence summary of key findings)"""
         if len(text) < 10:
             raise HTTPException(400, "Text too short for verification")
 
-        # Groq API (OpenAI-compatible REST endpoint)
-        headers = {
-            "Authorization": f"Bearer {groq_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [
-                {"role": "system", "content": "You are an expert media analyst and fact-checker."},
-                {"role": "user", "content": AI_VERIFY_PROMPT.format(text=text)}
-            ],
-            "temperature": 0.3,
-            "max_tokens": 500
-        }
+        result = _call_groq(AI_VERIFY_PROMPT_SIMPLE.format(text=text))
+        if not result:
+            raise HTTPException(502, "AI verification failed")
 
-        try:
-            resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=headers, json=payload, timeout=15
-            )
-
-            if resp.status_code != 200:
-                error_msg = resp.json().get("error", {}).get("message", resp.text[:200])
-                logger.error(f"Groq API error {resp.status_code}: {error_msg}")
-                raise HTTPException(502, f"AI verification failed: {error_msg}")
-
-            result_text = resp.json()["choices"][0]["message"]["content"]
-
-            # Parse structured response
-            credibility = "MEDIUM"
-            confidence = 50
-            verdict = "UNVERIFIABLE"
-            analysis = result_text
-
-            for line in result_text.upper().split("\n"):
-                stripped = line.strip().lstrip("-* ")
-                if stripped.startswith("CREDIBILITY"):
-                    for level in ["HIGH", "LOW", "MEDIUM"]:
-                        if level in stripped:
-                            credibility = level
-                            break
-                elif stripped.startswith("CONFIDENCE"):
-                    nums = re.findall(r'\d+', stripped)
-                    if nums:
-                        confidence = min(100, max(0, int(nums[0])))
-                elif stripped.startswith("VERDICT"):
-                    for v in ["LIKELY_TRUE", "LIKELY_FALSE", "MIXED", "UNVERIFIABLE"]:
-                        if v in stripped:
-                            verdict = v
-                            break
-                elif stripped.startswith("ANALYSIS"):
-                    for orig_line in result_text.split("\n"):
-                        if orig_line.strip().upper().startswith("ANALYSIS"):
-                            analysis = orig_line.split(":", 1)[-1].strip()
-                            break
-
-            # Convert to credibility score (0.0 - 1.0)
-            score_map = {"HIGH": 0.85, "MEDIUM": 0.5, "LOW": 0.2}
-            credibility_score = score_map.get(credibility, 0.5)
-
-            return {
-                "credibility": credibility,
-                "credibility_score": credibility_score,
-                "confidence": confidence,
-                "verdict": verdict,
-                "analysis": analysis,
-                "available": True
-            }
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"AI verification failed: {e}")
-            raise HTTPException(502, f"AI verification failed: {str(e)}")
+        return {**result, "available": True}
 
     # ── GNews Web Verification Endpoint ──
     GNEWS_API_KEY = os.getenv("GNEWS_API_KEY", "")
