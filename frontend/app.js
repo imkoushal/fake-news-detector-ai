@@ -167,11 +167,41 @@ document.addEventListener('DOMContentLoaded', () => {
   // Feedback
   document.getElementById('submitFeedback')?.addEventListener('click', () => showToast('Thanks for your feedback!'));
 
-  // Settings sensitivity display
+  // ── Sensitivity Slider Tooltip (Analyze page) ──
+  const slider = document.getElementById('sensitivitySlider');
+  const tooltip = document.getElementById('sensitivityTooltip');
+  if (slider && tooltip) {
+    function updateTooltipPosition() {
+      const val = slider.value / 100;
+      tooltip.textContent = val.toFixed(2);
+      // Position tooltip above thumb — map value to slider track width
+      const pct = slider.value / slider.max;
+      const thumbHalf = 8; // half of 16px thumb
+      const trackWidth = slider.offsetWidth;
+      const left = pct * (trackWidth - thumbHalf * 2) + thumbHalf;
+      tooltip.style.left = left + 'px';
+      tooltip.style.transform = 'translateX(-50%)';
+    }
+    slider.addEventListener('input', updateTooltipPosition);
+    slider.addEventListener('mousedown', () => { updateTooltipPosition(); tooltip.classList.add('visible'); });
+    slider.addEventListener('touchstart', () => { updateTooltipPosition(); tooltip.classList.add('visible'); }, { passive: true });
+    slider.addEventListener('mouseup', () => tooltip.classList.remove('visible'));
+    slider.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+    slider.addEventListener('touchend', () => tooltip.classList.remove('visible'));
+    // Sync with settings slider
+    slider.addEventListener('change', () => {
+      const ss = document.getElementById('settingsSensitivity');
+      if (ss) { ss.value = slider.value; document.getElementById('settingSensVal').textContent = (slider.value / 100).toFixed(2); }
+    });
+  }
+
+  // ── Settings Sensitivity Slider (Settings page) — sync back ──
   const ss = document.getElementById('settingsSensitivity');
   if (ss) {
     ss.addEventListener('input', () => {
       document.getElementById('settingSensVal').textContent = (ss.value / 100).toFixed(2);
+      const analyzeSlider = document.getElementById('sensitivitySlider');
+      if (analyzeSlider) analyzeSlider.value = ss.value;
     });
   }
 
@@ -305,10 +335,11 @@ async function runAnalysis() {
     const headers = { 'Content-Type': 'application/json' };
     const token = getToken();
     if (token) headers['Authorization'] = 'Bearer ' + token;
+    const sensitivity = (document.getElementById('sensitivitySlider')?.value || 50) / 100;
     const res = await fetch(API_BASE + '/api/v1/analyze', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ text })
+      body: JSON.stringify({ text, sensitivity })
     });
     if (!res.ok) throw new Error('API error ' + res.status);
     data = await res.json();

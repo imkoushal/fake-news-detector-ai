@@ -247,7 +247,10 @@
           <label class="toggle-label"><input type="checkbox" id="translateToggle"> Translate to English</label>
           <div class="sensitivity-control">
             <span>Sensitivity:</span>
-            <input type="range" id="sensitivitySlider" min="0" max="100" value="50" class="slider">
+            <div class="slider-wrap">
+              <input type="range" id="sensitivitySlider" min="0" max="100" value="50" class="slider">
+              <div class="slider-tooltip" id="sensitivityTooltip">0.50</div>
+            </div>
           </div>
           <span class="char-count" id="charCount">0 / 5000 chars</span>
           <button class="btn btn-primary" id="analyzeBtn">Analyze Article</button>

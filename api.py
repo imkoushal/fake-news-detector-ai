@@ -336,6 +336,7 @@ else:
         text: str
         url: Optional[str] = None
         source: Optional[str] = None
+        sensitivity: Optional[float] = 0.50  # Decision threshold (0.0 lenient – 1.0 strict)
 
     class PredictionResponse(BaseModel):
         prediction: str
@@ -599,7 +600,9 @@ else:
         proba = model.predict_proba(features)[0]
         real_prob, fake_prob = float(proba[1]), float(proba[0])
         red_flag_score = detect_fake_news_red_flags(text)
-        prediction = "FAKE" if fake_prob > 0.5 else "REAL"
+        # Use client-supplied sensitivity as the decision threshold
+        threshold = max(0.0, min(1.0, article.sensitivity or 0.50))
+        prediction = "REAL" if real_prob >= threshold else "FAKE"
         confidence = max(real_prob, fake_prob) * 100
 
         # Dampen confidence for short inputs — not enough context
