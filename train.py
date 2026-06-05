@@ -459,7 +459,7 @@ def main():
         min_df=2,
         max_df=0.85,         # Tighter filter on ubiquitous terms (was 0.90)
         sublinear_tf=True,
-        max_features=15000,  # More discriminative features (was 5000)
+        max_features=25000,  # Expanded vocabulary for domain-diverse articles (was 15000)
         stop_words="english"
     )
 
@@ -502,7 +502,9 @@ def main():
     # --- Model 1: Logistic Regression (with RandomizedSearchCV) ---
     print("\n🎯 [1/5] Training Logistic Regression (RandomizedSearchCV)...")
     t0 = time.time()
-    lr_clf = LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42)
+    # Custom weights: penalize misclassifying REAL 1.5x more than FAKE
+    CUSTOM_WEIGHTS = {0: 1.0, 1: 1.5}
+    lr_clf = LogisticRegression(max_iter=2000, class_weight=CUSTOM_WEIGHTS, random_state=42)
     lr_param_dist = {
         "C": loguniform(0.01, 100),
         "solver": ["lbfgs", "liblinear"],
@@ -528,7 +530,7 @@ def main():
     print("\n🎯 [2/5] Training Random Forest...")
     t0 = time.time()
     rf_clf = RandomForestClassifier(
-        n_estimators=100, max_depth=15, class_weight="balanced",
+        n_estimators=100, max_depth=15, class_weight=CUSTOM_WEIGHTS,
         random_state=42, n_jobs=-1
     )
     rf_clf.fit(X_train_tfidf, y_train)
@@ -538,7 +540,7 @@ def main():
     print("\n🎯 [3/5] Training SGD Classifier...")
     t0 = time.time()
     sgd_clf = SGDClassifier(
-        loss="modified_huber", max_iter=1000, class_weight="balanced",
+        loss="modified_huber", max_iter=1000, class_weight=CUSTOM_WEIGHTS,
         random_state=42, n_jobs=-1
     )
     sgd_clf.fit(X_train_tfidf, y_train)
@@ -547,7 +549,7 @@ def main():
     # --- Model 4: LinearSVC (calibrated for probabilities) ---
     print("\n🎯 [4/5] Training LinearSVC (calibrated)...")
     t0 = time.time()
-    svc_base = LinearSVC(max_iter=2000, class_weight="balanced", random_state=42)
+    svc_base = LinearSVC(max_iter=2000, class_weight=CUSTOM_WEIGHTS, random_state=42)
     svc_clf = CalibratedClassifierCV(svc_base, cv=3, method="sigmoid")
     svc_clf.fit(X_train_tfidf, y_train)
     eval_model("SVC", svc_clf, X_train_tfidf, y_train, X_val_tfidf, y_val, t0)
@@ -560,7 +562,7 @@ def main():
     lgbm_clf = lgb.LGBMClassifier(
         n_estimators=200, max_depth=10, learning_rate=0.1,
         num_leaves=80, min_child_samples=20, subsample=0.8,
-        class_weight="balanced", random_state=42, n_jobs=-1, verbose=-1
+        class_weight=CUSTOM_WEIGHTS, random_state=42, n_jobs=-1, verbose=-1
     )
     lgbm_clf.fit(X_train_tfidf, y_train)
     eval_model("LGBM", lgbm_clf, X_train_tfidf, y_train, X_val_tfidf, y_val, t0)
@@ -601,12 +603,15 @@ def main():
     # ========================
     # 1️⃣2️⃣ Find optimal threshold (on clean validation data)
     # ========================
-    print("\n🔍 Finding optimal threshold...")
+    print("\n🔍 Finding optimal threshold (F1-based)...")
     proba_val = calibrated.predict_proba(X_val_tfidf)[:, 1]
     fpr, tpr, thresholds = roc_curve(y_val, proba_val)
-    j_scores = tpr - fpr
-    best_thr = float(np.round(thresholds[np.argmax(j_scores)], 3))
-    print(f"✅ Optimal threshold: {best_thr}")
+    # Use F1-optimal threshold instead of Youden's J
+    # F1 balances precision and recall, reducing false positives on real articles
+    from sklearn.metrics import f1_score as _f1
+    f1_scores = [_f1(y_val, (proba_val >= t).astype(int)) for t in thresholds]
+    best_thr = float(np.round(thresholds[np.argmax(f1_scores)], 3))
+    print(f"✅ Optimal threshold (F1-max): {best_thr}")
 
     # ========================
     # 1️⃣3️⃣ Evaluate test set

@@ -45,7 +45,11 @@ def clean_text(text: str) -> str:
     # Remove mentions and hashtags but keep content
     text = re.sub(r'@\w+|#', ' ', text)
     
-    # Remove special characters and digits (keep letters and spaces only)
+    # Normalize numbers to <NUM> token (preserves sentence structure)
+    # "scored in the 68th minute" → "scored in the NUM minute" (not broken gibberish)
+    text = re.sub(r'\b\d+(?:[.,]\d+)*%?\b', ' NUM ', text)
+    
+    # Remove special characters and remaining digits (keep letters, spaces, hyphens, and NUM)
     text = re.sub(r"[^a-z\s\-]", " ", text)
     
     # Remove extra whitespace
