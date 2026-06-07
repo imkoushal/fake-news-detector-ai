@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Koushal Ray — Developer Portfolio</title>
+  <meta name="description" content="Portfolio of Koushal Ray – Frontend Developer, ML Enthusiast, and Open Source Contributor building real-world interactive applications."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<!-- Loader -->
+<div id="loader"><div class="loader-bar"></div></div>
+
+<!-- Custom Cursor -->
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+
+<!-- Navbar -->
+<nav class="navbar" id="navbar">
+  <div class="nav-inner">
+    <a href="#home" class="nav-logo">KR.</a>
+    <div class="nav-links">
+      <a href="#about">About</a>
+      <a href="#projects">Projects</a>
+      <a href="#skills">Skills</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <a href="https://github.com/imkoushal" target="_blank" rel="noopener" class="nav-resume">GitHub ↗</a>
+    <button class="hamburger" id="hamburger-btn" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- Mobile Menu -->
+<div class="mobile-menu" id="mobile-menu">
+  <button class="mobile-close" id="mobile-close-btn" aria-label="Close">✕</button>
+  <a href="#about" class="mob-link">About</a>
+  <a href="#projects" class="mob-link">Projects</a>
+  <a href="#skills" class="mob-link">Skills</a>
+  <a href="#contact" class="mob-link">Contact</a>
+</div>
+
+<main>
+
+<!-- ===== HERO ===== -->
+<section class="hero" id="home">
+  <canvas id="particle-canvas"></canvas>
+  <div class="hero-glow"></div>
+  <div class="hero-content">
+    <div class="hero-left">
+    <div class="hero-tag"><span class="dot"></span> Open to Opportunities</div>
+    <h1>
+      I'm Koushal Ray,<br/>
+      a <span class="accent"><span id="typewriter"></span><span id="typewriter-cursor">|</span></span><br/>
+      crafting real-world apps.
+    </h1>
+    <p class="hero-desc">
+      B.Tech CSE student passionate about building performant interfaces, training ML models, and contributing to open source.
+    </p>
+    <div class="hero-btns">
+      <a href="#projects" class="btn-primary">View Projects →</a>
+      <a href="#contact" class="btn-ghost">Get in Touch</a>
+    </div>
+    <div class="hero-socials">
+      <a href="https://github.com/imkoushal" target="_blank" rel="noopener" aria-label="GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      </a>
+      <a href="https://www.linkedin.com/in/koushal-kishor-ray-1024652b9/" target="_blank" rel="noopener" aria-label="LinkedIn">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+      </a>
+      <a href="mailto:koushalkishor304@gmail.com" aria-label="Email">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+      </a>
+    </div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-portrait">
+        <img src="profile-pic.png" alt="Koushal Ray"/>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== ABOUT ===== -->
+<section id="about">
+  <div class="section-inner reveal">
+    <h2 class="section-title">The Developer</h2>
+    <div class="about-grid">
+      <div class="about-img-wrap">
+        <img src="profile-pic.png" alt="Koushal Ray"/>
+      </div>
+      <div>
+        <p class="about-text">
+          Currently in my <span class="highlight">3rd year of B.Tech in Computer Science</span>,
+          I'm driven by the intersection of elegant design and robust engineering.
+        </p>
+        <br/>
+        <p class="about-text">
+          My core strength is <span class="accent-hl">Frontend Architecture</span> — building pixel-perfect, 
+          performant UIs with React & modern JavaScript. I'm actively expanding into 
+          <span class="green-hl">Machine Learning</span> and <span class="green-hl">Backend Systems</span>, 
+          with production projects in NLP-based classification and custom programming language design.
+        </p>
+        <div class="about-stats">
+          <div class="stat-item">
+            <div class="stat-val">4+</div>
+            <div class="stat-label">Projects Shipped</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val">B.Tech</div>
+            <div class="stat-label">CSE · 3rd Year</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val">OSS</div>
+            <div class="stat-label">Contributor</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PROJECTS ===== -->
+<section id="projects">
+  <div class="section-inner">
+    <h2 class="section-title reveal">Featured Projects</h2>
+
+    <!-- Project 1: CampusCompass -->
+    <div class="project-card reveal">
+      <div class="project-img">
+        <img src="campuscompass.png" alt="CampusCompass College Discovery Platform"/>
+      </div>
+      <div class="project-info">
+        <span class="project-tag">Next.js · Prisma · PostgreSQL</span>
+        <h3>CampusCompass — College Discovery Platform</h3>
+        <p>A production-grade college discovery and decision-making platform built with Next.js 14, Prisma, and Neon PostgreSQL. Features advanced multi-filter search, side-by-side college comparison engine with intelligent highlight badges, Google OAuth authentication, and a glassmorphic dark-themed UI.</p>
+        <div class="project-tech">
+          <span class="tech-pill">Next.js 14</span>
+          <span class="tech-pill">TypeScript</span>
+          <span class="tech-pill">Prisma</span>
+          <span class="tech-pill">PostgreSQL</span>
+          <span class="tech-pill">NextAuth</span>
+          <span class="tech-pill">TailwindCSS</span>
+        </div>
+        <div class="project-links">
+          <a href="https://campuscompass-0zk1.onrender.com" target="_blank" rel="noopener" class="project-link">Live Demo ↗</a>
+          <a href="https://github.com/imkoushal/campuscompass" target="_blank" rel="noopener" class="project-link" style="margin-left:20px;">GitHub →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project 2: Fake News Detector -->
+    <div class="project-card reveal">
+      <div class="project-img">
+        <img src="fake-news-detector.png" alt="Fake News Detector"/>
+      </div>
+      <div class="project-info">
+        <span class="project-tag green">Machine Learning · NLP · Python</span>
+        <h3>Hybrid Fake News Detector</h3>
+        <p>Production-grade ML system that classifies news articles as real or fake using a hybrid approach — combining a Stacking Classifier ensemble (LR+RF+SGD+SVC+LGBM), Gemini AI analysis, OOD detection, and live GNews source verification. Features a polished dark-themed SPA frontend with real-time analysis history.</p>
+        <div class="project-tech">
+          <span class="tech-pill green">Python</span>
+          <span class="tech-pill green">Scikit-learn</span>
+          <span class="tech-pill green">FastAPI</span>
+          <span class="tech-pill green">Gemini AI</span>
+          <span class="tech-pill green">LightGBM</span>
+          <span class="tech-pill green">NLP</span>
+        </div>
+        <div class="project-links">
+          <a href="https://fake-news-detector-8djq.onrender.com" target="_blank" rel="noopener" class="project-link green">Live Demo ↗</a>
+          <a href="https://github.com/imkoushal/fake-news-detector-ai" target="_blank" rel="noopener" class="project-link green" style="margin-left:20px;">GitHub →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project 3: EPL -->
+    <div class="project-card reveal">
+      <div class="project-img">
+        <img src="epl-language.png" alt="EPL Programming Language"/>
+      </div>
+      <div class="project-info">
+        <span class="project-tag purple">Open Source · Language Design</span>
+        <h3>EPL — Educational Programming Language</h3>
+        <p>Open source contributor to EPL, a custom programming language with a hand-written lexer, parser, and tree-walking interpreter. Implemented an AI-powered Error Explainer with a diagnostic pattern registry that provides beginner-friendly explanations of runtime errors.</p>
+        <div class="project-tech">
+          <span class="tech-pill purple">Language Design</span>
+          <span class="tech-pill purple">Interpreter</span>
+          <span class="tech-pill purple">AI Diagnostics</span>
+          <span class="tech-pill purple">Open Source</span>
+        </div>
+        <div class="project-links">
+          <a href="https://github.com/imkoushal/EPL" target="_blank" rel="noopener" class="project-link purple">GitHub →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SKILLS ===== -->
+<section id="skills">
+  <div class="section-inner">
+    <h2 class="section-title reveal">Technical Arsenal</h2>
+    <div class="skills-grid">
+
+      <div class="skill-card reveal">
+        <div class="skill-icon">⚡</div>
+        <h3>Frontend Core</h3>
+        <div class="skill-tags">
+          <span class="skill-tag">React.js</span>
+          <span class="skill-tag">JavaScript ES6+</span>
+          <span class="skill-tag">TypeScript</span>
+          <span class="skill-tag">HTML5 / CSS3</span>
+          <span class="skill-tag">Tailwind CSS</span>
+          <span class="skill-tag">Three.js</span>
+          <span class="skill-tag">Framer Motion</span>
+        </div>
+      </div>
+
+      <div class="skill-card green-border reveal">
+        <div class="skill-icon green">🧠</div>
+        <h3>Backend & ML</h3>
+        <div class="skill-tags">
+          <span class="skill-tag">Python</span>
+          <span class="skill-tag">Node.js</span>
+          <span class="skill-tag">FastAPI / Flask</span>
+          <span class="skill-tag">Next.js</span>
+          <span class="skill-tag">Prisma</span>
+          <span class="skill-tag">Scikit-learn</span>
+          <span class="skill-tag">NLP / TF-IDF</span>
+          <span class="skill-tag">PostgreSQL</span>
+          <span class="skill-tag">MongoDB</span>
+        </div>
+      </div>
+
+      <div class="skill-card purple-border reveal">
+        <div class="skill-icon purple">🛠</div>
+        <h3>Tools & Workflow</h3>
+        <div class="skill-tags">
+          <span class="skill-tag">Git & GitHub</span>
+          <span class="skill-tag">Docker</span>
+          <span class="skill-tag">VS Code</span>
+          <span class="skill-tag">Postman</span>
+          <span class="skill-tag">Vercel</span>
+          <span class="skill-tag">CI/CD</span>
+          <span class="skill-tag">REST APIs</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== CONTACT ===== -->
+<section class="contact-section" id="contact">
+  <div class="contact-glow"></div>
+  <div class="section-inner" style="position:relative;z-index:1;">
+    <h2 class="contact-title reveal">Let's build<br/><span class="green-text">something great.</span></h2>
+    <p class="contact-desc reveal">Open to collaborations, freelance work, and exciting opportunities.</p>
+    <div class="contact-cards reveal">
+      <a href="mailto:koushalkishor304@gmail.com" class="contact-card">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+        <span class="cc-label">Email</span>
+        <span class="cc-sub">Direct message</span>
+      </a>
+      <a href="https://github.com/imkoushal" target="_blank" rel="noopener" class="contact-card">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        <span class="cc-label">GitHub</span>
+        <span class="cc-sub">View code</span>
+      </a>
+      <a href="https://www.linkedin.com/in/koushal-kishor-ray-1024652b9/" target="_blank" rel="noopener" class="contact-card">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        <span class="cc-label">LinkedIn</span>
+        <span class="cc-sub">Let's connect</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- Footer -->
+<footer class="footer">
+  <p class="footer-text">© 2026 Koushal Ray. Designed & built with precision.</p>
+  <div class="footer-links">
+    <a href="mailto:koushalkishor304@gmail.com">Email</a>
+    <a href="https://github.com/imkoushal" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://www.linkedin.com/in/koushal-kishor-ray-1024652b9/" target="_blank" rel="noopener">LinkedIn</a>
+  </div>
+</footer>
+
+<!-- Scroll to Top -->
+<button id="scroll-top" aria-label="Back to top">↑</button>
+
+<script>
+// ===== Loader =====
+window.addEventListener('load', () => {
+  setTimeout(() => document.getElementById('loader').classList.add('hide'), 400);
+});
+
+// ===== Custom Cursor =====
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursor-ring');
+let mx = 0, my = 0, cx = 0, cy = 0;
+
+document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; cursor.style.left = mx+'px'; cursor.style.top = my+'px'; });
+
+(function animRing() {
+  cx += (mx - cx) * 0.15; cy += (my - cy) * 0.15;
+  ring.style.left = cx + 'px'; ring.style.top = cy + 'px';
+  requestAnimationFrame(animRing);
+})();
+
+document.querySelectorAll('a, button, .skill-tag').forEach(el => {
+  el.addEventListener('mouseenter', () => ring.classList.add('hover'));
+  el.addEventListener('mouseleave', () => ring.classList.remove('hover'));
+});
+
+// Hide cursor on mobile
+if ('ontouchstart' in window) {
+  cursor.style.display = 'none'; ring.style.display = 'none';
+  document.body.style.cursor = 'auto';
+  document.querySelectorAll('a, button').forEach(el => el.style.cursor = 'auto');
+}
+
+// ===== Particle Canvas =====
+const canvas = document.getElementById('particle-canvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resizeCanvas();
+window.addEventListener('resize', () => { resizeCanvas(); initParticles(); });
+
+class Particle {
+  constructor() {
+    this.x = Math.random() * canvas.width;
+    this.y = Math.random() * canvas.height;
+    this.vx = (Math.random() - 0.5) * 0.3;
+    this.vy = (Math.random() - 0.5) * 0.3;
+    this.size = Math.random() * 1.5 + 0.5;
+    this.alpha = Math.random() * 0.5 + 0.2;
+  }
+  update() {
+    this.x += this.vx; this.y += this.vy;
+    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+  }
+  draw() {
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(143,245,255,${this.alpha})`; ctx.fill();
+  }
+}
+
+function initParticles() {
+  particles = [];
+  const count = Math.min((canvas.width * canvas.height) / 18000, 150);
+  for (let i = 0; i < count; i++) particles.push(new Particle());
+}
+
+function drawLines() {
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i+1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 120) {
+        ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.strokeStyle = `rgba(143,245,255,${0.08*(1-dist/120)})`;
+        ctx.lineWidth = 0.5; ctx.stroke();
+      }
+    }
+  }
+}
+
+function animateParticles() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  particles.forEach(p => { p.update(); p.draw(); });
+  drawLines();
+  requestAnimationFrame(animateParticles);
+}
+
+initParticles(); animateParticles();
+
+// ===== Typewriter =====
+const words = ["Frontend Developer", "ML Enthusiast", "Open Source Contributor"];
+let wi = 0, ci = 0, deleting = false;
+const twEl = document.getElementById('typewriter');
+
+function typeLoop() {
+  const word = words[wi];
+  if (!deleting) {
+    twEl.textContent = word.substring(0, ci + 1); ci++;
+    if (ci === word.length) { deleting = true; setTimeout(typeLoop, 2000); return; }
+    setTimeout(typeLoop, 90);
+  } else {
+    twEl.textContent = word.substring(0, ci - 1); ci--;
+    if (ci === 0) { deleting = false; wi = (wi + 1) % words.length; setTimeout(typeLoop, 400); return; }
+    setTimeout(typeLoop, 45);
+  }
+}
+typeLoop();
+
+// ===== Scroll Reveal =====
+function reveal() {
+  document.querySelectorAll('.reveal').forEach(el => {
+    if (el.getBoundingClientRect().top < window.innerHeight - 80) el.classList.add('active');
+  });
+}
+window.addEventListener('scroll', reveal); reveal();
+
+// ===== Navbar scroll =====
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  navbar.classList.toggle('scrolled', window.scrollY > 60);
+  const btn = document.getElementById('scroll-top');
+  btn.classList.toggle('visible', window.scrollY > 400);
+});
+
+// ===== Scroll Top =====
+document.getElementById('scroll-top').addEventListener('click', () => window.scrollTo({top:0,behavior:'smooth'}));
+
+// ===== Mobile Menu =====
+const mobileMenu = document.getElementById('mobile-menu');
+document.getElementById('hamburger-btn').addEventListener('click', () => mobileMenu.classList.add('open'));
+document.getElementById('mobile-close-btn').addEventListener('click', () => mobileMenu.classList.remove('open'));
+document.querySelectorAll('.mob-link').forEach(l => l.addEventListener('click', () => mobileMenu.classList.remove('open')));
+
+// ===== Active nav link on scroll =====
+const sections = document.querySelectorAll('section[id]');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 200) current = s.id; });
+  document.querySelectorAll('.nav-links a').forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+</script>
+</body>
+</html>
