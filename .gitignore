@@ -53,6 +53,7 @@ Thumbs.db
 logs/*.log
 logs/*.png
 logs/*.csv
+training_log.txt
 
 # Testing
 .coverage
