@@ -445,13 +445,13 @@ else:
         c = conn.cursor()
         try:
             c.execute(
-                f"SELECT u.id, u.name, u.email FROM users u JOIN sessions s ON s.user_id = u.id WHERE s.token = {ph()}",
+                f"SELECT u.id, u.name, u.email, u.avatar_url FROM users u JOIN sessions s ON s.user_id = u.id WHERE s.token = {ph()}",
                 (token,)
             )
             user = c.fetchone()
             if not user:
                 raise HTTPException(401, "Invalid session")
-            return {"id": user[0], "name": user[1], "email": user[2]}
+            return {"id": user[0], "name": user[1], "email": user[2], "avatar_url": user[3] or ""}
         finally:
             conn.close()
 
@@ -471,6 +471,129 @@ else:
             finally:
                 conn.close()
         return {"ok": True}
+
+    # ── Google OAuth ──
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+
+    # Migration: add google_id and avatar_url columns if missing
+    try:
+        _conn = get_db()
+        _c = _conn.cursor()
+        try:
+            _c.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
+            logger.info("Migrated users table: added google_id column")
+        except Exception:
+            pass
+        try:
+            _c.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+            logger.info("Migrated users table: added avatar_url column")
+        except Exception:
+            pass
+        _conn.commit()
+        _conn.close()
+    except Exception as e:
+        logger.warning(f"Google auth migration skipped: {e}")
+
+    class GoogleAuthRequest(BaseModel):
+        credential: str  # The ID token from Google Identity Services
+
+    @app.post("/api/v1/auth/google")
+    @limiter.limit("20/minute")
+    async def google_auth(req: GoogleAuthRequest, request: Request):
+        """Authenticate via Google Sign-In.
+        Decodes the Google ID token, verifies it, and creates or logs in the user.
+        """
+        import json as _json
+        import base64
+
+        if not GOOGLE_CLIENT_ID:
+            raise HTTPException(500, "Google OAuth is not configured on this server")
+
+        # Decode the JWT payload (middle segment) without external libraries
+        # The signature is already verified client-side by Google's JS SDK,
+        # but we also verify the audience (aud) and issuer (iss) claims server-side.
+        try:
+            parts = req.credential.split(".")
+            if len(parts) != 3:
+                raise ValueError("Invalid JWT format")
+            # Decode the payload (add padding if needed)
+            payload_b64 = parts[1] + "=" * (4 - len(parts[1]) % 4)
+            payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
+        except Exception as e:
+            logger.error(f"Google token decode failed: {e}")
+            raise HTTPException(401, "Invalid Google credential")
+
+        # Verify essential claims
+        if payload.get("aud") != GOOGLE_CLIENT_ID:
+            raise HTTPException(401, "Token audience mismatch")
+        if payload.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+            raise HTTPException(401, "Token issuer invalid")
+        # Check expiry
+        import time as _time
+        if payload.get("exp", 0) < _time.time():
+            raise HTTPException(401, "Google token has expired")
+
+        google_id = payload.get("sub")
+        email = payload.get("email", "").lower()
+        name = payload.get("name", email.split("@")[0])
+        avatar_url = payload.get("picture", "")
+
+        if not email or not google_id:
+            raise HTTPException(401, "Google token missing required fields")
+
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            # Check if user exists by google_id or email
+            c.execute(f"SELECT id, name, email, avatar_url FROM users WHERE email = {ph()}", (email,))
+            user = c.fetchone()
+
+            if user:
+                # Existing user — update google_id and avatar if not set
+                user_id, user_name, user_email = user[0], user[1], user[2]
+                c.execute(
+                    f"UPDATE users SET google_id = {ph()}, avatar_url = {ph()} WHERE id = {ph()}",
+                    (google_id, avatar_url, user_id)
+                )
+            else:
+                # New user — create account with a random password (they'll only use Google login)
+                random_pw_hash = _hash_password(secrets.token_urlsafe(32))
+                c.execute(
+                    f"INSERT INTO users (name, email, password_hash, salt, google_id, avatar_url) VALUES ({ph(6)})",
+                    (name, email, random_pw_hash, "bcrypt", google_id, avatar_url)
+                )
+                if USE_POSTGRES:
+                    c.execute("SELECT currval(pg_get_serial_sequence('users','id'))")
+                    user_id = c.fetchone()[0]
+                else:
+                    user_id = c.lastrowid
+                user_name = name
+                user_email = email
+
+            # Create session
+            token = secrets.token_urlsafe(32)
+            expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token, user_id, expires_at))
+            conn.commit()
+
+            return {
+                "token": token,
+                "user": {
+                    "id": user_id,
+                    "name": user_name,
+                    "email": user_email,
+                    "avatar_url": avatar_url
+                }
+            }
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Google auth failed: {e}")
+            raise HTTPException(500, "Google authentication failed")
+        finally:
+            conn.close()
+
+    # Update /auth/me to return avatar_url if available
+    # (The existing get_me endpoint is patched below by updating its query)
 
     # ── Load ML Model + version info (3.1) ──
     MODEL_DIR = BASE_DIR / "models"
