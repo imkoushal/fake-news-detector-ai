@@ -18,9 +18,20 @@ function hideAuthOverlay() {
   document.getElementById('authOverlay').classList.add('hidden');
   document.getElementById('navbar').style.display = '';
   if (currentUser) {
-    const initial = currentUser.name.charAt(0).toUpperCase();
-    document.getElementById('userAvatar').textContent = initial;
-    document.getElementById('dropdownAvatar').textContent = initial;
+    const avatarEl = document.getElementById('userAvatar');
+    const dropAvatarEl = document.getElementById('dropdownAvatar');
+    if (currentUser.avatar_url) {
+      avatarEl.innerHTML = `<img src="${currentUser.avatar_url}" alt="" referrerpolicy="no-referrer">`;
+      avatarEl.classList.add('has-img');
+      dropAvatarEl.innerHTML = `<img src="${currentUser.avatar_url}" alt="" referrerpolicy="no-referrer">`;
+      dropAvatarEl.classList.add('has-img');
+    } else {
+      const initial = currentUser.name.charAt(0).toUpperCase();
+      avatarEl.textContent = initial;
+      avatarEl.classList.remove('has-img');
+      dropAvatarEl.textContent = initial;
+      dropAvatarEl.classList.remove('has-img');
+    }
     document.getElementById('dropdownName').textContent = currentUser.name;
     document.getElementById('dropdownEmail').textContent = currentUser.email || '';
     document.getElementById('profileWrap').classList.remove('hidden');
@@ -75,6 +86,51 @@ async function handleLogout() {
   clearToken(); currentUser = null; showAuthOverlay(); showToast('Signed out');
 }
 
+// ===== GOOGLE AUTH =====
+async function handleGoogleCredential(credential) {
+  const errEl = document.getElementById('loginError');
+  errEl.classList.remove('show');
+  try {
+    const res = await fetch(API_BASE + '/api/v1/auth/google', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Google sign-in failed');
+    setToken(data.token); currentUser = data.user; hideAuthOverlay();
+    showToast('Welcome, ' + currentUser.name + '!');
+  } catch (err) {
+    errEl.textContent = err.message; errEl.classList.add('show');
+  }
+}
+
+function initGoogleAuth() {
+  // Fetch the Google Client ID from the backend config endpoint
+  fetch(API_BASE + '/api/v1/auth/google-client-id')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.client_id) return; // Google OAuth not configured
+      if (typeof google === 'undefined' || !google.accounts) {
+        // GIS library not loaded yet, retry after a short delay
+        setTimeout(initGoogleAuth, 500);
+        return;
+      }
+      google.accounts.id.initialize({
+        client_id: data.client_id,
+        callback: (response) => handleGoogleCredential(response.credential),
+        auto_select: false
+      });
+      // Wire up both Google buttons to trigger the popup
+      document.getElementById('googleLoginBtn')?.addEventListener('click', () => {
+        google.accounts.id.prompt();
+      });
+      document.getElementById('googleSignupBtn')?.addEventListener('click', () => {
+        google.accounts.id.prompt();
+      });
+    })
+    .catch(() => {}); // Silently ignore if endpoint not available
+}
+
 // ===== ROUTING =====
 function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -110,6 +166,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('loginForm').addEventListener('submit', handleLogin);
   document.getElementById('signupForm').addEventListener('submit', handleSignup);
   document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+
+  // Initialize Google Auth
+  initGoogleAuth();
 
   // Profile dropdown toggle
   document.getElementById('avatarBtn').addEventListener('click', (e) => {

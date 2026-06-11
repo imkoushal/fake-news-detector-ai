@@ -591,9 +591,10 @@ else:
             raise HTTPException(500, "Google authentication failed")
         finally:
             conn.close()
-
-    # Update /auth/me to return avatar_url if available
-    # (The existing get_me endpoint is patched below by updating its query)
+    # Expose Google Client ID to frontend (never expose the secret, only the public client ID)
+    @app.get("/api/v1/auth/google-client-id")
+    async def get_google_client_id():
+        return {"client_id": GOOGLE_CLIENT_ID}
 
     # ── Load ML Model + version info (3.1) ──
     MODEL_DIR = BASE_DIR / "models"
