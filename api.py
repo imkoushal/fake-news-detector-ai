@@ -1040,6 +1040,137 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 
         return response
 
+    # ── Google Fact Check API Integration ──
+    GOOGLE_FACTCHECK_API_KEY = os.getenv("GOOGLE_FACTCHECK_API_KEY", "")
+
+    def _run_factcheck_search(text: str):
+        """Search Google Fact Check API for existing fact-checks matching this claim.
+        Uses Google's ClaimReview database which indexes 200+ fact-checking orgs
+        including AFP, Snopes, PolitiFact, AltNews, BoomLive, PIB India.
+        """
+        if not GOOGLE_FACTCHECK_API_KEY or len(text.strip()) < 10:
+            return None
+
+        try:
+            from utils import extract_keywords
+            keywords = extract_keywords(text, max_keywords=5)
+            if not keywords:
+                keywords = " ".join(text.split()[:8])
+
+            import requests as req_lib
+            params = {
+                "query": keywords,
+                "key": GOOGLE_FACTCHECK_API_KEY,
+                "languageCode": "en",
+            }
+            resp = req_lib.get(
+                "https://factchecktools.googleapis.com/v1alpha1/claims:search",
+                params=params,
+                timeout=10
+            )
+            if resp.status_code != 200:
+                logger.warning(f"Fact Check API returned status {resp.status_code}")
+                return None
+
+            data = resp.json()
+            claims = data.get("claims", [])
+
+            if not claims:
+                return {
+                    "found": False,
+                    "total_claims": 0,
+                    "reviews": [],
+                    "factcheck_score": 0.5,  # Neutral — no data
+                }
+
+            reviews = []
+            verdict_scores = []
+            for claim in claims[:5]:
+                claim_text = claim.get("text", "")
+                claimant = claim.get("claimant", "Unknown")
+                for review in claim.get("claimReview", []):
+                    publisher = review.get("publisher", {}).get("name", "Unknown")
+                    url = review.get("url", "")
+                    title = review.get("title", "")
+                    rating = review.get("textualRating", "").lower()
+                    review_date = review.get("reviewDate", "")[:10]
+
+                    # Convert textual ratings to numeric score (0 = definitely false, 1 = definitely true)
+                    false_indicators = ["false", "fake", "pants on fire", "misleading",
+                                        "mostly false", "incorrect", "wrong", "hoax",
+                                        "fabricated", "scam", "satire", "no evidence",
+                                        "unproven", "not true", "manipulated"]
+                    true_indicators = ["true", "correct", "accurate", "mostly true",
+                                       "verified", "confirmed", "real", "factual"]
+                    mixed_indicators = ["half true", "mixture", "partly", "partially",
+                                        "needs context", "missing context", "exaggerated"]
+
+                    if any(ind in rating for ind in false_indicators):
+                        score = 0.15
+                    elif any(ind in rating for ind in true_indicators):
+                        score = 0.9
+                    elif any(ind in rating for ind in mixed_indicators):
+                        score = 0.5
+                    else:
+                        score = 0.5  # Unknown rating
+
+                    verdict_scores.append(score)
+                    reviews.append({
+                        "claim": claim_text[:200],
+                        "claimant": claimant,
+                        "publisher": publisher,
+                        "rating": review.get("textualRating", "Unknown"),
+                        "url": url,
+                        "title": title[:150],
+                        "date": review_date,
+                        "score": score,
+                    })
+
+            # Overall fact-check score: average of all verdict scores
+            avg_score = sum(verdict_scores) / len(verdict_scores) if verdict_scores else 0.5
+
+            return {
+                "found": True,
+                "total_claims": len(claims),
+                "reviews": reviews[:5],
+                "factcheck_score": round(avg_score, 2),
+            }
+
+        except Exception as e:
+            logger.error(f"Fact Check API search failed: {e}")
+            return None
+
+    @app.post("/api/v1/fact-check")
+    @limiter.limit("15/minute")
+    async def fact_check_search(req: GeminiRequest, request: Request):
+        """Search Google's Fact Check database for existing fact-checks on a claim."""
+        text = req.text.strip()[:3000]
+        if len(text) < 10:
+            raise HTTPException(400, "Text too short for fact-check search")
+
+        result = _run_factcheck_search(text)
+
+        if result is None:
+            if not GOOGLE_FACTCHECK_API_KEY:
+                return {
+                    "available": False,
+                    "found": False,
+                    "total_claims": 0,
+                    "reviews": [],
+                    "factcheck_score": 0.5,
+                    "message": "Fact Check API not configured. Set GOOGLE_FACTCHECK_API_KEY env var."
+                }
+            return {
+                "available": False,
+                "found": False,
+                "total_claims": 0,
+                "reviews": [],
+                "factcheck_score": 0.5,
+                "message": "Fact Check search failed"
+            }
+
+        return {**result, "available": True}
+
     # ── LEGACY: Keep old endpoints as fallbacks ──
 
     @app.post("/api/v1/gemini-verify")

@@ -473,16 +473,17 @@ function renderResults(data) {
   }
 
 
-  // Track scores from all 3 sources for combined verdict
-  let geminiScore = null, gnewsScore = null;
+  // Track scores from all 4 sources for combined verdict
+  let geminiScore = null, gnewsScore = null, factCheckScore = null;
   const articleText = document.getElementById('articleText').value.trim();
 
   function updateCombinedVerdict() {
-    // Weight: ML 50%, Gemini 30%, GNews 20%
-    let sources = [{ score: data.real_probability, weight: 0.5 }];
-    let totalWeight = 0.5;
-    if (geminiScore !== null) { sources.push({ score: geminiScore, weight: 0.3 }); totalWeight += 0.3; }
-    if (gnewsScore !== null) { sources.push({ score: gnewsScore, weight: 0.2 }); totalWeight += 0.2; }
+    // Weight: ML 40%, Gemini 25%, GNews 15%, FactCheck 15%  (if all present)
+    let sources = [{ score: data.real_probability, weight: 0.40 }];
+    let totalWeight = 0.40;
+    if (geminiScore !== null) { sources.push({ score: geminiScore, weight: 0.25 }); totalWeight += 0.25; }
+    if (gnewsScore !== null) { sources.push({ score: gnewsScore, weight: 0.15 }); totalWeight += 0.15; }
+    if (factCheckScore !== null) { sources.push({ score: factCheckScore, weight: 0.20 }); totalWeight += 0.20; }
 
     const combined = sources.reduce((sum, s) => sum + s.score * s.weight, 0) / totalWeight;
     const combinedReal = combined > 0.5;
@@ -504,8 +505,8 @@ function renderResults(data) {
     document.getElementById('verdictScore').textContent = conf + '%';
     document.getElementById('verdictScore').style.color = combinedReal ? 'var(--accent)' : 'var(--danger)';
 
-    const srcCount = 1 + (geminiScore !== null ? 1 : 0) + (gnewsScore !== null ? 1 : 0);
-    document.getElementById('verdictSub').textContent = `Combined analysis from ${srcCount} source${srcCount > 1 ? 's' : ''}: ML Model${geminiScore !== null ? ' + AI Analysis' : ''}${gnewsScore !== null ? ' + GNews' : ''}`;
+    const srcCount = 1 + (geminiScore !== null ? 1 : 0) + (gnewsScore !== null ? 1 : 0) + (factCheckScore !== null ? 1 : 0);
+    document.getElementById('verdictSub').textContent = `Combined analysis from ${srcCount} source${srcCount > 1 ? 's' : ''}: ML Model${geminiScore !== null ? ' + AI Analysis' : ''}${gnewsScore !== null ? ' + GNews' : ''}${factCheckScore !== null ? ' + Fact Check' : ''}`;
   }
 
   // Initial verdict from ML only
@@ -518,6 +519,13 @@ function renderResults(data) {
   animateRing('ringWeb', 0, 'ringWebText');
   document.getElementById('ringGeminiText').textContent = '...';
   document.getElementById('ringWebText').textContent = '...';
+
+  // ── Card 4: Fact Check — initialize ──
+  document.getElementById('factCheckDetail').textContent = 'Searching...';
+  animateRing('ringFactCheck', 0, 'ringFactCheckText');
+  document.getElementById('ringFactCheckText').textContent = '...';
+  document.getElementById('factCheckBadge').textContent = 'SEARCHING...';
+  document.getElementById('factCheckResults').innerHTML = '<p class="text-muted">Searching fact-check database...</p>';
 
   const smartController = new AbortController();
   const smartTimeout = setTimeout(() => smartController.abort(), 20000); // 20s (GNews + Groq)
@@ -582,6 +590,77 @@ function renderResults(data) {
     document.getElementById('ringWebText').textContent = '—';
     document.getElementById('geminiBadge').textContent = 'UNAVAILABLE';
     document.getElementById('webSourcesList').innerHTML = '<p class="text-muted">Verification service unavailable.</p>';
+  });
+
+  // ── Card 4: Google Fact Check API (runs in parallel with smart-verify) ──
+  const fcController = new AbortController();
+  const fcTimeout = setTimeout(() => fcController.abort(), 15000);
+
+  fetch(API_BASE + '/api/v1/fact-check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: articleText }),
+    signal: fcController.signal
+  })
+  .then(r => r.ok ? r.json() : Promise.reject(r))
+  .then(fc => {
+    clearTimeout(fcTimeout);
+
+    if (fc.available && fc.found && fc.reviews && fc.reviews.length > 0) {
+      // Update ring
+      factCheckScore = fc.factcheck_score;
+      const fcPct = Math.round(factCheckScore * 100);
+      animateRing('ringFactCheck', fcPct, 'ringFactCheckText');
+      setRingColor('ringFactCheck', fcPct);
+      document.getElementById('factCheckDetail').textContent =
+        `${fc.reviews.length} fact-check${fc.reviews.length > 1 ? 's' : ''} found`;
+      document.getElementById('factCheckBadge').textContent = `${fc.total_claims} CLAIM${fc.total_claims > 1 ? 'S' : ''} FOUND`;
+
+      // Render fact-check review cards
+      const resultsEl = document.getElementById('factCheckResults');
+      resultsEl.innerHTML = fc.reviews.map(r => {
+        const ratingLower = (r.rating || '').toLowerCase();
+        let ratingClass = 'unknown';
+        if (['false','fake','pants on fire','misleading','mostly false','incorrect','wrong','hoax','scam','not true'].some(w => ratingLower.includes(w))) ratingClass = 'false';
+        else if (['true','correct','accurate','mostly true','verified','confirmed','real'].some(w => ratingLower.includes(w))) ratingClass = 'true';
+        else if (['half true','mixture','partly','partially','needs context','missing context','exaggerated'].some(w => ratingLower.includes(w))) ratingClass = 'mixed';
+
+        return `<div class="factcheck-item">
+          <div class="factcheck-header">
+            <span class="factcheck-publisher">${r.publisher}</span>
+            <span class="factcheck-rating ${ratingClass}">${r.rating}</span>
+          </div>
+          <p class="factcheck-claim">"${r.claim}"</p>
+          ${r.url ? `<a href="${r.url}" target="_blank" rel="noopener" class="factcheck-link">Read full fact-check →</a>` : ''}
+          ${r.date ? `<span style="font-size:.72rem;color:var(--text3);margin-left:8px">${r.date}</span>` : ''}
+        </div>`;
+      }).join('');
+
+      updateCombinedVerdict();
+    } else if (fc.available && !fc.found) {
+      // API worked but no matching fact-checks found
+      animateRing('ringFactCheck', 50, 'ringFactCheckText');
+      setRingColor('ringFactCheck', 50);
+      document.getElementById('factCheckDetail').textContent = 'No existing fact-checks found';
+      document.getElementById('factCheckBadge').textContent = 'NO MATCHES';
+      document.getElementById('factCheckResults').innerHTML =
+        '<div class="factcheck-empty">✅ No existing fact-checks found for this claim in 200+ databases.<br><small style="color:var(--text3)">This does not mean the claim is true — it may simply not have been fact-checked yet.</small></div>';
+    } else {
+      // API not configured or failed
+      document.getElementById('factCheckDetail').textContent = 'Not configured';
+      document.getElementById('factCheckBadge').textContent = 'UNAVAILABLE';
+      document.getElementById('ringFactCheckText').textContent = '—';
+      document.getElementById('factCheckResults').innerHTML =
+        '<p class="text-muted">Fact Check API not configured. Add GOOGLE_FACTCHECK_API_KEY to enable.</p>';
+    }
+  })
+  .catch(err => {
+    clearTimeout(fcTimeout);
+    document.getElementById('factCheckDetail').textContent = err.name === 'AbortError' ? 'Timed out' : 'Unavailable';
+    document.getElementById('factCheckBadge').textContent = 'UNAVAILABLE';
+    document.getElementById('ringFactCheckText').textContent = '—';
+    document.getElementById('factCheckResults').innerHTML =
+      '<p class="text-muted">Fact-check search could not be completed.</p>';
   });
 }
 

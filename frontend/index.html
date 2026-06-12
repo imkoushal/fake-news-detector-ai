@@ -285,8 +285,8 @@
           </div>
         </div>
 
-        <!-- Three Sources -->
-        <div class="card-grid three">
+        <!-- Four Sources -->
+        <div class="card-grid four">
           <div class="source-card">
             <div class="source-icon">🧠</div>
             <h3>ML Model</h3>
@@ -322,6 +322,18 @@
               <span class="ring-text" id="ringWebText">0%</span>
             </div>
             <p class="source-detail" id="webDetail">Cross-referencing news sources...</p>
+          </div>
+          <div class="source-card">
+            <div class="source-icon">🔍</div>
+            <h3>Fact Check</h3>
+            <div class="progress-ring-wrap">
+              <svg class="progress-ring" viewBox="0 0 80 80">
+                <circle class="ring-bg" cx="40" cy="40" r="34" />
+                <circle class="ring-fill" id="ringFactCheck" cx="40" cy="40" r="34" style="--pct:0" />
+              </svg>
+              <span class="ring-text" id="ringFactCheckText">0%</span>
+            </div>
+            <p class="source-detail" id="factCheckDetail">Searching fact-check database...</p>
           </div>
         </div>
 
@@ -362,6 +374,18 @@
           </div>
           <blockquote id="geminiAnalysisText" class="analysis-quote">Analysis will appear here after processing.
           </blockquote>
+        </div>
+
+        <!-- Fact Check Results -->
+        <div class="card" id="factCheckCard">
+          <div class="card-header">
+            <h3>🔍 Fact Check Database</h3>
+            <span class="badge badge-blue" id="factCheckBadge">SEARCHING...</span>
+          </div>
+          <p class="text-muted" style="margin-bottom:12px">Cross-referenced against 200+ fact-checking organizations worldwide (AFP, Snopes, PolitiFact, AltNews, BoomLive, PIB India).</p>
+          <div id="factCheckResults" class="source-list">
+            <p class="text-muted">Searching fact-check database...</p>
+          </div>
         </div>
 
         <!-- Feedback (2.5) -->
