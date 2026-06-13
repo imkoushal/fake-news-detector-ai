@@ -264,6 +264,77 @@ else:
 
     _init_auth_db()
 
+    # ── Claim Cache — Tier 1 Upgrade 3 ──
+    # Caches results from expensive API calls (smart-verify, fact-check, safe-browsing)
+    # so repeated viral claims get instant responses without re-hitting external APIs.
+    import hashlib
+    from collections import OrderedDict
+    import time as _time
+
+    class ClaimCache:
+        """TTL-based in-memory cache for API verification results.
+        Keyed by normalized text hash. Auto-evicts oldest when full.
+        """
+        def __init__(self, max_size: int = 500, ttl_seconds: int = 3600):
+            self._cache = OrderedDict()  # {key: (timestamp, data)}
+            self._max_size = max_size
+            self._ttl = ttl_seconds
+            self._hits = 0
+            self._misses = 0
+
+        def _normalize_key(self, text: str, endpoint: str) -> str:
+            """Create a stable cache key from text + endpoint."""
+            # Normalize: lowercase, collapse whitespace, strip
+            normalized = " ".join(text.lower().split())[:1000]
+            raw = f"{endpoint}:{normalized}"
+            return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+        def get(self, text: str, endpoint: str):
+            """Return cached result or None if miss/expired."""
+            key = self._normalize_key(text, endpoint)
+            if key in self._cache:
+                ts, data = self._cache[key]
+                if _time.time() - ts < self._ttl:
+                    self._hits += 1
+                    # Move to end (most recently used)
+                    self._cache.move_to_end(key)
+                    return data
+                else:
+                    # Expired
+                    del self._cache[key]
+            self._misses += 1
+            return None
+
+        def set(self, text: str, endpoint: str, data: dict):
+            """Store a result in the cache."""
+            key = self._normalize_key(text, endpoint)
+            self._cache[key] = (_time.time(), data)
+            self._cache.move_to_end(key)
+            # Evict oldest if over max size
+            while len(self._cache) > self._max_size:
+                self._cache.popitem(last=False)
+
+        def stats(self) -> dict:
+            total = self._hits + self._misses
+            return {
+                "cache_size": len(self._cache),
+                "max_size": self._max_size,
+                "ttl_seconds": self._ttl,
+                "hits": self._hits,
+                "misses": self._misses,
+                "hit_rate": round(self._hits / total * 100, 1) if total > 0 else 0,
+                "total_requests": total,
+            }
+
+        def clear(self):
+            self._cache.clear()
+            self._hits = 0
+            self._misses = 0
+
+    # Single shared cache instance for all endpoints
+    claim_cache = ClaimCache(max_size=500, ttl_seconds=3600)  # 1 hour TTL
+    logger.info("Claim cache initialized (max=500, TTL=1h)")
+
     def _hash_password(password: str) -> str:
         """Hash a password using bcrypt (salt is embedded in the output)."""
         return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -982,6 +1053,13 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         if len(text) < 10:
             raise HTTPException(400, "Text too short for verification")
 
+        # Check cache first (Tier 1 Upgrade 3)
+        cached = claim_cache.get(text, "smart-verify")
+        if cached:
+            cached["cache_status"] = "hit"
+            logger.info("Cache HIT for smart-verify")
+            return cached
+
         # Step 1: Run GNews search for live context
         gnews_result = _run_gnews_search(text)
 
@@ -1038,6 +1116,8 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "available": False,
             }
 
+        response["cache_status"] = "miss"
+        claim_cache.set(text, "smart-verify", response)
         return response
 
     # ── Google Fact Check API Integration ──
@@ -1148,6 +1228,12 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         if len(text) < 10:
             raise HTTPException(400, "Text too short for fact-check search")
 
+        # Check cache first
+        cached = claim_cache.get(text, "fact-check")
+        if cached:
+            cached["cache_status"] = "hit"
+            return cached
+
         result = _run_factcheck_search(text)
 
         if result is None:
@@ -1169,7 +1255,9 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "message": "Fact Check search failed"
             }
 
-        return {**result, "available": True}
+        result_response = {**result, "available": True, "cache_status": "miss"}
+        claim_cache.set(text, "fact-check", result_response)
+        return result_response
 
     # ── Google Safe Browsing API Integration ──
     GOOGLE_SAFE_BROWSING_API_KEY = os.getenv("GOOGLE_SAFE_BROWSING_API_KEY", "")
@@ -1282,6 +1370,13 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         # Extract URLs from the article text
         urls = _extract_urls_from_text(text)
 
+        # Check cache first (only if URLs exist — no point caching empty results)
+        if urls:
+            cached = claim_cache.get(text, "safe-browsing")
+            if cached:
+                cached["cache_status"] = "hit"
+                return cached
+
         if not urls:
             return {
                 "available": True,
@@ -1320,7 +1415,14 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "message": "Safe Browsing check failed"
             }
 
-        return {**result, "available": True, "urls_found": urls}
+        sb_response = {**result, "available": True, "urls_found": urls, "cache_status": "miss"}
+        claim_cache.set(text, "safe-browsing", sb_response)
+        return sb_response
+
+    @app.get("/api/v1/cache-stats")
+    async def cache_stats():
+        """Return claim cache hit/miss statistics for monitoring."""
+        return claim_cache.stats()
 
     # ── LEGACY: Keep old endpoints as fallbacks ──
 
