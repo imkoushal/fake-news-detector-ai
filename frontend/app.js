@@ -744,6 +744,89 @@ function renderResults(data) {
     // Silently hide the card on failure — Safe Browsing is optional
     sbCard.classList.add('hidden');
   });
+
+  // ── Source Credibility: Check domains in article text (runs in parallel) ──
+  const scCard = document.getElementById('sourceCredCard');
+  const scController = new AbortController();
+  const scTimeout = setTimeout(() => scController.abort(), 10000);
+
+  fetch(API_BASE + '/api/v1/source-credibility', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: articleText }),
+    signal: scController.signal
+  })
+  .then(r => r.ok ? r.json() : Promise.reject(r))
+  .then(sc => {
+    clearTimeout(scTimeout);
+    const resultsEl = document.getElementById('sourceCredResults');
+    const badgeEl = document.getElementById('sourceCredBadge');
+
+    if (sc.sources_found === 0) {
+      scCard.classList.add('hidden');
+      return;
+    }
+
+    scCard.classList.remove('hidden');
+
+    // Badge
+    if (sc.avg_credibility >= 80) {
+      badgeEl.textContent = `${sc.known_sources} CREDIBLE`;
+      badgeEl.className = 'badge badge-green';
+    } else if (sc.avg_credibility >= 50) {
+      badgeEl.textContent = `MIXED (${Math.round(sc.avg_credibility)})`;
+      badgeEl.className = 'badge badge-yellow';
+    } else if (sc.avg_credibility !== null) {
+      badgeEl.textContent = `LOW CREDIBILITY`;
+      badgeEl.className = 'badge badge-red';
+    } else {
+      badgeEl.textContent = `${sc.sources_found} UNKNOWN`;
+      badgeEl.className = 'badge badge-yellow';
+    }
+
+    let html = '';
+
+    // Summary banner
+    if (sc.avg_credibility !== null) {
+      const level = sc.avg_credibility >= 80 ? 'high' : sc.avg_credibility >= 50 ? 'medium' : 'low';
+      const icon = level === 'high' ? '✅' : level === 'medium' ? '⚠️' : '🚨';
+      html += `<div class="sc-summary ${level}">
+        ${icon} Average Source Credibility: ${sc.avg_credibility}/100
+        (${sc.known_sources} known, ${sc.unknown_sources} unknown — database: ${sc.database_size} sources)
+      </div>`;
+    }
+
+    // Individual sources
+    html += sc.sources.map(s => {
+      const categoryLabels = {
+        wire_service: '📡 Wire Service', fact_checker: '🔍 Fact Checker',
+        newspaper: '📰 Newspaper', broadcaster: '📺 Broadcaster',
+        digital_media: '💻 Digital', government: '🏛️ Government',
+        academic: '🎓 Academic', conspiracy: '⚠️ Conspiracy',
+        satire: '🎭 Satire', fake: '❌ Fake', misleading: '⚠️ Misleading',
+        opinion: '💬 Opinion', unknown: '❓ Unknown'
+      };
+      const catLabel = categoryLabels[s.category] || s.category;
+
+      return `<div class="sc-source ${s.tier}">
+        <div class="sc-score ${s.tier}">${s.credibility_score}</div>
+        <div class="sc-info">
+          <div class="sc-domain">${s.domain}</div>
+          <div class="sc-desc">${s.description}</div>
+          <div class="sc-tags">
+            <span class="sc-tag">${catLabel}</span>
+            ${s.bias !== 'unknown' ? `<span class="sc-tag">${s.bias}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    resultsEl.innerHTML = html;
+  })
+  .catch(err => {
+    clearTimeout(scTimeout);
+    scCard.classList.add('hidden');
+  });
 }
 
 function animateRing(ringId, pct, textId) {

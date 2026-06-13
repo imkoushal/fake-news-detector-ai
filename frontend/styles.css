@@ -166,6 +166,29 @@ img{max-width:100%}
 .sb-url-item{font-family:var(--mono);font-size:.75rem;color:var(--text2);padding:3px 0;word-break:break-all;border-bottom:1px solid rgba(255,255,255,.03)}
 .sb-url-item:last-child{border-bottom:none}
 
+/* ===== SOURCE CREDIBILITY ===== */
+.sc-source{padding:12px 14px;border-radius:10px;margin-bottom:8px;border:1px solid var(--border);background:rgba(255,255,255,.02);display:flex;align-items:center;gap:12px}
+.sc-source.gold{border-left:4px solid #f59e0b}
+.sc-source.trusted{border-left:4px solid var(--accent)}
+.sc-source.mixed{border-left:4px solid #f97316}
+.sc-source.unreliable{border-left:4px solid var(--danger)}
+.sc-source.unknown{border-left:4px solid var(--text3)}
+.sc-score{min-width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;flex-shrink:0}
+.sc-score.gold{background:rgba(245,158,11,.12);color:#f59e0b}
+.sc-score.trusted{background:rgba(74,222,128,.1);color:var(--accent)}
+.sc-score.mixed{background:rgba(249,115,22,.1);color:#f97316}
+.sc-score.unreliable{background:rgba(239,68,68,.1);color:var(--danger)}
+.sc-score.unknown{background:rgba(148,163,184,.1);color:var(--text3)}
+.sc-info{flex:1;min-width:0}
+.sc-domain{font-weight:700;font-size:.85rem;color:var(--text1);word-break:break-all}
+.sc-desc{font-size:.75rem;color:var(--text2);margin-top:2px}
+.sc-tags{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}
+.sc-tag{font-size:.65rem;padding:1px 7px;border-radius:6px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;background:rgba(255,255,255,.05);color:var(--text3);border:1px solid var(--border)}
+.sc-summary{padding:14px;border-radius:10px;margin-bottom:10px;text-align:center;font-weight:600;font-size:.88rem}
+.sc-summary.high{background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2);color:var(--accent)}
+.sc-summary.medium{background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.2);color:#f97316}
+.sc-summary.low{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);color:var(--danger)}
+
 /* ===== VERDICT ===== */
 .verdict-banner{display:flex;align-items:center;justify-content:space-between;border-radius:var(--radius);padding:24px 32px;margin-bottom:16px;max-width:1280px;margin-left:auto;margin-right:auto;border-left:5px solid var(--accent);background:var(--card)}
 .verdict-banner.real{border-left-color:var(--accent)}
