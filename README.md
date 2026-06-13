@@ -40,6 +40,12 @@ This dual approach means the system can catch both *stylistically* fake articles
 - The AI cross-references article claims against breaking news evidence.
 - **Intelligent Fallback:** Automatically switches to standalone style-analysis mode if no live news is found.
 
+### 🌐 Multi-Source Intelligence & Caching (v7.0 Upgrades)
+- **Google Fact Check API:** Directly queries Google's ClaimReview database to find if claims have already been verified by trusted orgs (Reuters, AFP, Alt News, etc.).
+- **Google Safe Browsing API:** Extracts URLs from article text and scans them for malware, phishing, and social engineering threats.
+- **Source Credibility Database:** Built-in domain reputation system covering 80+ Indian and international news sources, graded by credibility tier, category, and bias.
+- **Claim Caching Engine:** In-memory TTL cache with normalized hashing that sits in front of external APIs, providing a **160x speedup** on repeated viral claims.
+
 ### 🤖 5-Model Voting Ensemble
 - **Soft Voting Classifier** combining Logistic Regression, Random Forest, SGD Classifier, LinearSVC (calibrated), and LightGBM.
 - Averaged probability outputs with an **F1-optimized decision threshold** (0.552).
@@ -261,6 +267,10 @@ python train.py
 |----------|--------|-------------|
 | `/api/v1/analyze` | POST | ML-only prediction (fast, no API calls) |
 | `/api/v1/smart-verify` | POST | **RAG pipeline** — GNews search → Groq LLaMA verification |
+| `/api/v1/fact-check` | POST | Google Fact Check API integration |
+| `/api/v1/safe-browsing` | POST | URL threat detection via Google Safe Browsing |
+| `/api/v1/source-credibility` | POST | Domain reputation scoring (80+ sources) |
+| `/api/v1/cache-stats` | GET | Monitor hit/miss rates of the Claim Cache |
 | `/api/v1/gemini-verify` | POST | Standalone AI style analysis (legacy) |
 | `/api/v1/gnews-search` | POST | Manual web search (legacy) |
 | `/api/v1/health` | GET | Server health check |
@@ -368,13 +378,13 @@ fake-news-detector-ai/
 | **ML Framework** | Scikit-Learn, LightGBM | Ensemble training & inference |
 | **NLP** | spaCy, NLTK, TF-IDF | Text processing & feature extraction |
 | **LLM** | Groq API (LLaMA 3) | RAG-powered fact-checking |
-| **Live News** | GNews API | Real-time headline retrieval |
+| **External APIs** | GNews, Google Fact Check, Safe Browsing | Live verification & threat detection |
 | **Frontend** | HTML, CSS, JavaScript | Modern responsive dashboard |
-| **Database** | SQLite | User auth, analysis history, monitoring |
+| **Database** | SQLite, In-Memory LRU Cache | User auth, history, fast claim caching |
 | **Deployment** | Docker, Render | Containerized cloud deployment |
 
 ---
 
 **Status:** ✅ Production Ready
-**Model Version:** 6.0 (RAG + ML Improvements)
+**Model Version:** 7.0 (ML + RAG + Multi-Source Intelligence)
 **Author:** [Koushal](https://github.com/imkoushal)
