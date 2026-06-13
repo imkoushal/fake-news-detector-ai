@@ -1171,6 +1171,157 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 
         return {**result, "available": True}
 
+    # ── Google Safe Browsing API Integration ──
+    GOOGLE_SAFE_BROWSING_API_KEY = os.getenv("GOOGLE_SAFE_BROWSING_API_KEY", "")
+
+    def _extract_urls_from_text(text: str):
+        """Extract all URLs from article text."""
+        url_pattern = r'https?://(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:/[^\s<>"{}|\\^`\[\]]*)?'
+        urls = re.findall(url_pattern, text)
+        # Deduplicate while preserving order
+        seen = set()
+        unique = []
+        for u in urls:
+            u_clean = u.rstrip('.,;:!?)\'\"')
+            if u_clean not in seen:
+                seen.add(u_clean)
+                unique.append(u_clean)
+        return unique[:20]  # Cap at 20 URLs
+
+    def _check_safe_browsing(urls: list):
+        """Check URLs against Google Safe Browsing API.
+        Returns threat info for any flagged URLs.
+        """
+        if not GOOGLE_SAFE_BROWSING_API_KEY or not urls:
+            return None
+
+        try:
+            import requests as req_lib
+            payload = {
+                "client": {
+                    "clientId": "fake-news-detector",
+                    "clientVersion": "5.0"
+                },
+                "threatInfo": {
+                    "threatTypes": [
+                        "MALWARE",
+                        "SOCIAL_ENGINEERING",
+                        "UNWANTED_SOFTWARE",
+                        "POTENTIALLY_HARMFUL_APPLICATION"
+                    ],
+                    "platformTypes": ["ANY_PLATFORM"],
+                    "threatEntryTypes": ["URL"],
+                    "threatEntries": [{"url": u} for u in urls]
+                }
+            }
+
+            resp = req_lib.post(
+                f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GOOGLE_SAFE_BROWSING_API_KEY}",
+                json=payload,
+                timeout=10
+            )
+
+            if resp.status_code != 200:
+                logger.warning(f"Safe Browsing API returned status {resp.status_code}")
+                return None
+
+            data = resp.json()
+            matches = data.get("matches", [])
+
+            threats = []
+            threat_types_found = set()
+            for match in matches:
+                url = match.get("threat", {}).get("url", "")
+                threat_type = match.get("threatType", "UNKNOWN")
+                platform = match.get("platformType", "UNKNOWN")
+                threat_types_found.add(threat_type)
+
+                # Human-readable threat descriptions
+                threat_labels = {
+                    "MALWARE": "Malware Distribution",
+                    "SOCIAL_ENGINEERING": "Phishing / Social Engineering",
+                    "UNWANTED_SOFTWARE": "Unwanted Software",
+                    "POTENTIALLY_HARMFUL_APPLICATION": "Harmful Application"
+                }
+
+                threats.append({
+                    "url": url,
+                    "threat_type": threat_type,
+                    "threat_label": threat_labels.get(threat_type, threat_type),
+                    "platform": platform,
+                })
+
+            # Safety score: 1.0 = all safe, 0.0 = all dangerous
+            if not urls:
+                safety_score = 1.0
+            else:
+                flagged_count = len(set(t["url"] for t in threats))
+                safety_score = 1.0 - (flagged_count / len(urls))
+
+            return {
+                "urls_checked": len(urls),
+                "urls_flagged": len(threats),
+                "threats": threats,
+                "threat_types": list(threat_types_found),
+                "safety_score": round(safety_score, 2),
+                "all_safe": len(threats) == 0,
+            }
+
+        except Exception as e:
+            logger.error(f"Safe Browsing API check failed: {e}")
+            return None
+
+    @app.post("/api/v1/safe-browsing")
+    @limiter.limit("15/minute")
+    async def safe_browsing_check(req: GeminiRequest, request: Request):
+        """Check URLs in article text against Google Safe Browsing database."""
+        text = req.text.strip()[:5000]
+        if len(text) < 10:
+            raise HTTPException(400, "Text too short")
+
+        # Extract URLs from the article text
+        urls = _extract_urls_from_text(text)
+
+        if not urls:
+            return {
+                "available": True,
+                "urls_checked": 0,
+                "urls_flagged": 0,
+                "threats": [],
+                "threat_types": [],
+                "safety_score": 1.0,
+                "all_safe": True,
+                "message": "No URLs found in text"
+            }
+
+        if not GOOGLE_SAFE_BROWSING_API_KEY:
+            return {
+                "available": False,
+                "urls_checked": len(urls),
+                "urls_flagged": 0,
+                "threats": [],
+                "threat_types": [],
+                "safety_score": 1.0,
+                "all_safe": True,
+                "message": "Safe Browsing API not configured. Set GOOGLE_SAFE_BROWSING_API_KEY env var."
+            }
+
+        result = _check_safe_browsing(urls)
+
+        if result is None:
+            return {
+                "available": False,
+                "urls_checked": len(urls),
+                "urls_flagged": 0,
+                "threats": [],
+                "threat_types": [],
+                "safety_score": 1.0,
+                "all_safe": True,
+                "message": "Safe Browsing check failed"
+            }
+
+        return {**result, "available": True, "urls_found": urls}
+
     # ── LEGACY: Keep old endpoints as fallbacks ──
 
     @app.post("/api/v1/gemini-verify")

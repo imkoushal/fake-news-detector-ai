@@ -662,6 +662,88 @@ function renderResults(data) {
     document.getElementById('factCheckResults').innerHTML =
       '<p class="text-muted">Fact-check search could not be completed.</p>';
   });
+
+  // ── Safe Browsing: Check URLs in article text (runs in parallel) ──
+  const sbCard = document.getElementById('safeBrowsingCard');
+  const sbController = new AbortController();
+  const sbTimeout = setTimeout(() => sbController.abort(), 12000);
+
+  fetch(API_BASE + '/api/v1/safe-browsing', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: articleText }),
+    signal: sbController.signal
+  })
+  .then(r => r.ok ? r.json() : Promise.reject(r))
+  .then(sb => {
+    clearTimeout(sbTimeout);
+    const resultsEl = document.getElementById('safeBrowsingResults');
+    const badgeEl = document.getElementById('safeBrowsingBadge');
+
+    // Only show the card if URLs were found or threats detected
+    if (sb.urls_checked === 0 && sb.threats.length === 0) {
+      // No URLs in article — keep card hidden
+      sbCard.classList.add('hidden');
+      return;
+    }
+
+    // Show the card
+    sbCard.classList.remove('hidden');
+
+    if (!sb.available) {
+      badgeEl.textContent = 'UNAVAILABLE';
+      badgeEl.className = 'badge badge-yellow';
+      resultsEl.innerHTML = '<p class="text-muted">Safe Browsing API not configured.</p>';
+      return;
+    }
+
+    if (sb.all_safe) {
+      // All URLs are safe
+      badgeEl.textContent = `${sb.urls_checked} URL${sb.urls_checked > 1 ? 'S' : ''} SAFE`;
+      badgeEl.className = 'badge badge-green';
+      let html = `<div class="sb-safe">
+        <span class="sb-icon">✅</span>
+        All ${sb.urls_checked} URL${sb.urls_checked > 1 ? 's' : ''} passed Google Safe Browsing check — no malware, phishing, or social engineering detected.
+      </div>`;
+
+      // Show the URLs that were checked
+      if (sb.urls_found && sb.urls_found.length > 0) {
+        html += '<div class="sb-urls-list"><p>URLs checked:</p>';
+        html += sb.urls_found.map(u => `<div class="sb-url-item">${u}</div>`).join('');
+        html += '</div>';
+      }
+      resultsEl.innerHTML = html;
+    } else {
+      // Threats found!
+      badgeEl.textContent = `⚠️ ${sb.urls_flagged} THREAT${sb.urls_flagged > 1 ? 'S' : ''}`;
+      badgeEl.className = 'badge badge-red';
+
+      let html = sb.threats.map(t =>
+        `<div class="sb-danger">
+          <div class="sb-danger-header">⚠️ Dangerous URL Detected</div>
+          <div class="sb-threat-url">${t.url}</div>
+          <span class="sb-threat-badge">${t.threat_label}</span>
+        </div>`
+      ).join('');
+
+      // Show safe URLs too
+      if (sb.urls_found && sb.urls_found.length > sb.urls_flagged) {
+        const flaggedUrls = new Set(sb.threats.map(t => t.url));
+        const safeUrls = sb.urls_found.filter(u => !flaggedUrls.has(u));
+        if (safeUrls.length > 0) {
+          html += '<div class="sb-urls-list"><p>Safe URLs:</p>';
+          html += safeUrls.map(u => `<div class="sb-url-item">✅ ${u}</div>`).join('');
+          html += '</div>';
+        }
+      }
+      resultsEl.innerHTML = html;
+    }
+  })
+  .catch(err => {
+    clearTimeout(sbTimeout);
+    // Silently hide the card on failure — Safe Browsing is optional
+    sbCard.classList.add('hidden');
+  });
 }
 
 function animateRing(ringId, pct, textId) {
