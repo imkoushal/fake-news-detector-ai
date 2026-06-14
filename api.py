@@ -28,7 +28,7 @@ from meta_features import extract_single as compute_meta_features
 from enhanced_features import detect_fake_news_red_flags
 
 try:
-    from fastapi import FastAPI, HTTPException, Request
+    from fastapi import FastAPI, HTTPException, Request, UploadFile, File
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import FileResponse, JSONResponse
@@ -1611,6 +1611,87 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         result["cache_status"] = "miss"
         claim_cache.set(text, "source-credibility", result)
         return result
+
+    # ── Voice Transcription — Upgrade 6 ──
+    # Uses Groq Whisper API to transcribe audio files (WhatsApp voice notes, recordings)
+    # then feeds the transcript into the full analysis pipeline.
+
+    @app.post("/api/v1/transcribe")
+    @limiter.limit("10/minute")
+    async def transcribe_audio(request: Request, audio: UploadFile = File(...)):
+        """Transcribe an audio file using Groq Whisper, return the text."""
+        groq_key = os.getenv("GROQ_API_KEY", "")
+        if not groq_key:
+            raise HTTPException(503, "Transcription not configured. Set GROQ_API_KEY env var.")
+
+        # Validate file type
+        allowed_types = {
+            "audio/wav", "audio/wave", "audio/x-wav",
+            "audio/mpeg", "audio/mp3",
+            "audio/ogg", "audio/opus",
+            "audio/mp4", "audio/m4a", "audio/x-m4a",
+            "audio/webm",
+            "audio/flac",
+        }
+        content_type = (audio.content_type or "").lower()
+        filename = (audio.filename or "audio.wav").lower()
+        allowed_exts = {".wav", ".mp3", ".ogg", ".opus", ".m4a", ".mp4", ".webm", ".flac"}
+        ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ""
+
+        if content_type not in allowed_types and ext not in allowed_exts:
+            raise HTTPException(400, f"Unsupported audio format: {content_type}. Use WAV, MP3, OGG, M4A, or WebM.")
+
+        # Read file (max 25MB — Groq limit)
+        audio_bytes = await audio.read()
+        if len(audio_bytes) > 25 * 1024 * 1024:
+            raise HTTPException(400, "Audio file too large. Maximum size is 25MB.")
+        if len(audio_bytes) < 1000:
+            raise HTTPException(400, "Audio file too small — likely empty or corrupted.")
+
+        try:
+            import requests as req_lib
+
+            # Send to Groq Whisper API
+            resp = req_lib.post(
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {groq_key}"},
+                files={"file": (audio.filename or "audio.wav", audio_bytes, content_type or "audio/wav")},
+                data={
+                    "model": "whisper-large-v3",
+                    "response_format": "verbose_json",
+                    "language": "",  # Auto-detect language
+                },
+                timeout=30
+            )
+
+            if resp.status_code != 200:
+                logger.error(f"Groq Whisper API error: {resp.status_code} — {resp.text[:200]}")
+                raise HTTPException(502, f"Transcription service error: {resp.status_code}")
+
+            result = resp.json()
+            transcript = result.get("text", "").strip()
+
+            if not transcript:
+                return {
+                    "success": False,
+                    "transcript": "",
+                    "message": "No speech detected in the audio file.",
+                    "language": result.get("language", "unknown"),
+                }
+
+            return {
+                "success": True,
+                "transcript": transcript,
+                "language": result.get("language", "unknown"),
+                "duration": result.get("duration", 0),
+                "word_count": len(transcript.split()),
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Transcription failed: {e}")
+            raise HTTPException(500, f"Transcription failed: {str(e)}")
 
     # ── LEGACY: Keep old endpoints as fallbacks ──
 

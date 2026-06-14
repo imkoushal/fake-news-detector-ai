@@ -240,6 +240,7 @@
         <div class="input-tabs">
           <button class="input-tab active" id="tabText" onclick="switchInputTab('text')">📝 Paste Text</button>
           <button class="input-tab" id="tabUrl" onclick="switchInputTab('url')">🔗 From URL</button>
+          <button class="input-tab" id="tabVoice" onclick="switchInputTab('voice')">🎙️ Voice / Audio</button>
         </div>
         <!-- Text input -->
         <div id="inputText">
@@ -253,6 +254,30 @@
           </div>
           <p class="url-hint" id="urlStatus">Enter a URL to automatically extract the article text.</p>
           <textarea id="articleTextFromUrl" placeholder="Fetched article text will appear here..." rows="6" class="hidden"></textarea>
+        </div>
+        <!-- Voice / Audio input -->
+        <div id="inputVoice" class="hidden">
+          <div class="voice-upload-area" id="voiceDropZone">
+            <div class="voice-icon">🎙️</div>
+            <p class="voice-title">Upload a voice note or audio file</p>
+            <p class="voice-hint">Drag & drop or click to browse — WAV, MP3, OGG, M4A (max 25MB)</p>
+            <input type="file" id="audioFileInput" accept="audio/*" class="voice-file-input">
+            <div class="voice-actions">
+              <button class="btn btn-secondary" id="voiceBrowseBtn" onclick="document.getElementById('audioFileInput').click()">📁 Browse Files</button>
+              <button class="btn btn-primary" id="voiceRecordBtn" onclick="toggleRecording()">⏺️ Record</button>
+            </div>
+          </div>
+          <div id="voiceStatus" class="voice-status hidden">
+            <div class="voice-status-inner">
+              <span class="voice-spinner"></span>
+              <span id="voiceStatusText">Transcribing audio...</span>
+            </div>
+          </div>
+          <div id="voiceTranscript" class="voice-transcript hidden">
+            <p class="voice-transcript-label">📝 Transcript:</p>
+            <textarea id="transcriptText" rows="5" readonly></textarea>
+            <button class="btn btn-primary" style="margin-top:8px" onclick="analyzeTranscript()">🔍 Analyze This Transcript</button>
+          </div>
         </div>
         <div class="analyze-controls">
           <label class="toggle-label"><input type="checkbox" id="translateToggle"> Translate to English</label>

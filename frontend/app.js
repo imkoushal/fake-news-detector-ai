@@ -326,8 +326,136 @@ function showToast(msg) {
 function switchInputTab(tab) {
   document.getElementById('tabText').classList.toggle('active', tab === 'text');
   document.getElementById('tabUrl').classList.toggle('active', tab === 'url');
+  document.getElementById('tabVoice').classList.toggle('active', tab === 'voice');
   document.getElementById('inputText').classList.toggle('hidden', tab !== 'text');
   document.getElementById('inputUrl').classList.toggle('hidden', tab !== 'url');
+  document.getElementById('inputVoice').classList.toggle('hidden', tab !== 'voice');
+}
+
+// ── Voice Input — Upgrade 6 ──
+
+// File upload handler
+document.addEventListener('DOMContentLoaded', () => {
+  const fileInput = document.getElementById('audioFileInput');
+  const dropZone = document.getElementById('voiceDropZone');
+
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) transcribeFile(e.target.files[0]);
+    });
+  }
+
+  if (dropZone) {
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) transcribeFile(e.dataTransfer.files[0]);
+    });
+  }
+});
+
+async function transcribeFile(file) {
+  const statusEl = document.getElementById('voiceStatus');
+  const statusText = document.getElementById('voiceStatusText');
+  const transcriptEl = document.getElementById('voiceTranscript');
+  const transcriptText = document.getElementById('transcriptText');
+
+  // Validate
+  if (file.size > 25 * 1024 * 1024) {
+    showToast('Audio file too large. Maximum is 25MB.'); return;
+  }
+
+  // Show status
+  statusEl.classList.remove('hidden');
+  transcriptEl.classList.add('hidden');
+  statusText.textContent = `Transcribing "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)}MB)...`;
+
+  try {
+    const formData = new FormData();
+    formData.append('audio', file);
+
+    const res = await fetch(API_BASE + '/api/v1/transcribe', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Transcription failed (${res.status})`);
+    }
+
+    const data = await res.json();
+    statusEl.classList.add('hidden');
+
+    if (data.success && data.transcript) {
+      transcriptEl.classList.remove('hidden');
+      transcriptText.value = data.transcript;
+      const langLabel = data.language ? ` (${data.language})` : '';
+      const durLabel = data.duration ? ` • ${Math.round(data.duration)}s` : '';
+      showToast(`Transcribed: ${data.word_count} words${langLabel}${durLabel}`);
+    } else {
+      showToast(data.message || 'No speech detected in the audio.');
+    }
+  } catch (err) {
+    statusEl.classList.add('hidden');
+    showToast('Transcription failed: ' + err.message);
+  }
+}
+
+// Microphone recording
+let _mediaRecorder = null;
+let _audioChunks = [];
+
+function toggleRecording() {
+  if (_mediaRecorder && _mediaRecorder.state === 'recording') {
+    // Stop recording
+    _mediaRecorder.stop();
+    document.getElementById('voiceRecordBtn').textContent = '⏺️ Record';
+    document.getElementById('voiceRecordBtn').classList.remove('recording');
+  } else {
+    // Start recording
+    navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      _audioChunks = [];
+      _mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+      _mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) _audioChunks.push(e.data);
+      };
+
+      _mediaRecorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(_audioChunks, { type: 'audio/webm' });
+        const file = new File([blob], 'recording.webm', { type: 'audio/webm' });
+        transcribeFile(file);
+      };
+
+      _mediaRecorder.start();
+      document.getElementById('voiceRecordBtn').textContent = '⏹️ Stop';
+      document.getElementById('voiceRecordBtn').classList.add('recording');
+      showToast('Recording started — speak now...');
+    })
+    .catch(err => {
+      showToast('Microphone access denied. Please allow microphone permission.');
+    });
+  }
+}
+
+function analyzeTranscript() {
+  const transcript = document.getElementById('transcriptText').value.trim();
+  if (!transcript) { showToast('No transcript available.'); return; }
+
+  // Copy transcript to main textarea and switch to text tab
+  document.getElementById('articleText').value = transcript;
+  switchInputTab('text');
+
+  // Auto-click analyze
+  setTimeout(() => {
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    if (analyzeBtn) analyzeBtn.click();
+  }, 200);
 }
 
 async function fetchArticleFromUrl() {
