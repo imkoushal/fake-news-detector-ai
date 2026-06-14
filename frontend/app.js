@@ -472,6 +472,82 @@ function renderResults(data) {
     `;
   }
 
+  // ── Educator Mode — Step-by-Step Pipeline Breakdown ──
+  const educatorSteps = document.getElementById('educatorSteps');
+  const educatorToggle = document.getElementById('educatorToggle');
+
+  // Build initial steps from ML analysis (available immediately)
+  const wordCount = (document.getElementById('articleText').value.trim().match(/\S+/g) || []).length;
+  const fakeWords = data.fake_indicator_words || [];
+  const realWords = data.real_indicator_words || [];
+  const redFlagPct = Math.round((data.red_flag_score || 0) * 100);
+  const isReal = data.prediction === 'REAL';
+
+  function renderEducatorSteps(extraSteps) {
+    const steps = [
+      {
+        num: 1, status: 'done',
+        title: 'Text Preprocessing & Normalization',
+        desc: `Your input (${wordCount} words) was cleaned, lowercased, and normalized. Numbers were masked to <NUM> tokens. URLs and HTML tags were stripped. Lemmatization reduced words to their root forms.`,
+        result: data.input_quality === 'sufficient' ? 'Full article analysis' : data.input_quality === 'headline' ? 'Headline-length input' : 'Short claim detected',
+        resultClass: data.input_quality === 'sufficient' ? 'pass' : 'pending'
+      },
+      {
+        num: 2, status: 'done',
+        title: '5-Model ML Ensemble Analysis',
+        desc: `Text was vectorized into 25,000 TF-IDF features (1-3 word n-grams) and fed to our Soft Voting Classifier: Logistic Regression, Random Forest, SGD Classifier, LinearSVC, and LightGBM. Each model voted independently.`,
+        result: `${isReal ? 'REAL' : 'FAKE'} — ${Math.round(data.confidence)}% confidence`,
+        resultClass: isReal ? 'pass' : 'fail'
+      },
+      {
+        num: 3, status: redFlagPct > 30 ? 'warn' : 'done',
+        title: '20 Meta-Feature Extraction',
+        desc: `Extracted 20 linguistic signals from raw text: all_caps_ratio, exclamation_density, conspiracy_score, sensationalism_score, flesch_kincaid_grade, clickbait_score, and 14 more.${fakeWords.length ? ' Fake signals: ' + fakeWords.slice(0,5).join(', ') + '.' : ''}${realWords.length ? ' Real signals: ' + realWords.slice(0,5).join(', ') + '.' : ''}`,
+        result: `Red flag score: ${redFlagPct}%`,
+        resultClass: redFlagPct > 60 ? 'fail' : redFlagPct > 30 ? 'pending' : 'pass'
+      },
+    ];
+
+    // Add dynamic steps from async verification
+    if (extraSteps) steps.push(...extraSteps);
+
+    educatorSteps.innerHTML = steps.map(s => `
+      <div class="edu-step">
+        <div class="edu-num ${s.status}">${s.num}</div>
+        <div class="edu-body">
+          <div class="edu-title">${s.title}</div>
+          <div class="edu-desc">${s.desc}</div>
+          <span class="edu-result ${s.resultClass}">${s.result}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Initial render with ML-only steps
+  let _eduExtraSteps = [];
+  renderEducatorSteps(_eduExtraSteps);
+
+  // Toggle handler
+  if (educatorToggle) {
+    educatorToggle.addEventListener('change', () => {
+      if (educatorToggle.checked) {
+        educatorSteps.classList.remove('hidden');
+        // Re-trigger animations by replacing innerHTML
+        renderEducatorSteps(_eduExtraSteps);
+      } else {
+        educatorSteps.classList.add('hidden');
+      }
+    });
+  }
+
+  // Helper to add steps dynamically as async results arrive
+  function addEducatorStep(step) {
+    _eduExtraSteps.push(step);
+    if (educatorToggle && educatorToggle.checked) {
+      renderEducatorSteps(_eduExtraSteps);
+    }
+  }
+
 
   // Track scores from all 4 sources for combined verdict
   let geminiScore = null, gnewsScore = null, factCheckScore = null;
@@ -575,6 +651,23 @@ function renderResults(data) {
     }
 
     updateCombinedVerdict();
+
+    // Educator Mode: Add AI + Web steps
+    const aiVerdict = verdictMap[result.verdict] || result.verdict;
+    addEducatorStep({
+      num: 4, status: geminiPct >= 50 ? 'done' : 'warn',
+      title: `AI Cross-Reference (${modeLabel})`,
+      desc: `${result.mode === 'rag' ? 'Live news was injected into the Groq LLaMA 3.3 prompt for evidence-based fact-checking.' : 'No live news available — AI performed standalone style and credibility analysis.'} ${result.analysis || ''}`,
+      result: `${aiVerdict} — ${geminiPct}% credibility`,
+      resultClass: geminiPct >= 60 ? 'pass' : geminiPct >= 40 ? 'pending' : 'fail'
+    });
+    addEducatorStep({
+      num: 5, status: (web.total_articles || 0) > 0 ? 'done' : 'info',
+      title: 'Live News Retrieval (GNews API)',
+      desc: `Searched GNews for articles matching your claim.${(web.total_articles || 0) > 0 ? ` Found ${web.total_articles} article${web.total_articles > 1 ? 's' : ''} (${web.trusted_count || 0} from trusted sources like Reuters, BBC, NDTV).` : ' No matching articles found — topic may be too niche or too new.'}`,
+      result: (web.total_articles || 0) > 0 ? `${web.total_articles} articles, ${web.trusted_count || 0} trusted` : 'No articles found',
+      resultClass: (web.trusted_count || 0) > 0 ? 'pass' : (web.total_articles || 0) > 0 ? 'pending' : 'neutral'
+    });
   })
   .catch(err => {
     clearTimeout(smartTimeout);
@@ -637,6 +730,20 @@ function renderResults(data) {
       }).join('');
 
       updateCombinedVerdict();
+
+      // Educator Mode: Add Fact Check step
+      const fcFound = fc.found && fc.total_claims > 0;
+      const fcScore = fc.factcheck_score || 0.5;
+      const topReview = fc.reviews && fc.reviews[0] ? `${fc.reviews[0].publisher}: "${fc.reviews[0].rating}"` : '';
+      addEducatorStep({
+        num: 6, status: fcFound ? (fcScore < 0.4 ? 'warn' : 'done') : 'info',
+        title: 'Fact-Check Database (Google ClaimReview)',
+        desc: fcFound
+          ? `Found ${fc.total_claims} existing fact-check${fc.total_claims > 1 ? 's' : ''} from verified organizations (AFP, PolitiFact, Alt News, etc.).${topReview ? ' Top result: ' + topReview + '.' : ''}`
+          : 'No existing fact-checks found for this claim in Google\'s database of 200+ fact-checking organizations.',
+        result: fcFound ? `${fc.total_claims} fact-checks found — score: ${Math.round(fcScore * 100)}%` : 'No prior fact-checks',
+        resultClass: fcFound ? (fcScore >= 0.6 ? 'pass' : fcScore >= 0.3 ? 'pending' : 'fail') : 'neutral'
+      });
     } else if (fc.available && !fc.found) {
       // API worked but no matching fact-checks found
       animateRing('ringFactCheck', 50, 'ringFactCheckText');
