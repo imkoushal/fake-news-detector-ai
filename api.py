@@ -1612,6 +1612,202 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         claim_cache.set(text, "source-credibility", result)
         return result
 
+    # ── India-Specific Threat Scanner — Upgrade 7 ──
+    # Detects India-specific misinformation and scam patterns:
+    # UPI fraud, PM Kisan scams, fake govt schemes, WhatsApp forwards,
+    # communal triggers, health misinfo, fake job offers, etc.
+
+    INDIA_THREAT_PATTERNS = {
+        "upi_banking_fraud": {
+            "label": "🏦 UPI / Banking Fraud",
+            "weight": 3,
+            "keywords": [
+                "upi", "paytm", "phonepe", "google pay", "gpay", "bhim",
+                "otp", "share otp", "enter otp", "send otp", "otp number",
+                "bank account", "account blocked", "account suspended",
+                "kyc update", "kyc expired", "pan card link", "aadhaar link",
+                "sbi", "hdfc", "icici", "pnb", "rbi", "reserve bank",
+                "credit card block", "debit card block", "atm pin",
+                "rupees credited", "lakhs credited", "transfer failed",
+                "click here to verify", "verify your account",
+            ],
+        },
+        "fake_govt_scheme": {
+            "label": "🏛️ Fake Government Scheme",
+            "weight": 3,
+            "keywords": [
+                "pm kisan", "pm modi", "pradhan mantri", "free ration",
+                "free laptop", "free mobile", "free gas cylinder",
+                "government giving", "sarkari yojana", "jan dhan",
+                "ayushman bharat", "mudra loan", "apply now",
+                "registration link", "last date to apply",
+                "rs 6000", "₹6000", "₹15000", "rs 15000",
+                "ration card", "apl bpl", "central government announced",
+                "state government announced", "subsidy", "scholarship",
+            ],
+        },
+        "whatsapp_forward": {
+            "label": "📱 WhatsApp Forward Pattern",
+            "weight": 2,
+            "keywords": [
+                "forward this", "share this", "send to 10", "send to all",
+                "forward to everyone", "share in all groups", "must read",
+                "please share", "please forward", "viral", "going viral",
+                "before they delete", "before it gets removed",
+                "deleted from internet", "banned from sharing",
+                "as received", "forwarded as received", "copy paste",
+                "broadcast", "important message", "urgent message",
+            ],
+        },
+        "health_misinfo": {
+            "label": "💊 Health Misinformation",
+            "weight": 3,
+            "keywords": [
+                "miracle cure", "guaranteed cure", "home remedy",
+                "doctors don't want", "big pharma", "natural cure",
+                "corona cure", "covid cure", "dengue cure",
+                "drink hot water", "boil neem leaves", "cow urine",
+                "gaumutra", "immunity booster", "ayurvedic cure for",
+                "unani cure", "siddha medicine", "homeopathy cure",
+                "vaccine dangerous", "vaccine kills", "5g corona",
+                "microchip vaccine", "bill gates vaccine",
+                "magnetic vaccine", "vaccine side effects death",
+            ],
+        },
+        "communal_trigger": {
+            "label": "⚠️ Communal / Hate Trigger",
+            "weight": 4,
+            "keywords": [
+                "love jihad", "land jihad", "population jihad",
+                "hindu khatre mein", "sanatan danger", "anti-national",
+                "urban naxal", "tukde tukde", "converted",
+                "forced conversion", "rice bag", "demolish temple",
+                "cow slaughter", "beef ban", "mob lynching",
+                "stone pelting", "communal riot", "religious war",
+            ],
+        },
+        "fake_job_scam": {
+            "label": "💼 Fake Job / Recruitment",
+            "weight": 2,
+            "keywords": [
+                "upsc vacancy", "railway vacancy", "ssc vacancy",
+                "government job", "sarkari naukri", "walk-in interview",
+                "no experience needed", "work from home earn",
+                "earn lakhs", "earn thousands daily", "part time job",
+                "data entry job", "typing job", "registration fee",
+                "pay to join", "guaranteed placement", "100% job guarantee",
+            ],
+        },
+        "religious_manipulation": {
+            "label": "🕉️ Religious Manipulation",
+            "weight": 2,
+            "keywords": [
+                "temple miracle", "mosque miracle", "church miracle",
+                "god appeared", "divine message", "prophecy fulfilled",
+                "end of world", "qayamat", "kaliyuga ending",
+                "angel appeared", "seen in clouds", "water turning",
+                "statue drinking milk", "ganpati drinking milk",
+            ],
+        },
+        "conspiracy_india": {
+            "label": "🔮 India-Specific Conspiracy",
+            "weight": 2,
+            "keywords": [
+                "isi agent", "china attack", "pakistan attack",
+                "border breach", "surgical strike", "war declared",
+                "army alert", "martial law", "emergency declared",
+                "internet shutdown", "curfew imposed", "shoot at sight",
+                "foreign funded", "soros funded", "cia funded",
+                "raw agent", "deep state india",
+            ],
+        },
+        "fake_reward_lottery": {
+            "label": "🎰 Fake Reward / Lottery",
+            "weight": 3,
+            "keywords": [
+                "lottery winner", "you have won", "congratulations you won",
+                "claim your prize", "lucky draw", "jio lottery",
+                "whatsapp lottery", "amazon lucky draw", "flipkart winner",
+                "free iphone", "free recharge", "free data",
+                "scratch card", "spin the wheel", "cashback offer",
+                "claim now", "limited time offer", "offer expires",
+            ],
+        },
+    }
+
+    def _scan_india_threats(text: str) -> dict:
+        """Scan text for India-specific misinformation and scam patterns."""
+        text_lower = text.lower()
+        detections = []
+        total_score = 0
+        max_possible = 0
+
+        for pattern_id, pattern in INDIA_THREAT_PATTERNS.items():
+            hits = [kw for kw in pattern["keywords"] if kw in text_lower]
+            weight = pattern["weight"]
+            max_possible += weight * 5  # Max 5 hits per category for normalization
+
+            if hits:
+                cat_score = min(len(hits) * weight * 5, 100)
+                total_score += cat_score
+                detections.append({
+                    "category": pattern_id,
+                    "label": pattern["label"],
+                    "severity": "critical" if cat_score >= 40 else "warning" if cat_score >= 15 else "info",
+                    "matched_keywords": hits[:8],
+                    "match_count": len(hits),
+                    "score": cat_score,
+                })
+
+        # Normalize total to 0-100
+        risk_score = min(round(total_score / max(max_possible, 1) * 100), 100) if detections else 0
+
+        # Risk level
+        if risk_score >= 60:
+            risk_level = "critical"
+            advisory = "⚠️ HIGH RISK — This content matches multiple known Indian scam/misinformation patterns. Do NOT share, click links, or provide personal information."
+        elif risk_score >= 30:
+            risk_level = "elevated"
+            advisory = "🟡 ELEVATED RISK — Some suspicious patterns detected. Verify claims from official sources (PIB, IANS) before sharing."
+        elif risk_score >= 10:
+            risk_level = "low"
+            advisory = "🟢 LOW RISK — Minor pattern matches detected. Exercise normal caution."
+        else:
+            risk_level = "safe"
+            advisory = "✅ No known Indian scam or misinformation patterns detected."
+
+        # Sort by score descending
+        detections.sort(key=lambda x: x["score"], reverse=True)
+
+        return {
+            "risk_score": risk_score,
+            "risk_level": risk_level,
+            "advisory": advisory,
+            "threats_found": len(detections),
+            "detections": detections,
+            "patterns_scanned": len(INDIA_THREAT_PATTERNS),
+        }
+
+    @app.post("/api/v1/india-threat-scan")
+    @limiter.limit("20/minute")
+    async def india_threat_scan(req: GeminiRequest, request: Request):
+        """Scan article text for India-specific misinformation and scam patterns."""
+        text = req.text.strip()[:5000]
+        if len(text) < 10:
+            raise HTTPException(400, "Text too short")
+
+        # Check cache first
+        cached = claim_cache.get(text, "india-threat")
+        if cached:
+            cached["cache_status"] = "hit"
+            return cached
+
+        result = _scan_india_threats(text)
+        result["available"] = True
+        result["cache_status"] = "miss"
+        claim_cache.set(text, "india-threat", result)
+        return result
+
     # ── Voice Transcription — Upgrade 6 ──
     # Uses Groq Whisper API to transcribe audio files (WhatsApp voice notes, recordings)
     # then feeds the transcript into the full analysis pipeline.

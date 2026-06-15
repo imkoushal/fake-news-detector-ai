@@ -1062,6 +1062,66 @@ function renderResults(data) {
     clearTimeout(scTimeout);
     scCard.classList.add('hidden');
   });
+
+  // ── India Threat Scanner: Detect India-specific scam patterns (runs in parallel) ──
+  const itCard = document.getElementById('indiaThreatCard');
+  const itController = new AbortController();
+  const itTimeout = setTimeout(() => itController.abort(), 8000);
+
+  fetch(API_BASE + '/api/v1/india-threat-scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: articleText }),
+    signal: itController.signal
+  })
+  .then(r => r.ok ? r.json() : Promise.reject(r))
+  .then(it => {
+    clearTimeout(itTimeout);
+    const resultsEl = document.getElementById('indiaThreatResults');
+    const badgeEl = document.getElementById('indiaThreatBadge');
+
+    if (it.threats_found === 0) {
+      itCard.classList.add('hidden');
+      return;
+    }
+
+    itCard.classList.remove('hidden');
+
+    // Badge
+    if (it.risk_level === 'critical') {
+      badgeEl.textContent = `HIGH RISK (${it.risk_score}%)`;
+      badgeEl.className = 'badge badge-red';
+    } else if (it.risk_level === 'elevated') {
+      badgeEl.textContent = `ELEVATED (${it.risk_score}%)`;
+      badgeEl.className = 'badge badge-yellow';
+    } else {
+      badgeEl.textContent = `LOW RISK`;
+      badgeEl.className = 'badge badge-green';
+    }
+
+    let html = `<div class="it-advisory ${it.risk_level}">${it.advisory}</div>`;
+
+    html += it.detections.map(d => {
+      const kwClass = d.severity === 'critical' ? '' : d.severity;
+      return `<div class="it-threat ${d.severity}">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span class="it-label">${d.label}</span>
+            <span class="it-severity ${d.severity}">${d.severity}</span>
+          </div>
+          <div class="it-kw-list">
+            ${d.matched_keywords.map(kw => `<span class="it-kw ${kwClass}">${kw}</span>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    resultsEl.innerHTML = html;
+  })
+  .catch(err => {
+    clearTimeout(itTimeout);
+    itCard.classList.add('hidden');
+  });
 }
 
 function animateRing(ringId, pct, textId) {

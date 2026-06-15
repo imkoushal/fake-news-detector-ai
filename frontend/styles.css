@@ -220,6 +220,26 @@ img{max-width:100%}
 .edu-result.neutral{background:rgba(148,163,184,.1);color:var(--text3)}
 .edu-result.pending{background:rgba(245,158,11,.08);color:#f59e0b}
 
+/* ===== INDIA THREAT SCANNER ===== */
+.it-advisory{padding:14px;border-radius:10px;margin-bottom:12px;font-weight:600;font-size:.85rem;line-height:1.5}
+.it-advisory.critical{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:var(--danger)}
+.it-advisory.elevated{background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.2);color:#f97316}
+.it-advisory.low{background:rgba(74,222,128,.05);border:1px solid rgba(74,222,128,.15);color:var(--accent)}
+.it-advisory.safe{background:rgba(74,222,128,.05);border:1px solid rgba(74,222,128,.15);color:var(--accent)}
+.it-threat{padding:12px 14px;border-radius:10px;margin-bottom:8px;border:1px solid var(--border);background:rgba(255,255,255,.02);display:flex;align-items:flex-start;gap:12px}
+.it-threat.critical{border-left:4px solid var(--danger)}
+.it-threat.warning{border-left:4px solid #f59e0b}
+.it-threat.info{border-left:4px solid #3b82f6}
+.it-label{font-weight:700;font-size:.85rem;color:var(--text1)}
+.it-kw-list{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.it-kw{font-size:.65rem;padding:2px 7px;border-radius:6px;font-weight:600;background:rgba(239,68,68,.08);color:var(--danger);border:1px solid rgba(239,68,68,.15)}
+.it-kw.warning{background:rgba(245,158,11,.08);color:#f59e0b;border-color:rgba(245,158,11,.15)}
+.it-kw.info{background:rgba(59,130,246,.08);color:#3b82f6;border-color:rgba(59,130,246,.15)}
+.it-severity{font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.3px;padding:2px 8px;border-radius:6px;flex-shrink:0}
+.it-severity.critical{background:rgba(239,68,68,.12);color:var(--danger)}
+.it-severity.warning{background:rgba(245,158,11,.12);color:#f59e0b}
+.it-severity.info{background:rgba(59,130,246,.12);color:#3b82f6}
+
 /* ===== VOICE INPUT ===== */
 .voice-upload-area{border:2px dashed var(--border);border-radius:var(--radius);padding:32px 24px;text-align:center;cursor:pointer;transition:all .3s;position:relative}
 .voice-upload-area:hover,.voice-upload-area.dragover{border-color:var(--accent);background:rgba(74,222,128,.03)}
