@@ -154,6 +154,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Auth — check session first
   checkSession();
 
+  // Community Stats — load platform-wide metrics
+  loadCommunityStats();
+
   // Auth form toggles
   document.getElementById('showSignup').addEventListener('click', () => {
     document.getElementById('loginPanel').classList.remove('active');
@@ -320,6 +323,45 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ===== COMMUNITY STATS =====
+async function loadCommunityStats() {
+  try {
+    const res = await fetch(API_BASE + '/api/v1/community-stats');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.available) return;
+
+    const fmt = (n) => {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toString();
+    };
+
+    // Animate counter
+    const animateNum = (el, target, suffix = '') => {
+      let current = 0;
+      const step = Math.max(1, Math.ceil(target / 30));
+      const timer = setInterval(() => {
+        current = Math.min(current + step, target);
+        el.textContent = fmt(current) + suffix;
+        if (current >= target) clearInterval(timer);
+      }, 30);
+    };
+
+    const totalEl = document.getElementById('commTotal');
+    const fakeEl = document.getElementById('commFakePct');
+    const confEl = document.getElementById('commConfidence');
+    const todayEl = document.getElementById('commToday');
+
+    if (totalEl) animateNum(totalEl, data.total_analyses);
+    if (fakeEl) fakeEl.textContent = data.breakdown.fake_percentage + '%';
+    if (confEl) confEl.textContent = data.avg_confidence + '%';
+    if (todayEl) animateNum(todayEl, data.today_analyses);
+  } catch (e) {
+    // Silently degrade — community stats are optional
+  }
 }
 
 // ===== URL INPUT TAB (2.2) =====

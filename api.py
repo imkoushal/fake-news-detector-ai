@@ -1889,6 +1889,102 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             logger.error(f"Transcription failed: {e}")
             raise HTTPException(500, f"Transcription failed: {str(e)}")
 
+    # ── Community Dashboard — Upgrade 8 ──
+    # Public anonymized stats showing platform-wide analysis trends.
+
+    @app.get("/api/v1/community-stats")
+    async def community_stats():
+        """Return anonymized, aggregated community statistics."""
+        conn = get_db()
+        c = conn.cursor()
+        try:
+            # Total analyses
+            c.execute("SELECT COUNT(*) FROM analyses")
+            total = c.fetchone()[0]
+
+            # Real vs Fake breakdown
+            c.execute("SELECT prediction, COUNT(*) FROM analyses GROUP BY prediction")
+            breakdown = dict(c.fetchall())
+            fake_count = breakdown.get("FAKE", 0)
+            real_count = breakdown.get("REAL", 0)
+
+            # Average confidence
+            c.execute("SELECT COALESCE(AVG(confidence), 0) FROM analyses")
+            avg_confidence = round(c.fetchone()[0], 1)
+
+            # High-confidence fakes (confidence >= 80)
+            c.execute("SELECT COUNT(*) FROM analyses WHERE prediction = 'FAKE' AND confidence >= 80")
+            high_conf_fake = c.fetchone()[0]
+
+            # Recent 7-day trend
+            c.execute("""
+                SELECT DATE(created_at) as day, prediction, COUNT(*)
+                FROM analyses
+                WHERE created_at >= DATE('now', '-7 days')
+                GROUP BY day, prediction
+                ORDER BY day
+            """)
+            trend_rows = c.fetchall()
+            daily_trend = {}
+            for day, pred, cnt in trend_rows:
+                if day not in daily_trend:
+                    daily_trend[day] = {"date": day, "real": 0, "fake": 0, "total": 0}
+                daily_trend[day][pred.lower()] = cnt
+                daily_trend[day]["total"] += cnt
+            trend_data = list(daily_trend.values())
+
+            # Average red flag score
+            c.execute("SELECT COALESCE(AVG(red_flag_score), 0) FROM analyses WHERE red_flag_score > 0")
+            avg_red_flag = round(c.fetchone()[0] * 100, 1)
+
+            # Today's count
+            c.execute("SELECT COUNT(*) FROM analyses WHERE DATE(created_at) = DATE('now')")
+            today_count = c.fetchone()[0]
+
+        except Exception as e:
+            logger.error(f"Community stats query failed: {e}")
+            return {
+                "available": False,
+                "message": "Stats temporarily unavailable",
+                "total_analyses": 0,
+            }
+        finally:
+            conn.close()
+
+        # Cache stats
+        cache_data = claim_cache.stats()
+
+        # Fake percentage
+        fake_pct = round(fake_count / total * 100, 1) if total > 0 else 0
+
+        return {
+            "available": True,
+            "total_analyses": total,
+            "today_analyses": today_count,
+            "breakdown": {
+                "fake": fake_count,
+                "real": real_count,
+                "fake_percentage": fake_pct,
+                "real_percentage": round(100 - fake_pct, 1),
+            },
+            "avg_confidence": avg_confidence,
+            "avg_red_flag_score": avg_red_flag,
+            "high_confidence_fakes": high_conf_fake,
+            "trend_7d": trend_data,
+            "cache": {
+                "size": cache_data["cache_size"],
+                "hits": cache_data["hits"],
+                "misses": cache_data["misses"],
+                "hit_rate": cache_data["hit_rate"],
+            },
+            "platform": {
+                "version": "7.0",
+                "endpoints": 12,
+                "source_db_size": len(SOURCE_CREDIBILITY_DB),
+                "threat_categories": len(INDIA_THREAT_PATTERNS),
+            },
+        }
+
     # ── LEGACY: Keep old endpoints as fallbacks ──
 
     @app.post("/api/v1/gemini-verify")

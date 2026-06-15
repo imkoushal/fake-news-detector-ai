@@ -220,6 +220,16 @@ img{max-width:100%}
 .edu-result.neutral{background:rgba(148,163,184,.1);color:var(--text3)}
 .edu-result.pending{background:rgba(245,158,11,.08);color:#f59e0b}
 
+/* ===== COMMUNITY STATS BAR ===== */
+.community-bar{display:flex;align-items:center;justify-content:center;gap:0;padding:16px 28px;border-radius:var(--radius);background:var(--card);border:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
+.comm-stat{display:flex;flex-direction:column;align-items:center;padding:4px 20px;min-width:80px}
+.comm-num{font-size:1.4rem;font-weight:800;color:var(--text1);font-variant-numeric:tabular-nums}
+.comm-num.comm-danger{color:var(--danger)}
+.comm-num.comm-accent{color:var(--accent)}
+.comm-label{font-size:.7rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-top:2px}
+.comm-divider{width:1px;height:32px;background:var(--border);flex-shrink:0}
+@media(max-width:600px){.comm-stat{padding:4px 12px}.comm-num{font-size:1.1rem}.community-bar{gap:4px;padding:12px 16px}}
+
 /* ===== INDIA THREAT SCANNER ===== */
 .it-advisory{padding:14px;border-radius:10px;margin-bottom:12px;font-weight:600;font-size:.85rem;line-height:1.5}
 .it-advisory.critical{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:var(--danger)}

@@ -46,6 +46,12 @@ This dual approach means the system can catch both *stylistically* fake articles
 - **Source Credibility Database:** Built-in domain reputation system covering 80+ Indian and international news sources, graded by credibility tier, category, and bias.
 - **Claim Caching Engine:** In-memory TTL cache with normalized hashing that sits in front of external APIs, providing a **160x speedup** on repeated viral claims.
 
+### 🎓 Advanced Features (v8.0 Upgrades)
+- **Educator Mode:** Toggle-based step-by-step pipeline transparency showing exactly how each analysis step reached its conclusion — text preprocessing, ML ensemble voting, meta-feature extraction, AI cross-reference, live news retrieval, and fact-check results.
+- **Voice Input (Groq Whisper):** Upload WhatsApp voice notes, audio files, or record directly from the browser microphone. Audio is transcribed via Groq Whisper (supports Hindi, English, 50+ languages) and fed into the full analysis pipeline.
+- **India Threat Scanner:** 9-category threat detection engine with 150+ India-specific keywords covering UPI/banking fraud, fake government schemes, WhatsApp forward patterns, health misinformation, communal triggers, fake job scams, religious manipulation, India-specific conspiracies, and fake reward/lottery schemes.
+- **Community Dashboard:** Live platform-wide stats bar showing total analyses, fake detection rate, average confidence, and today's activity — powered by anonymized aggregated data.
+
 ### 🤖 5-Model Voting Ensemble
 - **Soft Voting Classifier** combining Logistic Regression, Random Forest, SGD Classifier, LinearSVC (calibrated), and LightGBM.
 - Averaged probability outputs with an **F1-optimized decision threshold** (0.552).
@@ -270,6 +276,9 @@ python train.py
 | `/api/v1/fact-check` | POST | Google Fact Check API integration |
 | `/api/v1/safe-browsing` | POST | URL threat detection via Google Safe Browsing |
 | `/api/v1/source-credibility` | POST | Domain reputation scoring (80+ sources) |
+| `/api/v1/india-threat-scan` | POST | India-specific scam/misinfo pattern detection |
+| `/api/v1/transcribe` | POST | Audio transcription via Groq Whisper |
+| `/api/v1/community-stats` | GET | Platform-wide anonymized analysis stats |
 | `/api/v1/cache-stats` | GET | Monitor hit/miss rates of the Claim Cache |
 | `/api/v1/gemini-verify` | POST | Standalone AI style analysis (legacy) |
 | `/api/v1/gnews-search` | POST | Manual web search (legacy) |
@@ -386,5 +395,6 @@ fake-news-detector-ai/
 ---
 
 **Status:** ✅ Production Ready
-**Model Version:** 7.0 (ML + RAG + Multi-Source Intelligence)
+**Model Version:** 8.0 (ML + RAG + Multi-Source Intelligence + India Threat Scanner)
+**Total API Endpoints:** 14
 **Author:** [Koushal](https://github.com/imkoushal)
