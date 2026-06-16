@@ -201,6 +201,8 @@ else:
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 salt TEXT NOT NULL,
+                google_id TEXT,
+                avatar_url TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )''')
             c.execute('''CREATE TABLE IF NOT EXISTS sessions (
@@ -227,6 +229,8 @@ else:
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 salt TEXT NOT NULL,
+                google_id TEXT,
+                avatar_url TEXT DEFAULT '',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )''')
             c.execute('''CREATE TABLE IF NOT EXISTS sessions (
@@ -258,6 +262,14 @@ else:
             logger.info("Migrated sessions table: added expires_at column")
         except Exception:
             pass  # Column already exists — this is expected
+
+        # Migration: add google_id and avatar_url columns for Google OAuth support
+        for col, col_type in [("google_id", "TEXT"), ("avatar_url", "TEXT DEFAULT ''")]:
+            try:
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
+                logger.info(f"Migrated users table: added {col} column")
+            except Exception:
+                pass  # Column already exists — this is expected
 
         conn.commit()
         conn.close()
