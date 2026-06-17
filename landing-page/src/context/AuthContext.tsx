@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../lib/api';
 
 interface User {
@@ -25,6 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(localStorage.getItem('verify_token'));
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function checkSession() {
@@ -55,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(newToken);
     setUser(newUser);
     setShowAuthModal(false);
+    navigate('/dashboard');
   };
 
   const logout = async () => {
@@ -71,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('verify_token');
     setToken(null);
     setUser(null);
+    navigate('/');
   };
 
   return (
@@ -87,3 +91,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

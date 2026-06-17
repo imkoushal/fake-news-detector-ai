@@ -1,7 +1,7 @@
 import { useState, useRef } from "react"
 import { useAuth } from "../context/AuthContext"
 import { API_BASE, getAuthHeaders } from "../lib/api"
-import { FileText, Link as LinkIcon, Mic, Upload, CheckCircle2, AlertTriangle, ShieldAlert, FileAudio } from "lucide-react"
+import { FileText, Link as LinkIcon, Mic, Upload, CheckCircle2, AlertTriangle, ShieldAlert, FileAudio, Loader2 } from "lucide-react"
 import { Button } from "../components/ui/button"
 
 export function Dashboard() {
@@ -24,12 +24,35 @@ export function Dashboard() {
 
   const handleAnalyzeText = async () => {
     if (!inputText.trim()) { setError("Please enter some text."); return; }
-    await analyzeData("/api/v1/analyze", { text: inputText });
+    await analyzeData(inputText);
   };
 
   const handleAnalyzeUrl = async () => {
     if (!inputUrl.trim()) { setError("Please enter a URL."); return; }
-    await analyzeData("/api/v1/analyze-url", { url: inputUrl });
+    setError("");
+    setLoading(true);
+    setResult(null);
+
+    try {
+      // Step 1: Fetch article text from URL via the backend
+      const fetchRes = await fetch(`${API_BASE}/api/v1/fetch-url`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ url: inputUrl })
+      });
+      const fetchData = await fetchRes.json();
+      if (!fetchRes.ok) throw new Error(fetchData.detail || "Failed to fetch URL content");
+      if (!fetchData.text || fetchData.text.trim().length < 10) {
+        throw new Error("Could not extract enough text from that URL. Try pasting the article text directly.");
+      }
+
+      // Step 2: Analyze the extracted text
+      setInputText(fetchData.text);
+      await analyzeData(fetchData.text);
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,23 +81,26 @@ export function Dashboard() {
       // 2. Analyze the transcribed text
       setInputText(data.text);
       setActiveTab("text");
-      await analyzeData("/api/v1/analyze", { text: data.text });
+      await analyzeData(data.text);
       
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
     }
+
+    // Reset file input so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const analyzeData = async (endpoint: string, body: any) => {
+  const analyzeData = async (text: string) => {
     setError("");
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch(`${API_BASE}${endpoint}`, {
+      const res = await fetch(`${API_BASE}/api/v1/analyze`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify(body)
+        body: JSON.stringify({ text })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Analysis failed");
@@ -132,7 +158,11 @@ export function Dashboard() {
                       onChange={e => setInputText(e.target.value)}
                     />
                     <Button className="w-full" size="lg" onClick={handleAnalyzeText} disabled={loading}>
-                      {loading ? "Analyzing..." : "Analyze Content"}
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
+                        </span>
+                      ) : "Analyze Content"}
                     </Button>
                   </div>
                 )}
@@ -147,7 +177,11 @@ export function Dashboard() {
                       onChange={e => setInputUrl(e.target.value)}
                     />
                     <Button className="w-full" size="lg" onClick={handleAnalyzeUrl} disabled={loading}>
-                      {loading ? "Fetching & Analyzing..." : "Analyze URL"}
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" /> Fetching & Analyzing...
+                        </span>
+                      ) : "Analyze URL"}
                     </Button>
                   </div>
                 )}
@@ -169,15 +203,22 @@ export function Dashboard() {
                       onChange={handleFileUpload}
                     />
                     <Button variant="outline" size="lg" onClick={() => fileInputRef.current?.click()} disabled={loading}>
-                      <Upload className="w-4 h-4 mr-2" />
-                      {loading ? "Processing Audio..." : "Select Audio File"}
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" /> Processing Audio...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Upload className="w-4 h-4" /> Select Audio File
+                        </span>
+                      )}
                     </Button>
                   </div>
                 )}
 
                 {error && (
                   <div className="mt-4 p-3 bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-lg flex items-start gap-2">
-                    <AlertTriangle className="w-5 h-5 shrink-0" />
+                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
                     <p>{error}</p>
                   </div>
                 )}
@@ -200,7 +241,7 @@ export function Dashboard() {
                       {result.prediction}
                     </h2>
                     <p className="text-xs text-muted-foreground">
-                      Confidence: {(result.confidence * 100).toFixed(1)}%
+                      {result.confidence_tier} · {result.confidence.toFixed(1)}% confidence
                     </p>
                   </div>
                 </div>
@@ -209,19 +250,19 @@ export function Dashboard() {
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-muted-foreground">Fake Probability</span>
-                      <span className="font-medium">{(result.probabilities.FAKE * 100).toFixed(1)}%</span>
+                      <span className="font-medium">{(result.fake_probability * 100).toFixed(1)}%</span>
                     </div>
                     <div className="h-2 w-full bg-background rounded-full overflow-hidden">
-                      <div className="h-full bg-destructive" style={{ width: `${result.probabilities.FAKE * 100}%` }} />
+                      <div className="h-full bg-destructive transition-all duration-500" style={{ width: `${result.fake_probability * 100}%` }} />
                     </div>
                   </div>
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-muted-foreground">Real Probability</span>
-                      <span className="font-medium">{(result.probabilities.REAL * 100).toFixed(1)}%</span>
+                      <span className="font-medium">{(result.real_probability * 100).toFixed(1)}%</span>
                     </div>
                     <div className="h-2 w-full bg-background rounded-full overflow-hidden">
-                      <div className="h-full bg-[#4ADE80]" style={{ width: `${result.probabilities.REAL * 100}%` }} />
+                      <div className="h-full bg-[#4ADE80] transition-all duration-500" style={{ width: `${result.real_probability * 100}%` }} />
                     </div>
                   </div>
                   <div>
@@ -230,22 +271,40 @@ export function Dashboard() {
                       <span className="font-medium">{result.red_flag_score}/10</span>
                     </div>
                     <div className="h-2 w-full bg-background rounded-full overflow-hidden">
-                      <div className="h-full bg-accent" style={{ width: `${(result.red_flag_score / 10) * 100}%` }} />
+                      <div className="h-full bg-accent transition-all duration-500" style={{ width: `${(result.red_flag_score / 10) * 100}%` }} />
                     </div>
                   </div>
                 </div>
 
-                {result.india_threat_scan && result.india_threat_scan.threat_detected && (
-                  <div className="mt-6 p-4 bg-primary/10 border border-primary/30 rounded-lg">
-                    <h4 className="text-sm font-bold text-primary mb-1 uppercase tracking-wider">⚠️ Threat Detected</h4>
-                    <p className="text-xs text-foreground/90">
-                      Category: <span className="font-semibold">{result.india_threat_scan.primary_category}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Our system detected {result.india_threat_scan.matched_keywords.length} suspicious keywords common in local scams.
+                {/* Indicator Words */}
+                {(result.fake_indicator_words?.length > 0 || result.real_indicator_words?.length > 0) && (
+                  <div className="mt-6 pt-5 border-t border-border">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Key Indicator Words</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {result.fake_indicator_words?.slice(0, 5).map((w: string, i: number) => (
+                        <span key={`f-${i}`} className="text-xs bg-destructive/15 text-destructive px-2 py-0.5 rounded-full">{w}</span>
+                      ))}
+                      {result.real_indicator_words?.slice(0, 5).map((w: string, i: number) => (
+                        <span key={`r-${i}`} className="text-xs bg-[#4ADE80]/15 text-[#4ADE80] px-2 py-0.5 rounded-full">{w}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Input Quality Warning */}
+                {result.input_quality !== "sufficient" && (
+                  <div className="mt-4 p-3 bg-accent/10 border border-accent/30 rounded-lg">
+                    <p className="text-xs text-accent font-medium">
+                      ⚠️ {result.input_quality === "short_claim" ? "Very short input — confidence is capped at 60%." : "Short headline — confidence is capped at 80%."}
+                      For best results, paste the full article.
                     </p>
                   </div>
                 )}
+
+                {/* Model Info */}
+                <div className="mt-4 text-[11px] text-muted-foreground/50">
+                  Model v{result.model_version} · {result.timestamp?.split("T")[0]}
+                </div>
               </div>
             ) : (
               <div className="bg-background border border-border border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center h-full min-h-[300px]">
