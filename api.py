@@ -2206,18 +2206,31 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     async def api_catchall(path: str):
         raise HTTPException(404, f"API endpoint /api/{path} not found")
 
-    # ── Serve Static Frontend ──
-    FRONTEND_DIR = BASE_DIR / "frontend"
-
-    @app.get("/")
-    async def serve_index():
-        index_path = FRONTEND_DIR / "index.html"
-        if index_path.exists():
-            return FileResponse(str(index_path))
-        return {"message": "Fake News Detector API v5.0", "docs": "/docs"}
+    # ── Serve Static SPA Frontend ──
+    FRONTEND_DIR = BASE_DIR / "landing-page" / "dist"
 
     if FRONTEND_DIR.exists():
-        app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+        # Mount assets directory for CSS/JS
+        assets_dir = FRONTEND_DIR / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        @app.get("/{full_path:path}")
+        async def serve_spa(full_path: str):
+            # Check if requested file exists (like /vite.svg or images)
+            file_path = FRONTEND_DIR / full_path
+            if file_path.is_file():
+                return FileResponse(str(file_path))
+            
+            # Fallback to index.html for React Router SPA
+            index_path = FRONTEND_DIR / "index.html"
+            if index_path.exists():
+                return FileResponse(str(index_path))
+            return {"message": "Fake News Detector API v5.0", "docs": "/docs"}
+    else:
+        @app.get("/")
+        async def serve_index():
+            return {"message": "Fake News Detector API (React Frontend Not Built)", "docs": "/docs"}
 
 # ── Entry Point ──
 if __name__ == "__main__":
