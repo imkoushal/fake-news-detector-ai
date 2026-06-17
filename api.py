@@ -125,7 +125,8 @@ else:
             _pg_pool = pg_pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=url)
             logger.info("PostgreSQL connection pool created (1-10 connections)")
         except Exception as e:
-            logger.warning(f"Failed to create connection pool: {e}")
+            logger.warning(f"Failed to create PostgreSQL connection pool: {e}. Falling back to SQLite.")
+            USE_POSTGRES = False
             _pg_pool = None
 
     class _PooledConnection:
