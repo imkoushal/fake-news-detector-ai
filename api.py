@@ -629,7 +629,7 @@ else:
 
     def _load_model():
         """Load ML model artifacts. Called during FastAPI startup event."""
-        nonlocal model, tfidf, scaler, MODEL_LOADED, MODEL_VERSION, MODEL_METRICS
+        global model, tfidf, scaler, MODEL_LOADED, MODEL_VERSION, MODEL_METRICS
         try:
             model = joblib.load(MODEL_DIR / "model.joblib")
             tfidf = joblib.load(MODEL_DIR / "tfidf.joblib")
