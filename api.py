@@ -2234,23 +2234,17 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     FRONTEND_DIR = BASE_DIR / "landing-page" / "dist"
 
     if FRONTEND_DIR.exists():
-        # Mount assets directory for CSS/JS
-        assets_dir = FRONTEND_DIR / "assets"
-        if assets_dir.exists():
-            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+        # Mount the ENTIRE dist folder as static files at root for assets, vite.svg, etc.
+        app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="static-assets")
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str):
-            # Check if requested file exists (like /vite.svg or images)
+            # Serve actual files from dist (e.g. /vite.svg)
             file_path = FRONTEND_DIR / full_path
-            if file_path.is_file():
+            if full_path and file_path.is_file():
                 return FileResponse(str(file_path))
-            
-            # Fallback to index.html for React Router SPA
-            index_path = FRONTEND_DIR / "index.html"
-            if index_path.exists():
-                return FileResponse(str(index_path))
-            return {"message": "Fake News Detector API v5.0", "docs": "/docs"}
+            # Everything else → index.html (React Router handles client-side routing)
+            return FileResponse(str(FRONTEND_DIR / "index.html"))
     else:
         @app.get("/")
         async def serve_index():
