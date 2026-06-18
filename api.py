@@ -63,8 +63,11 @@ else:
     )
 
     # ── CORS — read allowed origins from env, default to localhost for dev ──
-    _cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8501")
+    _cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8501,http://localhost:5173,http://localhost:5174")
     ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(",") if o.strip()]
+    # In production, the React SPA is served from the same origin, so add wildcard fallback
+    if os.getenv("RENDER"):
+        ALLOWED_ORIGINS.append("*")
 
     app.add_middleware(
         CORSMiddleware,
@@ -275,7 +278,7 @@ else:
         conn.commit()
         conn.close()
 
-    _init_auth_db()
+    # _init_auth_db() is now called in the startup event (startup_load_model)
 
     # ── Claim Cache — Tier 1 Upgrade 3 (extracted to app/services/cache.py) ──
     from app.services.cache import ClaimCache
@@ -494,23 +497,24 @@ else:
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 
     # Migration: add google_id and avatar_url columns if missing
-    try:
-        _conn = get_db()
-        _c = _conn.cursor()
+    def _migrate_google_columns():
         try:
-            _c.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
-            logger.info("Migrated users table: added google_id column")
-        except Exception:
-            pass
-        try:
-            _c.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
-            logger.info("Migrated users table: added avatar_url column")
-        except Exception:
-            pass
-        _conn.commit()
-        _conn.close()
-    except Exception as e:
-        logger.warning(f"Google auth migration skipped: {e}")
+            _conn = get_db()
+            _c = _conn.cursor()
+            try:
+                _c.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
+                logger.info("Migrated users table: added google_id column")
+            except Exception:
+                pass
+            try:
+                _c.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+                logger.info("Migrated users table: added avatar_url column")
+            except Exception:
+                pass
+            _conn.commit()
+            _conn.close()
+        except Exception as e:
+            logger.warning(f"Google auth migration skipped: {e}")
 
     class GoogleAuthRequest(BaseModel):
         credential: str  # The ID token from Google Identity Services
@@ -614,35 +618,54 @@ else:
     async def get_google_client_id():
         return {"client_id": GOOGLE_CLIENT_ID}
 
-    # ── Load ML Model + version info (3.1) ──
+    # ── ML Model Loading (deferred to startup event for fast port binding) ──
     MODEL_DIR = BASE_DIR / "models"
     MODEL_VERSION = "5.0"  # fallback
     MODEL_METRICS = {}
-    try:
-        model = joblib.load(MODEL_DIR / "model.joblib")
-        tfidf = joblib.load(MODEL_DIR / "tfidf.joblib")
-        scaler = joblib.load(MODEL_DIR / "scaler.joblib")
-        MODEL_LOADED = True
-        # Load version & metrics from config.json if present
-        cfg_path = MODEL_DIR / "config.json"
-        if cfg_path.exists():
-            import json as _json
-            with open(cfg_path) as f:
-                cfg = _json.load(f)
-            MODEL_VERSION = cfg.get("version", MODEL_VERSION)
-            MODEL_METRICS = {
-                "accuracy": cfg.get("accuracy"),
-                "f1_score": cfg.get("f1_score"),
-                "roc_auc": cfg.get("roc_auc"),
-                "training_date": cfg.get("training_date"),
-                "total_features": cfg.get("total_features"),
-                "model_type": cfg.get("model_type"),
-                "total_training_samples": cfg.get("total_training_samples"),
-            }
-        logger.info(f"Model v{MODEL_VERSION} loaded successfully.")
-    except Exception as e:
-        MODEL_LOADED = False
-        logger.warning(f"Model could not be loaded: {e}")
+    MODEL_LOADED = False
+    model = None
+    tfidf = None
+    scaler = None
+
+    def _load_model():
+        """Load ML model artifacts. Called during FastAPI startup event."""
+        nonlocal model, tfidf, scaler, MODEL_LOADED, MODEL_VERSION, MODEL_METRICS
+        try:
+            model = joblib.load(MODEL_DIR / "model.joblib")
+            tfidf = joblib.load(MODEL_DIR / "tfidf.joblib")
+            scaler = joblib.load(MODEL_DIR / "scaler.joblib")
+            MODEL_LOADED = True
+            model_type_name = "VERIFAI_ENSEMBLE"
+            # Load version & metrics from config.json if present
+            cfg_path = MODEL_DIR / "config.json"
+            if cfg_path.exists():
+                import json as _json
+                with open(cfg_path) as f:
+                    cfg = _json.load(f)
+                MODEL_VERSION = cfg.get("version", MODEL_VERSION)
+                model_type_name = cfg.get("model_type", model_type_name)
+                MODEL_METRICS = {
+                    "accuracy": cfg.get("accuracy"),
+                    "f1_score": cfg.get("f1_score"),
+                    "roc_auc": cfg.get("roc_auc"),
+                    "training_date": cfg.get("training_date"),
+                    "total_features": cfg.get("total_features"),
+                    "model_type": model_type_name,
+                    "total_training_samples": cfg.get("total_training_samples"),
+                }
+            logger.info(f"Model '{model_type_name}' v{MODEL_VERSION} loaded successfully!")
+        except Exception as e:
+            MODEL_LOADED = False
+            logger.warning(f"Model could not be loaded: {e}")
+
+    @app.on_event("startup")
+    async def startup_load_model():
+        """Load model after the server binds the port (prevents Render port-scan timeout)."""
+        logger.info("Server is up — loading ML model in startup event...")
+        _load_model()
+        _init_auth_db()
+        _migrate_google_columns()
+        _init_feedback_table()
 
     # ── Word Explainability Helper (3.7) ──
     def _get_top_words(text: str, top_n: int = 6):
@@ -2105,7 +2128,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             conn.commit()
         finally:
             conn.close()
-    _init_feedback_table()
+    # _init_feedback_table() is now called in the startup event (startup_load_model)
 
     @app.post("/api/v1/feedback")
     @limiter.limit("20/minute")
