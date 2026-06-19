@@ -47,6 +47,7 @@ export function Dashboard() {
   const [communityStats, setCommunityStats] = useState<any>(null)
   const [showExplain, setShowExplain] = useState(false)
   const [showEducator, setShowEducator] = useState(false)
+  const [translateEnabled, setTranslateEnabled] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -71,7 +72,7 @@ export function Dashboard() {
     try {
       const res = await fetch(`${API_BASE}/api/v1/analyze`, {
         method: "POST", headers: getAuthHeaders(),
-        body: JSON.stringify({ text, sensitivity: sensitivity / 100 })
+        body: JSON.stringify({ text, sensitivity: sensitivity / 100, translate: translateEnabled })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || "Analysis failed")
@@ -223,15 +224,22 @@ export function Dashboard() {
                       className="w-full h-48 bg-background border border-border rounded-lg p-4 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                       value={inputText} onChange={e => setInputText(e.target.value)} maxLength={5000} />
 
-                    {/* Feature 2: Char count + Sensitivity */}
-                    <div className="flex items-center justify-between mt-2 mb-4 gap-4">
+                    {/* Feature 2: Char count + Sensitivity + Translate */}
+                    <div className="flex items-center justify-between mt-2 mb-4 gap-3 flex-wrap">
                       <span className="text-xs text-muted-foreground">{inputText.length} / 5,000 chars</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Sensitivity:</span>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="checkbox" checked={translateEnabled} onChange={e => setTranslateEnabled(e.target.checked)}
+                            className="w-3.5 h-3.5 accent-primary cursor-pointer" />
+                          <span className="text-xs text-muted-foreground">Translate</span>
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground">Sensitivity:</span>
                         <input type="range" min={0} max={100} value={sensitivity}
                           onChange={e => setSensitivity(+e.target.value)}
                           className="w-20 h-1 accent-primary cursor-pointer" />
-                        <span className="text-xs font-medium text-primary w-8">{(sensitivity / 100).toFixed(2)}</span>
+                          <span className="text-xs font-medium text-primary w-8">{(sensitivity / 100).toFixed(2)}</span>
+                        </div>
                       </div>
                     </div>
 

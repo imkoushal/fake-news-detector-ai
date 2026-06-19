@@ -6,11 +6,11 @@ import { AccuracySection } from "./components/AccuracySection"
 import { Footer } from "./components/Footer"
 import { AuthModal } from "./components/auth/AuthModal"
 import { Dashboard } from "./pages/Dashboard"
+import { AboutPage } from "./pages/About"
 import { useAuth } from "./context/AuthContext"
 
 function LandingPage() {
   const { user, isLoading } = useAuth();
-  // Auto-login: if user has a valid session, redirect to dashboard
   if (!isLoading && user) return <Navigate to="/dashboard" replace />;
 
   return (
@@ -33,6 +33,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/about" element={<AboutPage />} />
         </Routes>
       </main>
     </div>

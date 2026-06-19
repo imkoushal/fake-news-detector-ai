@@ -22,6 +22,25 @@
     --nav-button: 0 0% 18%;
     --hero-bg: 0 0% 6%;
   }
+
+  [data-theme="light"] {
+    --background: 0 0% 98%;
+    --foreground: 0 0% 10%;
+    --primary: 0 84% 55%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 25 95% 50%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 50%;
+    --border: 0 0% 86%;
+    --input: 0 0% 86%;
+    --ring: 0 84% 55%;
+    --nav-button: 0 0% 92%;
+    --hero-bg: 0 0% 96%;
+  }
 }
 
 @layer base {
@@ -34,3 +53,4 @@
     overflow-x: hidden !important;
   }
 }
+
