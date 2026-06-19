@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "../context/AuthContext"
 import { API_BASE, getAuthHeaders } from "../lib/api"
 import { Loader2 } from "lucide-react"
@@ -7,6 +7,7 @@ export function AnalyticsPage() {
   const { user } = useAuth()
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [range, setRange] = useState<7 | 30 | 90 | 0>(0) // 0 = all time
 
   useEffect(() => {
     if (!user) return
@@ -21,25 +22,75 @@ export function AnalyticsPage() {
   if (!user) return <div className="min-h-screen bg-background flex items-center justify-center text-foreground"><p>Please sign in.</p></div>
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
 
-  const history = stats?.history || []
-  const totalAnalyzed = stats?.community?.total_analyses ?? history.length
-  const fakeCount = history.filter((h: any) => h.prediction === "FAKE").length
-  const avgConf = history.length > 0 ? (history.reduce((s: number, h: any) => s + (h.confidence || 0), 0) / history.length).toFixed(1) : "0"
+  const allHistory = stats?.history || []
 
-  // Simple distribution
-  const realCount = history.filter((h: any) => h.prediction === "REAL").length
+  // date-filtered history
+  const filtered = useMemo(() => {
+    if (range === 0) return allHistory
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - range)
+    return allHistory.filter((h: any) => h.timestamp && new Date(h.timestamp) >= cutoff)
+  }, [allHistory, range])
+
+  const totalAnalyzed = stats?.community?.total_analyses ?? filtered.length
+  const fakeCount = filtered.filter((h: any) => h.prediction === "FAKE").length
+  const realCount = filtered.filter((h: any) => h.prediction === "REAL").length
+  const avgConf = filtered.length > 0 ? (filtered.reduce((s: number, h: any) => s + (h.confidence || 0), 0) / filtered.length).toFixed(1) : "0"
   const total = realCount + fakeCount || 1
+
+  // topic breakdown from text previews
+  const topicMap = useMemo(() => {
+    const topics: Record<string, { real: number; fake: number }> = {
+      "Politics": { real: 0, fake: 0 },
+      "Health": { real: 0, fake: 0 },
+      "Technology": { real: 0, fake: 0 },
+      "Finance": { real: 0, fake: 0 },
+      "Social Media": { real: 0, fake: 0 },
+      "Other": { real: 0, fake: 0 },
+    }
+    const rules: [string, RegExp][] = [
+      ["Politics", /politic|election|govern|minister|parliament|congress|bjp|aap|vote|democrat|republican/i],
+      ["Health", /health|covid|vaccine|hospital|doctor|medical|disease|virus|cure|patient/i],
+      ["Technology", /tech|ai|software|google|apple|microsoft|crypto|bitcoin|startup|hack/i],
+      ["Finance", /bank|stock|market|invest|rupee|dollar|economy|gdp|inflation|rbi|tax/i],
+      ["Social Media", /whatsapp|facebook|instagram|twitter|tiktok|youtube|viral|forward|share/i],
+    ]
+    filtered.forEach((h: any) => {
+      const txt = h.text_preview || h.preview || ""
+      const pred = h.prediction === "FAKE" ? "fake" : "real"
+      let matched = false
+      for (const [topic, re] of rules) {
+        if (re.test(txt)) { topics[topic][pred]++; matched = true; break }
+      }
+      if (!matched) topics["Other"][pred]++
+    })
+    return Object.entries(topics).filter(([, v]) => v.real + v.fake > 0)
+  }, [filtered])
 
   return (
     <div className="min-h-screen bg-background pt-24 px-4 md:px-12 lg:px-20 text-foreground pb-20">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Analytics Overview</h1>
-        <p className="text-muted-foreground text-sm mb-8">System status and forensic metrics for the current verification cycle.</p>
+        <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight mb-2">Analytics Overview</h1>
+            <p className="text-muted-foreground text-sm">Forensic metrics for the current verification cycle.</p>
+          </div>
+          {/* Date range selector */}
+          <div className="flex gap-2">
+            {([
+              [7, "7D"], [30, "30D"], [90, "90D"], [0, "All"]
+            ] as [number, string][]).map(([v, label]) => (
+              <button key={v} onClick={() => setRange(v as any)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${range === v ? "bg-primary/15 border-primary/40 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Stat cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {[
-            { label: "TOTAL ANALYZED", value: totalAnalyzed, dot: "bg-[#4ADE80]" },
+            { label: "TOTAL ANALYZED", value: range === 0 ? totalAnalyzed : filtered.length, dot: "bg-[#4ADE80]" },
             { label: "AVG CONFIDENCE", value: `${avgConf}%`, dot: "bg-[#38bdf8]" },
             { label: "FAKE DETECTED", value: fakeCount, dot: "bg-destructive" },
           ].map((s, i) => (
@@ -53,7 +104,7 @@ export function AnalyticsPage() {
           ))}
         </div>
 
-        {/* Distribution bar */}
+        {/* Prediction distribution bar */}
         <div className="bg-secondary border border-border rounded-xl p-5 mb-8">
           <h3 className="text-sm font-semibold mb-4">Prediction Distribution</h3>
           <div className="flex h-8 rounded-lg overflow-hidden">
@@ -65,6 +116,30 @@ export function AnalyticsPage() {
           <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
             <span>Real: {((realCount / total) * 100).toFixed(0)}%</span>
             <span>Fake: {((fakeCount / total) * 100).toFixed(0)}%</span>
+          </div>
+        </div>
+
+        {/* Topic Breakdown */}
+        <div className="bg-secondary border border-border rounded-xl p-5 mb-8">
+          <h3 className="text-sm font-semibold mb-4">Topic Breakdown</h3>
+          <div className="space-y-3">
+            {topicMap.map(([topic, counts]) => {
+              const topicTotal = counts.real + counts.fake
+              const maxBar = Math.max(...topicMap.map(([, c]) => c.real + c.fake)) || 1
+              return (
+                <div key={topic}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-foreground font-medium">{topic}</span>
+                    <span className="text-muted-foreground">{topicTotal} ({counts.fake} fake)</span>
+                  </div>
+                  <div className="flex h-3 rounded overflow-hidden bg-background">
+                    <div className="bg-[#4ADE80] transition-all duration-500" style={{ width: `${(counts.real / maxBar) * 100}%` }} />
+                    <div className="bg-destructive transition-all duration-500" style={{ width: `${(counts.fake / maxBar) * 100}%` }} />
+                  </div>
+                </div>
+              )
+            })}
+            {topicMap.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No data yet. Analyze articles to see topic breakdown.</p>}
           </div>
         </div>
 
@@ -80,7 +155,7 @@ export function AnalyticsPage() {
                 <th className="text-left p-3 text-xs text-muted-foreground font-medium">Preview</th>
               </tr></thead>
               <tbody>
-                {history.slice(0, 20).map((h: any, i: number) => (
+                {filtered.slice(0, 20).map((h: any, i: number) => (
                   <tr key={i} className="border-b border-border/50 hover:bg-background/30">
                     <td className="p-3 text-xs text-muted-foreground">{h.timestamp?.split("T")[0] ?? "—"}</td>
                     <td className="p-3"><span className={`text-xs font-medium px-2 py-0.5 rounded-full ${h.prediction === "FAKE" ? "bg-destructive/15 text-destructive" : "bg-[#4ADE80]/15 text-[#4ADE80]"}`}>{h.prediction}</span></td>
@@ -88,7 +163,7 @@ export function AnalyticsPage() {
                     <td className="p-3 text-xs max-w-[250px] truncate text-muted-foreground">{h.text_preview ?? h.preview ?? "—"}</td>
                   </tr>
                 ))}
-                {history.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-xs text-muted-foreground">No analyses yet. Start analyzing to see data here.</td></tr>}
+                {filtered.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-xs text-muted-foreground">No analyses in this time range.</td></tr>}
               </tbody>
             </table>
           </div>

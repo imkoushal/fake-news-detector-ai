@@ -628,6 +628,40 @@ export function Dashboard() {
                     </div>
                   )}
                 </div>
+
+                {/* India Threat Scanner */}
+                {(() => {
+                  const txt = inputText.toLowerCase()
+                  const threats: { type: string; label: string; desc: string }[] = []
+                  if (/upi|paytm|phonepe|google\s*pay|bhim|gpay/.test(txt) && /reward|prize|won|cashback|offer|rupee|lakhs?|crore/.test(txt))
+                    threats.push({ type: "🏦", label: "UPI Fraud Alert", desc: "Contains UPI app mentions with prize/reward language — common payment scam pattern." })
+                  if (/government|modi|scheme|yojana|pm[\s-]kisan|aadhaar|ayushman|pradhan\s*mantri/.test(txt) && /apply|register|click|link|form|free|subsidy/.test(txt))
+                    threats.push({ type: "🏛️", label: "Fake Govt Scheme", desc: "References government programs with suspicious call-to-action — verify on official .gov.in sites." })
+                  if (/forward|share|whatsapp|viral|send\s*to|pass\s*on|circulating/.test(txt))
+                    threats.push({ type: "📲", label: "WhatsApp Forward", desc: "Text shows forwarded message patterns — chain messages often contain unverified claims." })
+                  if (/ayurved|desi\s*ilaj|home\s*remed|cure\s*for|miracle|100%\s*effective/.test(txt) && /cancer|diabetes|covid|corona/.test(txt))
+                    threats.push({ type: "💊", label: "Health Misinformation", desc: "Contains miracle cure claims for serious diseases — consult qualified medical professionals." })
+
+                  return threats.length > 0 ? (
+                    <div className="bg-secondary rounded-xl border border-accent/30 p-5 animate-fade-up" style={{ animationDelay: "0.6s" }}>
+                      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        🇮🇳 India Threat Scanner
+                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-accent/15 text-accent font-medium">{threats.length} ALERT{threats.length > 1 ? 'S' : ''}</span>
+                      </h3>
+                      <div className="space-y-2.5">
+                        {threats.map((t, i) => (
+                          <div key={i} className="bg-background rounded-lg p-3 flex items-start gap-2.5">
+                            <span className="text-lg">{t.type}</span>
+                            <div>
+                              <p className="text-xs font-semibold text-accent">{t.label}</p>
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">{t.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null
+                })()}
               </>
             ) : (
               <div className="bg-background border border-border border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center h-full min-h-[300px]">
