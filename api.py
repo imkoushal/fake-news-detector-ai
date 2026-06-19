@@ -2234,18 +2234,20 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     FRONTEND_DIR = BASE_DIR / "landing-page" / "dist"
 
     if FRONTEND_DIR.exists():
-        # Mount the ENTIRE dist folder as static files at root for assets, vite.svg, etc.
-        app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="static-assets")
+        logger.info(f"SPA frontend found at {FRONTEND_DIR}")
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str):
-            # Serve actual files from dist (e.g. /vite.svg)
-            file_path = FRONTEND_DIR / full_path
-            if full_path and file_path.is_file():
-                return FileResponse(str(file_path))
+            # Serve actual files from dist (JS, CSS, images, etc.)
+            if full_path:
+                file_path = FRONTEND_DIR / full_path
+                if file_path.is_file():
+                    return FileResponse(str(file_path))
             # Everything else → index.html (React Router handles client-side routing)
             return FileResponse(str(FRONTEND_DIR / "index.html"))
     else:
+        logger.warning(f"SPA frontend NOT found at {FRONTEND_DIR}")
+
         @app.get("/")
         async def serve_index():
             return {"message": "Fake News Detector API (React Frontend Not Built)", "docs": "/docs"}
