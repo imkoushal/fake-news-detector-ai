@@ -4,7 +4,8 @@ import { API_BASE, getAuthHeaders } from "../lib/api"
 import {
   FileText, Link as LinkIcon, Mic, Upload, CheckCircle2,
   AlertTriangle, ShieldAlert, FileAudio, Loader2, ThumbsUp,
-  ThumbsDown, Sparkles
+  ThumbsDown, Sparkles, ExternalLink, ChevronDown, Download,
+  GraduationCap, Globe, Search
 } from "lucide-react"
 import { Button } from "../components/ui/button"
 
@@ -44,6 +45,8 @@ export function Dashboard() {
   const [factResult, setFactResult] = useState<any>(null)
   const [feedbackSent, setFeedbackSent] = useState(false)
   const [communityStats, setCommunityStats] = useState<any>(null)
+  const [showExplain, setShowExplain] = useState(false)
+  const [showEducator, setShowEducator] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -144,6 +147,23 @@ export function Dashboard() {
       })
       setFeedbackSent(true)
     } catch {}
+  }
+
+  const exportText = () => {
+    if (!result) return
+    const lines = [
+      `VERIFAI — Verification Report`, `Generated: ${new Date().toISOString()}`, ``,
+      `Verdict: ${result.prediction}`, `Confidence: ${result.confidence.toFixed(1)}%`,
+      `Tier: ${result.confidence_tier}`, `Red Flag Score: ${result.red_flag_score}/10`,
+      `Fake Probability: ${(result.fake_probability*100).toFixed(1)}%`,
+      `Real Probability: ${(result.real_probability*100).toFixed(1)}%`, ``,
+      `--- Input Text ---`, inputText.slice(0,2000), ``,
+      aiResult ? `--- AI Analysis ---\n${aiResult.analysis||'N/A'}` : '',
+      gnewsResult?.articles?.length ? `--- Web Sources ---\n${gnewsResult.articles.map((a:any)=>`• ${a.title} (${a.source?.name})`).join('\n')}` : '',
+      factResult?.claims?.length ? `--- Fact Checks ---\n${factResult.claims.map((c:any)=>`• ${c.text} — ${c.claimReview?.[0]?.textualRating||'Unrated'}`).join('\n')}` : '',
+    ].filter(Boolean).join('\n')
+    const blob = new Blob([lines], {type:'text/plain'})
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='verifai-report.txt'; a.click()
   }
 
   /* ─── ring data helpers ─── */
@@ -359,6 +379,139 @@ export function Dashboard() {
                       <Button variant="outline" size="sm" onClick={() => sendFeedback(false)}>
                         <ThumbsDown className="w-4 h-4 mr-1.5" /> No, wrong
                       </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Feature 6: Explainable AI Insights */}
+                <div className="bg-secondary rounded-xl border border-border overflow-hidden animate-fade-up" style={{ animationDelay: "0.35s" }}>
+                  <button onClick={() => setShowExplain(!showExplain)} className="w-full flex items-center justify-between p-5 text-left hover:bg-background/30 transition-colors">
+                    <span className="text-sm font-semibold flex items-center gap-2"><Search className="w-4 h-4 text-primary" /> Explainable AI Insights</span>
+                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showExplain ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showExplain && (
+                    <div className="px-5 pb-5 space-y-3 border-t border-border pt-4">
+                      {result.red_flags?.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Suspicious Patterns</h4>
+                          <div className="space-y-1.5">
+                            {result.red_flags.map((f: any, i: number) => (
+                              <div key={i} className="flex items-start gap-2 text-xs">
+                                <span className="text-destructive mt-0.5">🚩</span>
+                                <span className="text-muted-foreground">{typeof f === 'string' ? f : f.description || f.flag}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Model Confidence</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-background rounded-lg p-2.5 text-center">
+                            <div className="text-lg font-bold text-foreground">{(result.real_probability*100).toFixed(0)}%</div>
+                            <div className="text-[10px] text-[#4ADE80]">Real Score</div>
+                          </div>
+                          <div className="bg-background rounded-lg p-2.5 text-center">
+                            <div className="text-lg font-bold text-foreground">{(result.fake_probability*100).toFixed(0)}%</div>
+                            <div className="text-[10px] text-destructive">Fake Score</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Feature 7: Web Sources (GNews) */}
+                {gnewsResult?.articles?.length > 0 && (
+                  <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.4s" }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Globe className="w-4 h-4 text-[#38bdf8]" />
+                      <h3 className="text-sm font-semibold">Web Sources</h3>
+                      <span className="ml-auto text-xs text-muted-foreground">{gnewsResult.articles.length} found</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {gnewsResult.articles.slice(0, 5).map((a: any, i: number) => (
+                        <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 group p-2 rounded-lg hover:bg-background/50 transition-colors">
+                          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0 group-hover:text-primary" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-foreground group-hover:text-primary truncate">{a.title}</p>
+                            <p className="text-[10px] text-muted-foreground">{a.source?.name} · {a.publishedAt?.split('T')[0]}</p>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Feature 8: Fact Check Database */}
+                {factResult && (
+                  <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.45s" }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Search className="w-4 h-4 text-[#facc15]" />
+                      <h3 className="text-sm font-semibold">Fact Check Database</h3>
+                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${factResult.claims?.length ? 'bg-[#facc15]/15 text-[#facc15]' : 'bg-muted text-muted-foreground'}`}>
+                        {factResult.claims?.length ? `${factResult.claims.length} MATCHES` : 'NO MATCHES'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mb-3">Cross-referenced against 200+ fact-checking organizations.</p>
+                    {factResult.claims?.length > 0 ? (
+                      <div className="space-y-2">
+                        {factResult.claims.slice(0, 4).map((c: any, i: number) => (
+                          <div key={i} className="bg-background rounded-lg p-3">
+                            <p className="text-xs font-medium text-foreground mb-1">{c.text}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              Rating: <span className="font-medium text-[#facc15]">{c.claimReview?.[0]?.textualRating || 'Unrated'}</span>
+                              {c.claimReview?.[0]?.publisher?.name && ` · ${c.claimReview[0].publisher.name}`}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No matching claims found in fact-check databases.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Feature 9: Export Report */}
+                <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.5s" }}>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Download className="w-4 h-4" /> Export Report</h3>
+                  <div className="flex gap-3">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={exportText}>
+                      📝 Export as Text
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { window.print() }}>
+                      📄 Print / PDF
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Feature 10: Educator Mode */}
+                <div className="bg-secondary rounded-xl border border-border overflow-hidden animate-fade-up" style={{ animationDelay: "0.55s" }}>
+                  <div className="flex items-center justify-between p-5">
+                    <span className="text-sm font-semibold flex items-center gap-2"><GraduationCap className="w-4 h-4 text-primary" /> Educator Mode</span>
+                    <button onClick={() => setShowEducator(!showEducator)}
+                      className={`w-10 h-5 rounded-full transition-colors ${showEducator ? 'bg-primary' : 'bg-muted'} relative`}>
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${showEducator ? 'left-5' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                  {showEducator && (
+                    <div className="px-5 pb-5 border-t border-border pt-4 space-y-3">
+                      {[
+                        { step: 1, title: 'Text Preprocessing', desc: 'Input cleaned, normalized, and tokenized. HTML tags, special characters removed.' },
+                        { step: 2, title: 'TF-IDF Vectorization', desc: `Text converted to ${result.model_version ? '25,020' : 'N'} numerical features using term frequency-inverse document frequency.` },
+                        { step: 3, title: 'Meta-Feature Extraction', desc: '20 handcrafted features: readability, sentiment, entity density, sentence structure.' },
+                        { step: 4, title: 'ML Ensemble Voting', desc: '5 models (LR, RF, SGD, SVC, LightGBM) independently classify and vote.' },
+                        { step: 5, title: 'Red Flag Scan', desc: `Heuristic scanner detected ${result.red_flag_score}/10 severity across ${result.red_flags?.length || 0} patterns.` },
+                        { step: 6, title: 'Final Verdict', desc: `Combined score: ${result.confidence.toFixed(1)}% confidence → ${result.prediction}.` },
+                      ].map(s => (
+                        <div key={s.step} className="flex gap-3">
+                          <div className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center shrink-0">{s.step}</div>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">{s.title}</p>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">{s.desc}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
