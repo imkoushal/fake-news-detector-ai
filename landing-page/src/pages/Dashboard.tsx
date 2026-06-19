@@ -49,6 +49,10 @@ export function Dashboard() {
   const [showEducator, setShowEducator] = useState(false)
   const [translateEnabled, setTranslateEnabled] = useState(false)
   const [safeBrowsing, setSafeBrowsing] = useState<any>(null)
+  const [credibility, setCredibility] = useState<any>(null)
+  const [recording, setRecording] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -113,12 +117,48 @@ export function Dashboard() {
       if (!r.ok) throw new Error(d.detail || "Failed to fetch URL")
       if (!d.text || d.text.trim().length < 10) throw new Error("Not enough text extracted. Paste the article directly.")
       setInputText(d.text)
-      // fire Safe Browsing check for URLs
+      // fire Safe Browsing + Source Credibility checks for URLs
       const h = getAuthHeaders()
       fetch(`${API_BASE}/api/v1/safe-browsing`, { method: "POST", headers: h, body: JSON.stringify({ url: inputUrl }) })
         .then(r => r.ok ? r.json() : null).then(d => d && setSafeBrowsing(d)).catch(() => {})
+      fetch(`${API_BASE}/api/v1/source-credibility`, { method: "POST", headers: h, body: JSON.stringify({ url: inputUrl }) })
+        .then(r => r.ok ? r.json() : null).then(d => d && setCredibility(d)).catch(() => {})
       await analyzeData(d.text)
     } catch (err: any) { setError(err.message); setLoading(false) }
+  }
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mr = new MediaRecorder(stream)
+      chunksRef.current = []
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        if (blob.size < 1000) { setError('Recording too short.'); return }
+        setLoading(true); setError('')
+        const fd = new FormData(); fd.append('file', blob, 'recording.webm')
+        try {
+          const r = await fetch(`${API_BASE}/api/v1/transcribe`, {
+            method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd
+          })
+          const d = await r.json()
+          if (!r.ok) throw new Error(d.detail || 'Transcription failed')
+          if (!d.text) throw new Error('No speech detected.')
+          setInputText(d.text); setActiveTab('text')
+          await analyzeData(d.text)
+        } catch (err: any) { setError(err.message); setLoading(false) }
+      }
+      mr.start()
+      mediaRecorderRef.current = mr
+      setRecording(true)
+    } catch { setError('Microphone access denied.') }
+  }
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop()
+    setRecording(false)
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -269,19 +309,32 @@ export function Dashboard() {
                 {/* Audio tab */}
                 {activeTab === "audio" && (
                   <div className="animate-fade-in text-center py-8">
-                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
-                      <FileAudio className="w-8 h-8" />
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors ${recording ? 'bg-destructive/20 text-destructive animate-pulse' : 'bg-primary/10 text-primary'}`}>
+                      {recording ? <Mic className="w-8 h-8" /> : <FileAudio className="w-8 h-8" />}
                     </div>
-                    <h3 className="text-lg font-medium mb-2">Upload Audio Note</h3>
+                    <h3 className="text-lg font-medium mb-2">{recording ? 'Recording...' : 'Voice Input'}</h3>
                     <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
-                      Upload a WhatsApp voice note or audio file. Our AI will transcribe and analyze it.
+                      {recording ? 'Speak clearly into your microphone. Click Stop when done.' : 'Record live or upload an audio file. We\'ll transcribe and analyze.'}
                     </p>
                     <input type="file" accept="audio/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-                    <Button variant="outline" size="lg" onClick={() => fileInputRef.current?.click()} disabled={loading}>
-                      {loading
-                        ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Processing...</span>
-                        : <span className="flex items-center gap-2"><Upload className="w-4 h-4" /> Select Audio File</span>}
-                    </Button>
+                    <div className="flex gap-3 justify-center">
+                      {recording ? (
+                        <Button variant="outline" size="lg" onClick={stopRecording} className="border-destructive/50 text-destructive hover:bg-destructive/10">
+                          ⏹ Stop Recording
+                        </Button>
+                      ) : (
+                        <>
+                          <Button variant="outline" size="lg" onClick={startRecording} disabled={loading}>
+                            <Mic className="w-4 h-4 mr-2" /> Record
+                          </Button>
+                          <Button variant="outline" size="lg" onClick={() => fileInputRef.current?.click()} disabled={loading}>
+                            {loading
+                              ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Processing...</span>
+                              : <span className="flex items-center gap-2"><Upload className="w-4 h-4" /> Upload File</span>}
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -501,6 +554,34 @@ export function Dashboard() {
                         ? 'URL passed all safety checks. No malware, phishing, or social engineering detected.'
                         : `Threats: ${safeBrowsing.threats?.join(', ') || 'Unknown'}. Exercise caution.`}
                     </p>
+                  </div>
+                )}
+
+                {/* Source Credibility panel */}
+                {credibility && (
+                  <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.49s" }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Globe className="w-4 h-4 text-[#a78bfa]" />
+                      <h3 className="text-sm font-semibold">Source Credibility</h3>
+                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
+                        (credibility.score ?? 50) >= 70 ? 'bg-[#4ADE80]/15 text-[#4ADE80]' :
+                        (credibility.score ?? 50) >= 40 ? 'bg-accent/15 text-accent' :
+                        'bg-destructive/15 text-destructive'}`}>
+                        {credibility.score ?? 50}/100
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-2 w-full bg-background rounded-full overflow-hidden">
+                        <div className={`h-full transition-all duration-500 ${
+                          (credibility.score ?? 50) >= 70 ? 'bg-[#4ADE80]' : (credibility.score ?? 50) >= 40 ? 'bg-accent' : 'bg-destructive'
+                        }`} style={{ width: `${credibility.score ?? 50}%` }} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {credibility.domain && <><span className="font-medium text-foreground">{credibility.domain}</span> · </>}
+                        {credibility.category || 'Unknown category'}
+                        {credibility.description && ` · ${credibility.description}`}
+                      </p>
+                    </div>
                   </div>
                 )}
 
