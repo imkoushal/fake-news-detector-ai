@@ -76,6 +76,22 @@ export function Navbar() {
                   className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-background/50 transition-colors">
                   <User className="w-4 h-4" /> Dashboard
                 </button>
+                <button onClick={() => { navigate("/batch"); setDropdownOpen(false) }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-background/50 transition-colors">
+                  📊 Batch Analysis
+                </button>
+                <button onClick={() => { navigate("/analytics"); setDropdownOpen(false) }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-background/50 transition-colors">
+                  📈 Analytics
+                </button>
+                <button onClick={() => { navigate("/history"); setDropdownOpen(false) }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-background/50 transition-colors">
+                  📜 History
+                </button>
+                <button onClick={() => { navigate("/settings"); setDropdownOpen(false) }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-background/50 transition-colors">
+                  ⚙️ Settings
+                </button>
                 <div className="border-t border-border">
                   <button onClick={() => { logout(); setDropdownOpen(false) }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors">

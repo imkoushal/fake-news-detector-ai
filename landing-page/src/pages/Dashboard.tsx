@@ -5,7 +5,7 @@ import {
   FileText, Link as LinkIcon, Mic, Upload, CheckCircle2,
   AlertTriangle, ShieldAlert, FileAudio, Loader2, ThumbsUp,
   ThumbsDown, Sparkles, ExternalLink, ChevronDown, Download,
-  GraduationCap, Globe, Search
+  GraduationCap, Globe, Search, ShieldCheck
 } from "lucide-react"
 import { Button } from "../components/ui/button"
 
@@ -48,6 +48,7 @@ export function Dashboard() {
   const [showExplain, setShowExplain] = useState(false)
   const [showEducator, setShowEducator] = useState(false)
   const [translateEnabled, setTranslateEnabled] = useState(false)
+  const [safeBrowsing, setSafeBrowsing] = useState<any>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -112,6 +113,10 @@ export function Dashboard() {
       if (!r.ok) throw new Error(d.detail || "Failed to fetch URL")
       if (!d.text || d.text.trim().length < 10) throw new Error("Not enough text extracted. Paste the article directly.")
       setInputText(d.text)
+      // fire Safe Browsing check for URLs
+      const h = getAuthHeaders()
+      fetch(`${API_BASE}/api/v1/safe-browsing`, { method: "POST", headers: h, body: JSON.stringify({ url: inputUrl }) })
+        .then(r => r.ok ? r.json() : null).then(d => d && setSafeBrowsing(d)).catch(() => {})
       await analyzeData(d.text)
     } catch (err: any) { setError(err.message); setLoading(false) }
   }
@@ -477,6 +482,25 @@ export function Dashboard() {
                     ) : (
                       <p className="text-xs text-muted-foreground">No matching claims found in fact-check databases.</p>
                     )}
+                  </div>
+                )}
+
+                {/* Safe Browsing panel */}
+                {safeBrowsing && (
+                  <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.48s" }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <ShieldCheck className="w-4 h-4 text-[#4ADE80]" />
+                      <h3 className="text-sm font-semibold">Safe Browsing</h3>
+                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
+                        safeBrowsing.safe ? 'bg-[#4ADE80]/15 text-[#4ADE80]' : 'bg-destructive/15 text-destructive'}`}>
+                        {safeBrowsing.safe ? 'SAFE' : 'THREATS FOUND'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {safeBrowsing.safe
+                        ? 'URL passed all safety checks. No malware, phishing, or social engineering detected.'
+                        : `Threats: ${safeBrowsing.threats?.join(', ') || 'Unknown'}. Exercise caution.`}
+                    </p>
                   </div>
                 )}
 
