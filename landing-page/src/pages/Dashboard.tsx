@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useAuth } from "../context/AuthContext"
 import { API_BASE, getAuthHeaders } from "../lib/api"
 import {
@@ -8,6 +8,25 @@ import {
   GraduationCap, Globe, Search, ShieldCheck, Share2
 } from "lucide-react"
 import { Button } from "../components/ui/button"
+
+/* ── Skeleton shimmer ── */
+function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse bg-muted rounded-lg ${className}`} />
+}
+
+function SkeletonCard() {
+  return (
+    <div className="bg-secondary rounded-xl border border-border p-6 space-y-4 animate-fade-up">
+      <div className="flex items-center gap-4">
+        <Skeleton className="w-16 h-16 rounded-full" />
+        <div className="space-y-2 flex-1"><Skeleton className="h-5 w-24" /><Skeleton className="h-3 w-32" /></div>
+      </div>
+      <Skeleton className="h-2 w-full" />
+      <Skeleton className="h-2 w-4/5" />
+      <Skeleton className="h-2 w-3/5" />
+    </div>
+  )
+}
 
 /* ── tiny SVG ring component ── */
 function Ring({ pct, color, label, detail }: { pct: number; color: string; label: string; detail: string }) {
@@ -55,6 +74,16 @@ export function Dashboard() {
   const chunksRef = useRef<Blob[]>([])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // keyboard shortcut: Ctrl+Enter to analyze
+  const handleKeyboard = useCallback((e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault()
+      if (activeTab === 'text' && inputText.trim() && !loading) analyzeData(inputText)
+      else if (activeTab === 'url' && inputUrl.trim() && !loading) document.querySelector<HTMLButtonElement>('[data-analyze-url]')?.click()
+    }
+  }, [activeTab, inputText, inputUrl, loading])
+  useEffect(() => { document.addEventListener('keydown', handleKeyboard); return () => document.removeEventListener('keydown', handleKeyboard) }, [handleKeyboard])
 
   // load community stats once
   useEffect(() => {
@@ -415,7 +444,13 @@ export function Dashboard() {
                     </div>
                   )}
 
-                  <div className="mt-3 text-[11px] text-muted-foreground/50">Model v{result.model_version} · {result.timestamp?.split("T")[0]}</div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground/50">Model v{result.model_version} · {result.timestamp?.split("T")[0]}</span>
+                    <button onClick={() => analyzeData(inputText)}
+                      className="text-[11px] text-primary hover:underline flex items-center gap-1">
+                      ↻ Re-analyze
+                    </button>
+                  </div>
                 </div>
 
                 {/* Feature 3: 4-source verification rings */}
@@ -701,6 +736,18 @@ export function Dashboard() {
                   ) : null
                 })()}
               </>
+            ) : loading ? (
+              /* Skeleton loaders while analyzing */
+              <div className="flex flex-col gap-6">
+                <SkeletonCard />
+                <div className="grid grid-cols-2 gap-3">
+                  <Skeleton className="h-28 rounded-xl" />
+                  <Skeleton className="h-28 rounded-xl" />
+                  <Skeleton className="h-28 rounded-xl" />
+                  <Skeleton className="h-28 rounded-xl" />
+                </div>
+                <Skeleton className="h-24 rounded-xl" />
+              </div>
             ) : (
               <div className="bg-background border border-border border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center h-full min-h-[300px]">
                 <ShieldAlert className="w-12 h-12 text-muted mb-4" />
@@ -708,6 +755,7 @@ export function Dashboard() {
                 <p className="text-muted-foreground text-sm max-w-[200px]">
                   Submit text, a URL, or an audio file to see the AI verification results here.
                 </p>
+                <p className="text-muted-foreground/50 text-[10px] mt-3">Tip: Press Ctrl+Enter to analyze</p>
               </div>
             )}
           </div>
