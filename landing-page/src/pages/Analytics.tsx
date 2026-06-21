@@ -143,6 +143,67 @@ export function AnalyticsPage() {
           </div>
         </div>
 
+        {/* Activity Trend */}
+        {(() => {
+          const days = range === 0 ? 30 : range
+          const buckets: { date: string; real: number; fake: number }[] = []
+          for (let i = days - 1; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i)
+            const key = d.toISOString().split("T")[0]
+            buckets.push({ date: key, real: 0, fake: 0 })
+          }
+          filtered.forEach((h: any) => {
+            const key = h.timestamp?.split("T")[0]
+            const b = buckets.find(x => x.date === key)
+            if (b) h.prediction === "FAKE" ? b.fake++ : b.real++
+          })
+          const maxVal = Math.max(...buckets.map(b => b.real + b.fake), 1)
+          const chartH = 120
+          const barW = Math.max(4, Math.min(16, Math.floor(600 / buckets.length) - 2))
+
+          return (
+            <div className="bg-secondary border border-border rounded-xl p-5 mb-8">
+              <h3 className="text-sm font-semibold mb-4">Activity Trend</h3>
+              <div className="overflow-x-auto">
+                <svg width={buckets.length * (barW + 2) + 40} height={chartH + 30} className="min-w-full">
+                  {/* Y-axis labels */}
+                  <text x="0" y="12" className="fill-muted-foreground" fontSize="9">{maxVal}</text>
+                  <text x="0" y={chartH / 2 + 4} className="fill-muted-foreground" fontSize="9">{Math.round(maxVal / 2)}</text>
+                  <text x="0" y={chartH} className="fill-muted-foreground" fontSize="9">0</text>
+                  {/* Grid lines */}
+                  <line x1="28" y1="0" x2={buckets.length * (barW + 2) + 32} y2="0" stroke="hsl(var(--border))" strokeWidth="0.5" />
+                  <line x1="28" y1={chartH / 2} x2={buckets.length * (barW + 2) + 32} y2={chartH / 2} stroke="hsl(var(--border))" strokeWidth="0.5" strokeDasharray="4" />
+                  {/* Bars */}
+                  {buckets.map((b, i) => {
+                    const total = b.real + b.fake
+                    const h = (total / maxVal) * chartH
+                    const realH = total > 0 ? (b.real / total) * h : 0
+                    const fakeH = h - realH
+                    const x = 30 + i * (barW + 2)
+                    return (
+                      <g key={i}>
+                        <title>{b.date}: {b.real} real, {b.fake} fake</title>
+                        <rect x={x} y={chartH - h} width={barW} height={realH} rx="1" fill="#4ADE80" opacity="0.85" />
+                        <rect x={x} y={chartH - fakeH} width={barW} height={fakeH} rx="1" fill="hsl(var(--destructive))" opacity="0.85" />
+                        {/* Show date label for first, last, and every 7th */}
+                        {(i === 0 || i === buckets.length - 1 || i % 7 === 0) && (
+                          <text x={x + barW / 2} y={chartH + 14} textAnchor="middle" className="fill-muted-foreground" fontSize="8">
+                            {b.date.slice(5)}
+                          </text>
+                        )}
+                      </g>
+                    )
+                  })}
+                </svg>
+              </div>
+              <div className="flex items-center gap-4 mt-3">
+                <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className="w-2.5 h-2.5 rounded-sm bg-[#4ADE80]" /> Real</span>
+                <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className="w-2.5 h-2.5 rounded-sm bg-destructive" /> Fake</span>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Recent analyses table */}
         <div className="bg-secondary border border-border rounded-xl overflow-hidden">
           <div className="p-5 border-b border-border"><h3 className="text-sm font-semibold">Recent Analyses</h3></div>
