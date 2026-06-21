@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "../context/AuthContext"
 import { API_BASE, getAuthHeaders } from "../lib/api"
-import { Loader2 } from "lucide-react"
+import { Loader2, Download } from "lucide-react"
+import { Button } from "../components/ui/button"
 
 export function AnalyticsPage() {
   const { user } = useAuth()
@@ -74,8 +75,8 @@ export function AnalyticsPage() {
             <h1 className="text-3xl font-bold tracking-tight mb-2">Analytics Overview</h1>
             <p className="text-muted-foreground text-sm">Forensic metrics for the current verification cycle.</p>
           </div>
-          {/* Date range selector */}
-          <div className="flex gap-2">
+          {/* Date range + Export */}
+          <div className="flex gap-2 items-center flex-wrap">
             {([
               [7, "7D"], [30, "30D"], [90, "90D"], [0, "All"]
             ] as [number, string][]).map(([v, label]) => (
@@ -84,6 +85,13 @@ export function AnalyticsPage() {
                 {label}
               </button>
             ))}
+            <Button variant="outline" size="sm" onClick={() => {
+              const report = { generated: new Date().toISOString(), range: range || 'all', totalAnalyzed: range === 0 ? totalAnalyzed : filtered.length, fakeCount, realCount, avgConfidence: avgConf, topics: Object.fromEntries(topicMap), recentAnalyses: filtered.slice(0, 50) }
+              const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+              const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'verifai-analytics.json'; a.click()
+            }}>
+              <Download className="w-3.5 h-3.5 mr-1.5" /> Export
+            </Button>
           </div>
         </div>
 

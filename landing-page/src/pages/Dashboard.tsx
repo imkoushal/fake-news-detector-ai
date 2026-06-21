@@ -2,10 +2,10 @@ import { useState, useRef, useEffect } from "react"
 import { useAuth } from "../context/AuthContext"
 import { API_BASE, getAuthHeaders } from "../lib/api"
 import {
-  FileText, Link as LinkIcon, Mic, Upload, CheckCircle2,
+  FileText, Link as LinkIcon, Mic, Upload,
   AlertTriangle, ShieldAlert, FileAudio, Loader2, ThumbsUp,
   ThumbsDown, Sparkles, ExternalLink, ChevronDown, Download,
-  GraduationCap, Globe, Search, ShieldCheck
+  GraduationCap, Globe, Search, ShieldCheck, Share2
 } from "lucide-react"
 import { Button } from "../components/ui/button"
 
@@ -353,10 +353,20 @@ export function Dashboard() {
               <>
                 {/* Verdict card */}
                 <div className="bg-secondary rounded-xl border border-border p-6 shadow-sm animate-fade-up">
-                  <div className="flex items-center gap-3 mb-6">
-                    {result.prediction === "FAKE"
-                      ? <ShieldAlert className="w-8 h-8 text-destructive" />
-                      : <CheckCircle2 className="w-8 h-8 text-[#4ADE80]" />}
+                  <div className="flex items-center gap-4 mb-6">
+                    {/* Confidence gauge */}
+                    <div className="relative w-16 h-16 shrink-0">
+                      <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                        <circle cx="40" cy="40" r="34" fill="none" stroke="hsl(var(--border))" strokeWidth="6" />
+                        <circle cx="40" cy="40" r="34" fill="none"
+                          stroke={result.prediction === "FAKE" ? "hsl(var(--destructive))" : "#4ADE80"}
+                          strokeWidth="6" strokeLinecap="round"
+                          strokeDasharray={`${2 * Math.PI * 34}`}
+                          strokeDashoffset={`${2 * Math.PI * 34 * (1 - result.confidence / 100)}`}
+                          className="transition-all duration-1000" />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-sm font-bold">{Math.round(result.confidence)}%</span>
+                    </div>
                     <div>
                       <h2 className="text-xl font-bold uppercase tracking-wide">{result.prediction}</h2>
                       <p className="text-xs text-muted-foreground">{result.confidence_tier} · {result.confidence.toFixed(1)}%</p>
@@ -447,6 +457,34 @@ export function Dashboard() {
                       </Button>
                     </div>
                   )}
+                </div>
+
+                {/* Share Results */}
+                <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.32s" }}>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Share2 className="w-4 h-4" /> Share Results</h3>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => {
+                      const text = `VERIFAI: "${inputText.slice(0, 60)}..." → ${result.prediction} (${result.confidence.toFixed(1)}% confidence)`
+                      navigator.clipboard.writeText(text).then(() => {
+                        const btn = document.getElementById('copy-btn')
+                        if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => btn.textContent = '📋 Copy', 2000) }
+                      })
+                    }}>
+                      <span id="copy-btn">📋 Copy</span>
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => {
+                      const text = encodeURIComponent(`VERIFAI analysis: ${result.prediction} (${result.confidence.toFixed(1)}%) — Try it: https://fake-news-detector-8djq.onrender.com`)
+                      window.open(`https://wa.me/?text=${text}`, '_blank')
+                    }}>
+                      💬 WhatsApp
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => {
+                      const text = encodeURIComponent(`Just verified a news article using @VerifAI_app — ${result.prediction} with ${result.confidence.toFixed(1)}% confidence! Try it:`)
+                      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent('https://fake-news-detector-8djq.onrender.com')}`, '_blank')
+                    }}>
+                      𝕏 Tweet
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Feature 6: Explainable AI Insights */}
