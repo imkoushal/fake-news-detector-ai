@@ -79,9 +79,17 @@ export function HistoryPage() {
             <h1 className="text-3xl font-bold tracking-tight mb-2">History</h1>
             <p className="text-muted-foreground text-sm">{history.length} total · {filtered.length} shown</p>
           </div>
-          <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
-            <Download className="w-4 h-4 mr-2" /> Export CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
+              <Download className="w-4 h-4 mr-2" /> CSV
+            </Button>
+            <Button variant="outline" size="sm" disabled={filtered.length === 0} onClick={() => {
+              const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: "application/json" })
+              const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "verifai-history.json"; a.click()
+            }}>
+              <Download className="w-4 h-4 mr-2" /> JSON
+            </Button>
+          </div>
         </div>
 
         {/* Filters row */}

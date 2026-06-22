@@ -4,6 +4,8 @@ import { HeroSection } from "./components/HeroSection"
 import { HowItWorksSection } from "./components/HowItWorksSection"
 import { AccuracySection } from "./components/AccuracySection"
 import { Footer } from "./components/Footer"
+import { AppFooter } from "./components/AppFooter"
+import { ScrollToTop } from "./components/ScrollToTop"
 import { AuthModal } from "./components/auth/AuthModal"
 import { Dashboard } from "./pages/Dashboard"
 import { AboutPage } from "./pages/About"
@@ -28,6 +30,8 @@ function LandingPage() {
 }
 
 function App() {
+  const { user } = useAuth()
+
   return (
     <div className="bg-hero-bg min-h-screen flex flex-col">
       <Navbar />
@@ -44,6 +48,11 @@ function App() {
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
+
+      {/* Shared footer on authenticated pages */}
+      {user && <AppFooter />}
+
+      <ScrollToTop />
     </div>
   )
 }

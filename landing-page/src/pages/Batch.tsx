@@ -15,9 +15,23 @@ export function BatchPage() {
 
   if (!user) return <div className="min-h-screen bg-background flex items-center justify-center text-foreground"><p>Please sign in.</p></div>
 
+  const [fileInfo, setFileInfo] = useState<{ rows: number; cols: string[]; samples: string[]; textCol: string } | null>(null)
+
   const handleFile = (f: File) => {
     if (!f.name.endsWith(".csv")) { setError("Only .csv files accepted."); return }
-    setFile(f); setError(""); setResults([])
+    setFile(f); setError(""); setResults([]); setFileInfo(null)
+    // parse preview
+    f.text().then(text => {
+      const lines = text.split("\n").filter(l => l.trim())
+      const cols = lines[0].split(",").map(c => c.trim())
+      const textCol = cols.find(c => c.toLowerCase() === "text" || c.toLowerCase() === "content") || ""
+      const colIdx = cols.findIndex(c => c.toLowerCase() === "text" || c.toLowerCase() === "content")
+      const samples = lines.slice(1, 4).map(l => {
+        const parts = l.split(",")
+        return colIdx >= 0 ? parts.slice(colIdx).join(",").replace(/^"|"$/g, "").trim().slice(0, 100) : l.slice(0, 100)
+      })
+      setFileInfo({ rows: lines.length - 1, cols, samples, textCol })
+    })
   }
 
   const startBatch = async () => {
@@ -81,9 +95,42 @@ export function BatchPage() {
         </div>
 
         {file && !processing && results.length === 0 && (
-          <div className="bg-secondary border border-border rounded-xl p-4 flex items-center justify-between mb-6">
-            <span className="text-sm text-foreground">{file.name}</span>
-            <Button onClick={startBatch}>Start Batch Analysis</Button>
+          <div className="bg-secondary border border-border rounded-xl p-5 mb-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">{file.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {(file.size / 1024).toFixed(1)} KB
+                    {fileInfo && <> · {fileInfo.rows} rows · {fileInfo.cols.length} columns</>}
+                  </p>
+                </div>
+              </div>
+              <Button onClick={startBatch} disabled={!fileInfo?.textCol}>Start Batch Analysis</Button>
+            </div>
+            {fileInfo && (
+              <>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className={`w-2 h-2 rounded-full ${fileInfo.textCol ? 'bg-[#4ADE80]' : 'bg-destructive'}`} />
+                  <span className="text-muted-foreground">
+                    {fileInfo.textCol
+                      ? <>Text column detected: <span className="text-foreground font-medium">"{fileInfo.textCol}"</span></>
+                      : <span className="text-destructive">No 'text' or 'content' column found</span>}
+                  </span>
+                </div>
+                {fileInfo.samples.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Sample rows</p>
+                    <div className="space-y-1.5">
+                      {fileInfo.samples.map((s, i) => (
+                        <div key={i} className="bg-background rounded-lg px-3 py-2 text-[11px] text-muted-foreground truncate">{s || "—"}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
