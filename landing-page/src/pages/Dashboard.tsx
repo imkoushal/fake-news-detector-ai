@@ -323,6 +323,33 @@ export function Dashboard() {
                       </div>
                     </div>
 
+                    {/* Input quality warnings */}
+                    {inputText.trim().length > 0 && (() => {
+                      const txt = inputText.trim()
+                      const warns: { icon: string; msg: string; level: 'warn' | 'error' }[] = []
+                      if (txt.length < 50) warns.push({ icon: '⚠️', msg: 'Very short text — results may be unreliable', level: 'warn' })
+                      else if (txt.length < 150) warns.push({ icon: '💡', msg: 'Short text — longer articles yield better accuracy', level: 'warn' })
+                      const capsRatio = (txt.replace(/[^A-Z]/g, '').length) / Math.max(txt.replace(/[^a-zA-Z]/g, '').length, 1)
+                      if (capsRatio > 0.6 && txt.length > 20) warns.push({ icon: '🔠', msg: 'Excessive caps detected — common in clickbait', level: 'warn' })
+                      const urlCount = (txt.match(/https?:\/\//g) || []).length
+                      if (urlCount > 3) warns.push({ icon: '🔗', msg: `${urlCount} URLs found — consider using the URL tab instead`, level: 'warn' })
+                      const words = txt.split(/\s+/)
+                      const unique = new Set(words.map(w => w.toLowerCase()))
+                      if (words.length > 20 && unique.size / words.length < 0.4) warns.push({ icon: '🔁', msg: 'Repetitive text detected — may skew analysis', level: 'warn' })
+                      if (/[\u0900-\u097F\u0980-\u09FF\u0600-\u06FF\u4E00-\u9FFF\u3040-\u309F]/.test(txt) && !translateEnabled)
+                        warns.push({ icon: '🌐', msg: 'Non-English script detected — enable "Translate" for better results', level: 'error' })
+                      return warns.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                          {warns.map((w, i) => (
+                            <span key={i} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium ${
+                              w.level === 'error' ? 'bg-destructive/10 text-destructive' : 'bg-accent/10 text-accent'}`}>
+                              {w.icon} {w.msg}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null
+                    })()}
+
                     <Button className="w-full" size="lg" onClick={handleAnalyzeText} disabled={loading}>
                       {loading ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</span> : "Analyze Content"}
                     </Button>
