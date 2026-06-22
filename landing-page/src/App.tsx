@@ -40,12 +40,13 @@ function App() {
 
   return (
     <div className="bg-hero-bg min-h-screen flex flex-col">
+      <a href="#main-content" className="skip-to-content">Skip to content</a>
       <TopLoadingBar />
       <Navbar />
       <AuthModal />
       <ShortcutsModal />
       
-      <main className="flex-1 pb-16 md:pb-0">
+      <main id="main-content" className="flex-1 pb-16 md:pb-0">
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
