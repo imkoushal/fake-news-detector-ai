@@ -100,6 +100,10 @@ export function Navbar() {
                   className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-background/50 transition-colors">
                   🔖 Bookmarks
                 </button>
+                <button onClick={() => { navigate("/feedback"); setDropdownOpen(false) }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-background/50 transition-colors">
+                  💬 Feedback
+                </button>
                 <div className="border-t border-border">
                   <button onClick={() => { logout(); setDropdownOpen(false) }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors">

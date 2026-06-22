@@ -73,6 +73,8 @@ export function Dashboard() {
   const [safeBrowsing, setSafeBrowsing] = useState<any>(null)
   const [credibility, setCredibility] = useState<any>(null)
   const [recording, setRecording] = useState(false)
+  const [processingMs, setProcessingMs] = useState(0)
+  const [recentAnalyses, setRecentAnalyses] = useState<any[]>([])
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
 
@@ -106,6 +108,7 @@ export function Dashboard() {
   const analyzeData = async (text: string) => {
     setError(""); setLoading(true); setResult(null)
     setAiResult(null); setGnewsResult(null); setFactResult(null); setFeedbackSent(false)
+    const t0 = performance.now()
     try {
       const res = await fetch(`${API_BASE}/api/v1/analyze`, {
         method: "POST", headers: getAuthHeaders(),
@@ -113,7 +116,9 @@ export function Dashboard() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || "Analysis failed")
+      setProcessingMs(Math.round(performance.now() - t0))
       setResult(data)
+      setRecentAnalyses(prev => [{ preview: text.slice(0, 60), prediction: data.prediction, confidence: data.confidence, ts: new Date().toISOString() }, ...prev].slice(0, 5))
       // fire secondary APIs in parallel (non-blocking)
       runSecondary(text)
     } catch (err: any) { setError(err.message) }
@@ -478,7 +483,7 @@ export function Dashboard() {
                   )}
 
                   <div className="mt-3 flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground/50">Model v{result.model_version} · {result.timestamp?.split("T")[0]}</span>
+                    <span className="text-[11px] text-muted-foreground/50">Model v{result.model_version} · {result.timestamp?.split("T")[0]} · {processingMs < 1000 ? `${processingMs}ms` : `${(processingMs / 1000).toFixed(1)}s`}</span>
                     <div className="flex items-center gap-3">
                       <button onClick={() => { addBookmark(result, inputText); toast('Bookmarked!', 'success') }}
                         className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
@@ -799,6 +804,47 @@ export function Dashboard() {
             )}
           </div>
         </div>
+
+        {/* Recent Analyses widget */}
+        {recentAnalyses.length > 0 && (
+          <div className="mt-8 bg-secondary border border-border rounded-xl p-5">
+            <h3 className="text-sm font-semibold mb-3">Recent (this session)</h3>
+            <div className="space-y-2">
+              {recentAnalyses.map((r, i) => (
+                <div key={i} className="flex items-center gap-3 bg-background rounded-lg px-3 py-2">
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${r.prediction === 'FAKE' ? 'bg-destructive/15 text-destructive' : 'bg-[#4ADE80]/15 text-[#4ADE80]'}`}>{r.prediction}</span>
+                  <span className="text-xs text-muted-foreground truncate flex-1">{r.preview}...</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{r.confidence?.toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Suspicious text highlighting */}
+        {result && inputText.trim() && (() => {
+          const suspiciousPatterns = [
+            { re: /\b(breaking|urgent|shocking|exclusive|alert)\b/gi, label: 'Sensational' },
+            { re: /\b(sources say|reportedly|allegedly|rumor|unconfirmed)\b/gi, label: 'Unverified' },
+            { re: /\b(miracle|100%|guaranteed|secret|they don'?t want you to know)\b/gi, label: 'Clickbait' },
+          ]
+          const found: { word: string; label: string }[] = []
+          suspiciousPatterns.forEach(p => {
+            let m; while ((m = p.re.exec(inputText)) !== null) found.push({ word: m[0], label: p.label })
+          })
+          return found.length > 0 ? (
+            <div className="mt-4 bg-secondary border border-accent/30 rounded-xl p-4">
+              <h4 className="text-xs font-semibold mb-2 text-accent">⚠️ Suspicious Keywords Found</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {found.map((f, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent rounded-full text-[10px] font-medium">
+                    "{f.word}" <span className="text-muted-foreground">({f.label})</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null
+        })()}
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import { AppFooter } from "./components/AppFooter"
 import { ScrollToTop } from "./components/ScrollToTop"
 import { MobileNav } from "./components/MobileNav"
 import { TopLoadingBar } from "./components/TopLoadingBar"
+import { ShortcutsModal } from "./components/ShortcutsModal"
 import { AuthModal } from "./components/auth/AuthModal"
 import { Dashboard } from "./pages/Dashboard"
 import { AboutPage } from "./pages/About"
@@ -17,6 +18,7 @@ import { HistoryPage } from "./pages/History"
 import { SettingsPage } from "./pages/Settings"
 import { ComparePage } from "./pages/Compare"
 import { BookmarksPage } from "./pages/Bookmarks"
+import { FeedbackPage } from "./pages/Feedback"
 import { useAuth } from "./context/AuthContext"
 
 function LandingPage() {
@@ -41,6 +43,7 @@ function App() {
       <TopLoadingBar />
       <Navbar />
       <AuthModal />
+      <ShortcutsModal />
       
       <main className="flex-1 pb-16 md:pb-0">
         <Routes>
@@ -53,6 +56,7 @@ function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/compare" element={<ComparePage />} />
           <Route path="/bookmarks" element={<BookmarksPage />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
         </Routes>
       </main>
 
