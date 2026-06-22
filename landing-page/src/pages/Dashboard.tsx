@@ -8,6 +8,8 @@ import {
   GraduationCap, Globe, Search, ShieldCheck, Share2
 } from "lucide-react"
 import { Button } from "../components/ui/button"
+import { addBookmark } from "./Bookmarks"
+import { useToast } from "../context/ToastContext"
 
 /* ── Skeleton shimmer ── */
 function Skeleton({ className = "" }: { className?: string }) {
@@ -49,6 +51,7 @@ function Ring({ pct, color, label, detail }: { pct: number; color: string; label
 
 export function Dashboard() {
   const { user, logout, token } = useAuth()
+  const { toast } = useToast()
 
   const [activeTab, setActiveTab] = useState<"text" | "url" | "audio">("text")
   const [inputText, setInputText] = useState("")
@@ -300,7 +303,10 @@ export function Dashboard() {
 
                     {/* Feature 2: Char count + Sensitivity + Translate */}
                     <div className="flex items-center justify-between mt-2 mb-4 gap-3 flex-wrap">
-                      <span className="text-xs text-muted-foreground">{inputText.length} / 5,000 chars</span>
+                      <span className="text-xs text-muted-foreground">
+                        {inputText.length} / 5,000 chars
+                        {inputText.trim() && <> · {inputText.trim().split(/\s+/).length} words · ~{Math.max(1, Math.ceil(inputText.trim().split(/\s+/).length / 200))} min read</>}
+                      </span>
                       <div className="flex items-center gap-4">
                         <label className="flex items-center gap-1.5 cursor-pointer">
                           <input type="checkbox" checked={translateEnabled} onChange={e => setTranslateEnabled(e.target.checked)}
@@ -446,10 +452,16 @@ export function Dashboard() {
 
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-[11px] text-muted-foreground/50">Model v{result.model_version} · {result.timestamp?.split("T")[0]}</span>
-                    <button onClick={() => analyzeData(inputText)}
-                      className="text-[11px] text-primary hover:underline flex items-center gap-1">
-                      ↻ Re-analyze
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => { addBookmark(result, inputText); toast('Bookmarked!', 'success') }}
+                        className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
+                        🔖 Save
+                      </button>
+                      <button onClick={() => analyzeData(inputText)}
+                        className="text-[11px] text-primary hover:underline flex items-center gap-1">
+                        ↻ Re-analyze
+                      </button>
+                    </div>
                   </div>
                 </div>
 
