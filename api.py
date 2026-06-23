@@ -19,18 +19,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fake_news_api")
 
-import numpy as np
-from scipy.sparse import hstack
+from scipy.sparse import hstack  # noqa: E402
 
 # Import canonical preprocessing and feature functions (same as training pipeline)
-from utils import clean_text
-from meta_features import extract_single as compute_meta_features
-from enhanced_features import detect_fake_news_red_flags
+from utils import clean_text  # noqa: E402
+from meta_features import extract_single as compute_meta_features  # noqa: E402
+from enhanced_features import detect_fake_news_red_flags  # noqa: E402
 
 try:
     from fastapi import FastAPI, HTTPException, Request, UploadFile, File
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.staticfiles import StaticFiles
     from fastapi.responses import FileResponse, JSONResponse
     from pydantic import BaseModel
     from typing import Optional, List
@@ -138,10 +136,13 @@ else:
             self._conn = conn
             self._pool = pool
         def close(self):
-            try: self._pool.putconn(self._conn)
+            try:
+                self._pool.putconn(self._conn)
             except Exception:
-                try: self._conn.close()
-                except Exception: pass
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
         def __getattr__(self, name):
             return getattr(self._conn, name)
 
@@ -168,13 +169,13 @@ else:
     # ── Centralized DB Execution Helper (Codex Fix #2) ──
     def execute_db(query: str, params: tuple = (), *, fetch: str = "none", commit: bool = False):
         """Run a SQL query with guaranteed connection cleanup.
-        
+
         Args:
             query:  SQL string with placeholders.
             params: Tuple of parameter values.
             fetch:  'none' | 'one' | 'all' — what to return from the cursor.
             commit: Whether to commit the transaction.
-        
+
         Returns:
             None, a single row tuple, or a list of row tuples.
         """
@@ -2028,8 +2029,6 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         url = req.url.strip()
         if not url.startswith(("http://", "https://")):
             raise HTTPException(400, "Invalid URL — must start with http:// or https://")
-
-        extraction_method = "unknown"
 
         # ── TIER 1: newspaper4k (fast, purpose-built for news articles) ──
         try:

@@ -19,7 +19,7 @@ Features computed (20 total):
 
 import re
 import numpy as np
-from typing import List, Union
+from typing import List
 
 
 # ─── Keyword lists (frozen for consistency) ───
@@ -204,7 +204,7 @@ def extract_single(text: str) -> np.ndarray:
     ], dtype=np.float64)
 
 
-def extract_batch(texts: Union[List[str], "pd.Series"]) -> np.ndarray:
+def extract_batch(texts: List[str]) -> np.ndarray:
     """
     Extract meta features from a batch of texts.
     Returns a 2D numpy array of shape (n_texts, N_META_FEATURES).

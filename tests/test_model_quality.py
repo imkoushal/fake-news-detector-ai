@@ -38,7 +38,11 @@ def pipeline() -> Any:
     if not (models_dir / "model.joblib").exists():
         pytest.skip("No production model found — run train.py first")
 
-    from app import FinalModel
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("app_module", str(PROJECT_ROOT / "app.py"))
+    app_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(app_module)
+    FinalModel = app_module.FinalModel
     vectorizer = load(models_dir / "tfidf.joblib")
     model = load(models_dir / "model.joblib")
     scaler = None
