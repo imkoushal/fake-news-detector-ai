@@ -47,7 +47,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-24 px-4 md:px-12 lg:px-20 text-foreground pb-20">
+    <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold tracking-tight mb-2">Settings</h1>
         <p className="text-muted-foreground text-sm mb-10">Customize your VERIFAI experience.</p>

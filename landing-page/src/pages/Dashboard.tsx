@@ -256,7 +256,7 @@ export function Dashboard() {
   const factPct = factResult?.claims?.length > 0 ? 85 : (factResult ? 40 : 0)
 
   return (
-    <div className="min-h-screen bg-background pt-24 px-4 md:px-12 lg:px-20 text-foreground pb-20">
+    <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">

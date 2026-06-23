@@ -72,7 +72,7 @@ export function HistoryPage() {
   )
 
   return (
-    <div className="min-h-screen bg-background pt-24 px-4 md:px-12 lg:px-20 text-foreground pb-20">
+    <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
           <div>
