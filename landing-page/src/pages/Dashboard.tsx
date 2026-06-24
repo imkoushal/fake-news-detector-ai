@@ -50,7 +50,7 @@ function Ring({ pct, color, label, detail }: { pct: number; color: string; label
 }
 
 export function Dashboard() {
-  const { user, logout, token } = useAuth()
+  const { user, token } = useAuth()
   const { toast } = useToast()
 
   const [activeTab, setActiveTab] = useState<"text" | "url" | "audio">("text")
@@ -255,30 +255,46 @@ export function Dashboard() {
   const gnewsPct = gnewsResult?.articles?.length > 0 ? Math.min(90, gnewsResult.articles.length * 15) : 0
   const factPct = factResult?.claims?.length > 0 ? 85 : (factResult ? 40 : 0)
 
+  const greeting = (() => {
+    const h = new Date().getHours()
+    if (h < 12) return "Good morning"
+    if (h < 17) return "Good afternoon"
+    return "Good evening"
+  })()
+
   return (
     <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-1">Dashboard</h1>
-            <p className="text-muted-foreground text-sm">Welcome back, {user.name}</p>
+        {/* ── Executive Brief Card ── */}
+        <div className="card-enterprise p-6 mb-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-accent to-primary" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-heading font-extrabold tracking-tight">{greeting}, {user.name?.split(" ")[0]}</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Here's your misinformation detection overview for today.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="stat-pill"><span className="w-2 h-2 rounded-full bg-[#4ADE80] animate-pulse inline-block mr-1.5" />System Online</span>
+              <span className="stat-pill font-mono text-[10px]">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+            </div>
           </div>
-          <Button variant="outline" size="sm" onClick={logout}>Sign Out</Button>
         </div>
 
-        {/* ── Feature 1: Community Stats Bar ── */}
+        {/* ── Key Indicators Grid ── */}
         {communityStats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 animate-fade-in">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-fade-in">
             {[
-              { val: communityStats.total_analyses?.toLocaleString() ?? "—", label: "Total Checks" },
-              { val: communityStats.fake_percentage ? `${communityStats.fake_percentage}%` : "—", label: "Detected Fake", cls: "text-destructive" },
-              { val: communityStats.avg_confidence ? `${communityStats.avg_confidence}%` : "—", label: "Avg Confidence" },
-              { val: communityStats.today_count?.toLocaleString() ?? "—", label: "Today", cls: "text-primary" },
+              { val: communityStats.total_analyses?.toLocaleString() ?? "—", label: "Total Checks", icon: "🔍", color: "bg-primary/10 text-primary" },
+              { val: communityStats.fake_percentage ? `${communityStats.fake_percentage}%` : "—", label: "Detected Fake", icon: "⚠️", color: "bg-destructive/10 text-destructive" },
+              { val: communityStats.avg_confidence ? `${communityStats.avg_confidence}%` : "—", label: "Avg Confidence", icon: "📊", color: "bg-accent/10 text-accent" },
+              { val: communityStats.today_count?.toLocaleString() ?? "—", label: "Today", icon: "📅", color: "bg-[#4ADE80]/10 text-[#4ADE80]" },
             ].map((s, i) => (
-              <div key={i} className="bg-secondary border border-border rounded-lg p-3 text-center">
-                <div className={`text-lg font-bold ${s.cls || "text-foreground"}`}>{s.val}</div>
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</div>
+              <div key={i} className="card-enterprise p-4 flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl ${s.color} flex items-center justify-center text-lg shrink-0`}>{s.icon}</div>
+                <div>
+                  <div className="text-xl font-heading font-bold">{s.val}</div>
+                  <div className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest">{s.label}</div>
+                </div>
               </div>
             ))}
           </div>
@@ -287,13 +303,14 @@ export function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* ── Left: Input Panel ── */}
           <div className="lg:col-span-7 flex flex-col gap-6">
-            <div className="bg-secondary rounded-xl border border-border overflow-hidden shadow-sm">
+            <div className="card-enterprise overflow-hidden">
               {/* Tabs */}
-              <div className="flex border-b border-border bg-background/50">
+              <div className="flex border-b border-border">
                 {([["text", FileText, "Text"], ["url", LinkIcon, "URL"], ["audio", Mic, "Audio"]] as const).map(([key, Icon, label]) => (
                   <button key={key} onClick={() => setActiveTab(key as any)}
-                    className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${activeTab === key ? 'bg-secondary text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+                    className={`flex-1 py-3.5 text-sm font-medium flex items-center justify-center gap-2 transition-all relative ${activeTab === key ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
                     <Icon className="w-4 h-4" /> {label}
+                    {activeTab === key && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
                   </button>
                 ))}
               </div>
@@ -355,9 +372,9 @@ export function Dashboard() {
                       ) : null
                     })()}
 
-                    <Button className="w-full" size="lg" onClick={handleAnalyzeText} disabled={loading}>
-                      {loading ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</span> : "Analyze Content"}
-                    </Button>
+                    <button className="w-full btn-gradient rounded-xl py-3.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleAnalyzeText} disabled={loading}>
+                      {loading ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</span> : "Analyze Content →"}
+                    </button>
                   </div>
                 )}
 
@@ -419,7 +436,8 @@ export function Dashboard() {
             {result ? (
               <>
                 {/* Verdict card */}
-                <div className="bg-secondary rounded-xl border border-border p-6 shadow-sm animate-fade-up">
+                <div className={`card-enterprise p-6 animate-fade-up relative overflow-hidden ${result.prediction === "FAKE" ? "border-verdict-fake" : "border-verdict-real"}`}>
+                  <div className={`absolute top-0 left-0 right-0 h-1 ${result.prediction === "FAKE" ? "bg-destructive" : "bg-[#4ADE80]"}`} />
                   <div className="flex items-center gap-4 mb-6">
                     {/* Confidence gauge */}
                     <div className="relative w-16 h-16 shrink-0">
@@ -432,11 +450,11 @@ export function Dashboard() {
                           strokeDashoffset={`${2 * Math.PI * 34 * (1 - result.confidence / 100)}`}
                           className="transition-all duration-1000" />
                       </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-sm font-bold">{Math.round(result.confidence)}%</span>
+                      <span className="absolute inset-0 flex items-center justify-center text-sm font-heading font-bold">{Math.round(result.confidence)}%</span>
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold uppercase tracking-wide">{result.prediction}</h2>
-                      <p className="text-xs text-muted-foreground">{result.confidence_tier} · {result.confidence.toFixed(1)}%</p>
+                      <h2 className="text-xl font-heading font-extrabold uppercase tracking-wide">{result.prediction}</h2>
+                      <p className="text-xs text-muted-foreground font-mono">{result.confidence_tier} · {result.confidence.toFixed(1)}%</p>
                     </div>
                   </div>
 
@@ -449,11 +467,11 @@ export function Dashboard() {
                     ].map((b, i) => (
                       <div key={i}>
                         <div className="flex justify-between text-sm mb-1">
-                          <span className="text-muted-foreground">{b.label}</span>
-                          <span className="font-medium">{b.fmt ?? `${(b.val * 100).toFixed(1)}%`}</span>
+                          <span className="text-muted-foreground text-xs">{b.label}</span>
+                          <span className="font-heading font-bold text-xs">{b.fmt ?? `${(b.val * 100).toFixed(1)}%`}</span>
                         </div>
                         <div className="h-2 w-full bg-background rounded-full overflow-hidden">
-                          <div className={`h-full ${b.color} transition-all duration-500`} style={{ width: `${(b.fmt ? b.val : b.val) * 100}%` }} />
+                          <div className={`h-full ${b.color} transition-all duration-500 rounded-full`} style={{ width: `${(b.fmt ? b.val : b.val) * 100}%` }} />
                         </div>
                       </div>
                     ))}
@@ -507,7 +525,7 @@ export function Dashboard() {
 
                 {/* Feature 4: AI Analysis panel */}
                 {aiResult && (
-                  <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.25s" }}>
+                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.25s" }}>
                     <div className="flex items-center gap-2 mb-3">
                       <Sparkles className="w-4 h-4 text-[#a78bfa]" />
                       <h3 className="text-sm font-semibold">AI Verification</h3>
@@ -522,7 +540,7 @@ export function Dashboard() {
                 )}
 
                 {/* Feature 5: User feedback */}
-                <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.3s" }}>
+                <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.3s" }}>
                   <h3 className="text-sm font-semibold mb-2">Was this prediction correct?</h3>
                   {feedbackSent ? (
                     <p className="text-xs text-[#4ADE80]">✓ Thank you for your feedback!</p>
@@ -539,7 +557,7 @@ export function Dashboard() {
                 </div>
 
                 {/* Share Results */}
-                <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.32s" }}>
+                <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.32s" }}>
                   <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Share2 className="w-4 h-4" /> Share Results</h3>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => {
@@ -567,7 +585,7 @@ export function Dashboard() {
                 </div>
 
                 {/* Feature 6: Explainable AI Insights */}
-                <div className="bg-secondary rounded-xl border border-border overflow-hidden animate-fade-up" style={{ animationDelay: "0.35s" }}>
+                <div className="card-enterprise overflow-hidden animate-fade-up" style={{ animationDelay: "0.35s" }}>
                   <button onClick={() => setShowExplain(!showExplain)} className="w-full flex items-center justify-between p-5 text-left hover:bg-background/30 transition-colors">
                     <span className="text-sm font-semibold flex items-center gap-2"><Search className="w-4 h-4 text-primary" /> Explainable AI Insights</span>
                     <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showExplain ? 'rotate-180' : ''}`} />
@@ -606,7 +624,7 @@ export function Dashboard() {
 
                 {/* Feature 7: Web Sources (GNews) */}
                 {gnewsResult?.articles?.length > 0 && (
-                  <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.4s" }}>
+                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.4s" }}>
                     <div className="flex items-center gap-2 mb-3">
                       <Globe className="w-4 h-4 text-[#38bdf8]" />
                       <h3 className="text-sm font-semibold">Web Sources</h3>
@@ -628,7 +646,7 @@ export function Dashboard() {
 
                 {/* Feature 8: Fact Check Database */}
                 {factResult && (
-                  <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.45s" }}>
+                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.45s" }}>
                     <div className="flex items-center gap-2 mb-3">
                       <Search className="w-4 h-4 text-[#facc15]" />
                       <h3 className="text-sm font-semibold">Fact Check Database</h3>
@@ -657,7 +675,7 @@ export function Dashboard() {
 
                 {/* Safe Browsing panel */}
                 {safeBrowsing && (
-                  <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.48s" }}>
+                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.48s" }}>
                     <div className="flex items-center gap-2 mb-3">
                       <ShieldCheck className="w-4 h-4 text-[#4ADE80]" />
                       <h3 className="text-sm font-semibold">Safe Browsing</h3>
@@ -676,7 +694,7 @@ export function Dashboard() {
 
                 {/* Source Credibility panel */}
                 {credibility && (
-                  <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.49s" }}>
+                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.49s" }}>
                     <div className="flex items-center gap-2 mb-3">
                       <Globe className="w-4 h-4 text-[#a78bfa]" />
                       <h3 className="text-sm font-semibold">Source Credibility</h3>
@@ -703,7 +721,7 @@ export function Dashboard() {
                 )}
 
                 {/* Feature 9: Export Report */}
-                <div className="bg-secondary rounded-xl border border-border p-5 animate-fade-up" style={{ animationDelay: "0.5s" }}>
+                <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.5s" }}>
                   <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Download className="w-4 h-4" /> Export Report</h3>
                   <div className="flex gap-3">
                     <Button variant="outline" size="sm" className="flex-1" onClick={exportText}>
@@ -716,7 +734,7 @@ export function Dashboard() {
                 </div>
 
                 {/* Feature 10: Educator Mode */}
-                <div className="bg-secondary rounded-xl border border-border overflow-hidden animate-fade-up" style={{ animationDelay: "0.55s" }}>
+                <div className="card-enterprise overflow-hidden animate-fade-up" style={{ animationDelay: "0.55s" }}>
                   <div className="flex items-center justify-between p-5">
                     <span className="text-sm font-semibold flex items-center gap-2"><GraduationCap className="w-4 h-4 text-primary" /> Educator Mode</span>
                     <button onClick={() => setShowEducator(!showEducator)}
