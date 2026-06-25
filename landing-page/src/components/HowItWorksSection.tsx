@@ -40,9 +40,9 @@ export function HowItWorksSection() {
         </div>
 
         {/* Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-children">
           {steps.map((step, i) => (
-            <div key={i} className="card-enterprise p-7 group relative overflow-hidden">
+            <div key={i} className="card-enterprise p-7 group relative overflow-hidden hover-lift fade-up-stagger">
               {/* Background number */}
               <div className="absolute -top-4 -right-2 text-[120px] font-heading font-extrabold text-foreground/[0.03] leading-none select-none pointer-events-none">
                 {step.num}

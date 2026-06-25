@@ -28,9 +28,9 @@ export function AccuracySection() {
         </div>
 
         {/* Feature grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-16 stagger-children">
           {features.map((f, i) => (
-            <div key={i} className="card-enterprise p-6 group">
+            <div key={i} className="card-enterprise p-6 group hover-lift fade-up-stagger">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                 <f.icon className="w-5 h-5 text-primary" strokeWidth={1.5} />
               </div>

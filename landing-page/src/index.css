@@ -160,10 +160,79 @@
 
   /* Stat indicator pill */
   .stat-pill {
-    border-radius: 12px;
-    padding: 16px 20px;
+    border-radius: 9999px;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
     background: hsl(var(--secondary));
     border: 1px solid hsl(var(--border));
+  }
+
+  /* ─── PHASE 6: MICRO-ANIMATIONS ─── */
+
+  /* Stagger delays for grid children */
+  .stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+  .stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+
+  /* Fade-up with stagger — apply to each child */
+  .fade-up-stagger {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Skeleton loading shimmer */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--border)) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 8px;
+  }
+
+  /* Glass panel for modals/overlays */
+  .glass-panel {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: hsla(var(--secondary) / 0.85);
+    border: 1px solid hsla(var(--border) / 0.6);
+    border-radius: 16px;
+  }
+
+  /* Hover lift for interactive cards */
+  .hover-lift {
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+
+  /* Progress bar pulse for loading states */
+  .progress-pulse {
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-pulse::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+    animation: shimmer 1.5s linear infinite;
+    background-size: 200% 100%;
   }
 }
 

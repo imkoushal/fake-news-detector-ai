@@ -96,13 +96,13 @@ export function AnalyticsPage() {
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 stagger-children">
           {[
             { label: "TOTAL ANALYZED", value: range === 0 ? totalAnalyzed : filtered.length, dot: "bg-[#4ADE80]" },
             { label: "AVG CONFIDENCE", value: `${avgConf}%`, dot: "bg-[#38bdf8]" },
             { label: "FAKE DETECTED", value: fakeCount, dot: "bg-destructive" },
           ].map((s, i) => (
-            <div key={i} className="card-enterprise p-5">
+            <div key={i} className="card-enterprise p-5 fade-up-stagger">
               <div className="flex items-center gap-2 mb-2">
                 <span className={`w-2 h-2 rounded-full ${s.dot}`} />
                 <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">{s.label}</span>

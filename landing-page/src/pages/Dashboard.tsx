@@ -282,14 +282,14 @@ export function Dashboard() {
 
         {/* ── Key Indicators Grid ── */}
         {communityStats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-fade-in">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger-children">
             {[
               { val: communityStats.total_analyses?.toLocaleString() ?? "—", label: "Total Checks", icon: "🔍", color: "bg-primary/10 text-primary" },
               { val: communityStats.fake_percentage ? `${communityStats.fake_percentage}%` : "—", label: "Detected Fake", icon: "⚠️", color: "bg-destructive/10 text-destructive" },
               { val: communityStats.avg_confidence ? `${communityStats.avg_confidence}%` : "—", label: "Avg Confidence", icon: "📊", color: "bg-accent/10 text-accent" },
               { val: communityStats.today_count?.toLocaleString() ?? "—", label: "Today", icon: "📅", color: "bg-[#4ADE80]/10 text-[#4ADE80]" },
             ].map((s, i) => (
-              <div key={i} className="card-enterprise p-4 flex items-center gap-3">
+              <div key={i} className="card-enterprise p-4 flex items-center gap-3 fade-up-stagger">
                 <div className={`w-10 h-10 rounded-xl ${s.color} flex items-center justify-center text-lg shrink-0`}>{s.icon}</div>
                 <div>
                   <div className="text-xl font-heading font-bold">{s.val}</div>
