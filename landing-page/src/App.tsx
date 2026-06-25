@@ -1,38 +1,58 @@
 import { Routes, Route, Navigate, Outlet } from "react-router-dom"
-import { useState } from "react"
+import { useState, lazy, Suspense } from "react"
 import { Navbar } from "./components/Navbar"
-import { HeroSection } from "./components/HeroSection"
-import { HowItWorksSection } from "./components/HowItWorksSection"
-import { AccuracySection } from "./components/AccuracySection"
-import { Footer } from "./components/Footer"
 import { AppSidebar } from "./components/AppSidebar"
 import { TopBar } from "./components/TopBar"
 import { ScrollToTop } from "./components/ScrollToTop"
 import { TopLoadingBar } from "./components/TopLoadingBar"
 import { ShortcutsModal } from "./components/ShortcutsModal"
 import { AuthModal } from "./components/auth/AuthModal"
-import { Dashboard } from "./pages/Dashboard"
-import { AboutPage } from "./pages/About"
-import { BatchPage } from "./pages/Batch"
-import { AnalyticsPage } from "./pages/Analytics"
-import { HistoryPage } from "./pages/History"
-import { SettingsPage } from "./pages/Settings"
-import { ComparePage } from "./pages/Compare"
-import { BookmarksPage } from "./pages/Bookmarks"
-import { FeedbackPage } from "./pages/Feedback"
 import { useAuth } from "./context/AuthContext"
+
+/* ─── Lazy-loaded page components (code-splitting) ─── */
+const HeroSection = lazy(() => import("./components/HeroSection").then(m => ({ default: m.HeroSection })))
+const HowItWorksSection = lazy(() => import("./components/HowItWorksSection").then(m => ({ default: m.HowItWorksSection })))
+const AccuracySection = lazy(() => import("./components/AccuracySection").then(m => ({ default: m.AccuracySection })))
+const Footer = lazy(() => import("./components/Footer").then(m => ({ default: m.Footer })))
+const Dashboard = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.Dashboard })))
+const AboutPage = lazy(() => import("./pages/About").then(m => ({ default: m.AboutPage })))
+const BatchPage = lazy(() => import("./pages/Batch").then(m => ({ default: m.BatchPage })))
+const AnalyticsPage = lazy(() => import("./pages/Analytics").then(m => ({ default: m.AnalyticsPage })))
+const HistoryPage = lazy(() => import("./pages/History").then(m => ({ default: m.HistoryPage })))
+const SettingsPage = lazy(() => import("./pages/Settings").then(m => ({ default: m.SettingsPage })))
+const ComparePage = lazy(() => import("./pages/Compare").then(m => ({ default: m.ComparePage })))
+const BookmarksPage = lazy(() => import("./pages/Bookmarks").then(m => ({ default: m.BookmarksPage })))
+const FeedbackPage = lazy(() => import("./pages/Feedback").then(m => ({ default: m.FeedbackPage })))
+
+/* ─── Skeleton fallback for lazy-loaded routes ─── */
+function PageSkeleton() {
+  return (
+    <div className="p-6 md:p-8 animate-fade-in">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="skeleton h-8 w-48" />
+        <div className="skeleton h-4 w-72" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="skeleton h-24 rounded-2xl" />
+          ))}
+        </div>
+        <div className="skeleton h-64 rounded-2xl mt-4" />
+      </div>
+    </div>
+  )
+}
 
 /* ─── Public landing page ─── */
 function LandingPage() {
   const { user, isLoading } = useAuth()
   if (!isLoading && user) return <Navigate to="/dashboard" replace />
   return (
-    <>
+    <Suspense fallback={<PageSkeleton />}>
       <HeroSection />
       <HowItWorksSection />
       <AccuracySection />
       <Footer />
-    </>
+    </Suspense>
   )
 }
 
@@ -78,7 +98,9 @@ function AuthLayout() {
       <div className="flex-1 flex flex-col min-h-screen transition-all duration-300 md:ml-[var(--sidebar-w)]" style={{ "--sidebar-w": `${sidebarWidth}px` } as React.CSSProperties}>
         <TopBar onMobileMenuToggle={() => setMobileOpen(!mobileOpen)} />
         <main id="main-content" className="flex-1 overflow-y-auto">
-          <Outlet />
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>
@@ -98,7 +120,7 @@ function App() {
         {/* Public routes */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/about" element={<AboutPage />} />
+          <Route path="/about" element={<Suspense fallback={<PageSkeleton />}><AboutPage /></Suspense>} />
         </Route>
 
         {/* Authenticated routes — sidebar layout */}
