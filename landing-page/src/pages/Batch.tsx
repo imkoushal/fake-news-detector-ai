@@ -79,7 +79,7 @@ export function BatchPage() {
   return (
     <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Bulk Analysis</h1>
+        <h1 className="text-2xl font-heading font-extrabold tracking-tight mb-2">Bulk Analysis</h1>
         <p className="text-muted-foreground text-sm mb-8">Upload a CSV with a 'text' or 'content' column to analyze multiple articles at once.</p>
 
         {/* Upload zone */}
@@ -87,15 +87,17 @@ export function BatchPage() {
           onDragOver={e => { e.preventDefault(); dropRef.current?.classList.add("border-primary") }}
           onDragLeave={() => dropRef.current?.classList.remove("border-primary")}
           onDrop={e => { e.preventDefault(); dropRef.current?.classList.remove("border-primary"); e.dataTransfer.files[0] && handleFile(e.dataTransfer.files[0]) }}
-          className="border-2 border-dashed border-border rounded-xl p-10 text-center bg-secondary hover:border-primary/50 transition-colors cursor-pointer mb-6"
+          className="border-2 border-dashed border-border rounded-2xl p-12 text-center bg-secondary/30 hover:border-primary/50 hover:bg-secondary/50 transition-all cursor-pointer mb-6"
           onClick={() => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".csv"; inp.onchange = (e: any) => e.target.files[0] && handleFile(e.target.files[0]); inp.click() }}>
-          <FileSpreadsheet className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-foreground font-medium">Drag & drop a CSV file, or click to browse</p>
-          <p className="text-xs text-muted-foreground mt-1">Maximum 500 rows. Accepted: .csv</p>
+          <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <FileSpreadsheet className="w-7 h-7 text-primary" />
+          </div>
+          <p className="text-sm text-foreground font-heading font-semibold">Drag & drop a CSV file, or click to browse</p>
+          <p className="text-xs text-muted-foreground font-mono mt-1.5">Maximum 500 rows · Accepted: .csv</p>
         </div>
 
         {file && !processing && results.length === 0 && (
-          <div className="bg-secondary border border-border rounded-xl p-5 mb-6 space-y-4">
+          <div className="card-enterprise p-5 mb-6 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <FileSpreadsheet className="w-5 h-5 text-primary" />

@@ -32,23 +32,23 @@ export function FeedbackPage() {
   return (
     <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-xl mx-auto">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Feedback</h1>
+        <h1 className="text-2xl font-heading font-extrabold tracking-tight mb-2">Feedback</h1>
         <p className="text-muted-foreground text-sm mb-8">Help us improve VERIFAI. Report bugs, request features, or share thoughts.</p>
 
         {sent ? (
-          <div className="bg-secondary border border-border rounded-xl p-10 text-center">
+          <div className="card-enterprise p-10 text-center">
             <div className="w-14 h-14 bg-[#4ADE80]/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <MessageSquarePlus className="w-7 h-7 text-[#4ADE80]" />
             </div>
-            <h3 className="text-lg font-medium mb-2">Thank you!</h3>
+            <h3 className="text-lg font-heading font-bold mb-2">Thank you!</h3>
             <p className="text-sm text-muted-foreground mb-4">Your feedback has been received and will be reviewed.</p>
             <Button variant="outline" onClick={() => { setSent(false); setMessage("") }}>Send Another</Button>
           </div>
         ) : (
-          <div className="bg-secondary border border-border rounded-xl p-6 space-y-5">
+          <div className="card-enterprise p-6 space-y-5">
             {/* Type selector */}
             <div>
-              <label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">Category</label>
+              <label className="text-xs text-muted-foreground uppercase tracking-widest font-mono mb-2 block">Category</label>
               <div className="flex gap-2">
                 {([
                   ["bug", "🐛 Bug Report"],
@@ -65,17 +65,17 @@ export function FeedbackPage() {
 
             {/* Message */}
             <div>
-              <label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">Message</label>
+              <label className="text-xs text-muted-foreground uppercase tracking-widest font-mono mb-2 block">Message</label>
               <textarea value={message} onChange={e => setMessage(e.target.value)}
                 placeholder={type === "bug" ? "Describe the bug, steps to reproduce, expected behavior..." : type === "feature" ? "Describe the feature you'd like to see..." : "Share your thoughts about VERIFAI..."}
                 className="w-full h-36 bg-background border border-border rounded-lg p-4 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50" />
               <p className="text-[10px] text-muted-foreground mt-1">{message.length} characters</p>
             </div>
 
-            <Button className="w-full" size="lg" onClick={handleSubmit} disabled={sending || !message.trim()}>
-              <Send className="w-4 h-4 mr-2" />
+            <button className="w-full btn-gradient rounded-xl py-3.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2" onClick={handleSubmit} disabled={sending || !message.trim()}>
+              <Send className="w-4 h-4" />
               {sending ? "Sending..." : "Submit Feedback"}
-            </Button>
+            </button>
           </div>
         )}
       </div>

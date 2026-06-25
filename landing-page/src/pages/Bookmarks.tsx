@@ -56,19 +56,21 @@ export function BookmarksPage() {
   return (
     <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Bookmarks</h1>
+        <h1 className="text-2xl font-heading font-extrabold tracking-tight mb-2">Bookmarks</h1>
         <p className="text-muted-foreground text-sm mb-8">{bookmarks.length} saved analyses</p>
 
         {bookmarks.length === 0 ? (
-          <div className="bg-secondary border border-border border-dashed rounded-xl p-10 text-center">
-            <Bookmark className="w-10 h-10 text-muted mx-auto mb-3" />
-            <h3 className="text-foreground font-medium mb-1">No bookmarks yet</h3>
+          <div className="card-enterprise border-dashed p-12 text-center">
+            <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <Bookmark className="w-7 h-7 text-primary" />
+            </div>
+            <h3 className="text-foreground font-heading font-bold mb-1">No bookmarks yet</h3>
             <p className="text-muted-foreground text-sm">Bookmark analysis results from the Dashboard to save them here.</p>
           </div>
         ) : (
           <div className="space-y-3">
             {bookmarks.map(b => (
-              <div key={b.id} className="bg-secondary border border-border rounded-xl p-4 flex items-start gap-4 hover:bg-secondary/80 transition-colors">
+              <div key={b.id} className="card-enterprise p-4 flex items-start gap-4 hover:bg-secondary/80 transition-colors">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${b.prediction === "FAKE" ? "bg-destructive/15 text-destructive" : "bg-[#4ADE80]/15 text-[#4ADE80]"}`}>{b.prediction}</span>

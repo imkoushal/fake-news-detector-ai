@@ -49,12 +49,12 @@ export function SettingsPage() {
   return (
     <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Settings</h1>
+        <h1 className="text-2xl font-heading font-extrabold tracking-tight mb-2">Settings</h1>
         <p className="text-muted-foreground text-sm mb-10">Customize your VERIFAI experience.</p>
 
         <div className="space-y-6">
           {/* Theme */}
-          <div className="bg-secondary border border-border rounded-xl p-5">
+          <div className="card-enterprise p-5">
             <h3 className="text-sm font-semibold mb-4">Appearance</h3>
             <div className="flex gap-3">
               {[
@@ -70,7 +70,7 @@ export function SettingsPage() {
           </div>
 
           {/* Typography */}
-          <div className="bg-secondary border border-border rounded-xl p-5">
+          <div className="card-enterprise p-5">
             <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><Type className="w-4 h-4" /> Typography Scale</h3>
             <div className="flex gap-3">
               {["compact", "standard", "legibility"].map(t => (
@@ -83,7 +83,7 @@ export function SettingsPage() {
           </div>
 
           {/* Sensitivity */}
-          <div className="bg-secondary border border-border rounded-xl p-5">
+          <div className="card-enterprise p-5">
             <h3 className="text-sm font-semibold mb-4">Default Sensitivity</h3>
             <div className="flex items-center gap-4">
               <span className="text-xs text-muted-foreground">Lenient</span>
@@ -95,7 +95,7 @@ export function SettingsPage() {
           </div>
 
           {/* Translate */}
-          <div className="bg-secondary border border-border rounded-xl p-5 flex items-center justify-between">
+          <div className="card-enterprise p-5 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold">Auto-Translate</h3>
               <p className="text-xs text-muted-foreground mt-1">Translate non-English input before analysis</p>
@@ -107,7 +107,7 @@ export function SettingsPage() {
           </div>
 
           {/* Data */}
-          <div className="bg-secondary border border-border rounded-xl p-5">
+          <div className="card-enterprise p-5">
             <h3 className="text-sm font-semibold mb-4">Data Management</h3>
             <div className="flex gap-3">
               <Button variant="outline" size="sm" className="flex-1" onClick={exportTelemetry}>

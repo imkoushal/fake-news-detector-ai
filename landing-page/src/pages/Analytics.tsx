@@ -72,7 +72,7 @@ export function AnalyticsPage() {
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-2">Analytics Overview</h1>
+            <h1 className="text-2xl font-heading font-extrabold tracking-tight mb-2">Analytics Overview</h1>
             <p className="text-muted-foreground text-sm">Forensic metrics for the current verification cycle.</p>
           </div>
           {/* Date range + Export */}
@@ -102,18 +102,18 @@ export function AnalyticsPage() {
             { label: "AVG CONFIDENCE", value: `${avgConf}%`, dot: "bg-[#38bdf8]" },
             { label: "FAKE DETECTED", value: fakeCount, dot: "bg-destructive" },
           ].map((s, i) => (
-            <div key={i} className="bg-secondary border border-border rounded-xl p-5">
+            <div key={i} className="card-enterprise p-5">
               <div className="flex items-center gap-2 mb-2">
                 <span className={`w-2 h-2 rounded-full ${s.dot}`} />
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">{s.label}</span>
               </div>
-              <div className="text-2xl font-bold">{s.value}</div>
+              <div className="text-2xl font-heading font-bold">{s.value}</div>
             </div>
           ))}
         </div>
 
         {/* Prediction distribution bar */}
-        <div className="bg-secondary border border-border rounded-xl p-5 mb-8">
+        <div className="card-enterprise p-5 mb-8">
           <h3 className="text-sm font-semibold mb-4">Prediction Distribution</h3>
           <div className="flex h-8 rounded-lg overflow-hidden">
             <div className="bg-[#4ADE80] transition-all duration-500 flex items-center justify-center text-xs font-bold text-background"
@@ -128,7 +128,7 @@ export function AnalyticsPage() {
         </div>
 
         {/* Topic Breakdown */}
-        <div className="bg-secondary border border-border rounded-xl p-5 mb-8">
+        <div className="card-enterprise p-5 mb-8">
           <h3 className="text-sm font-semibold mb-4">Topic Breakdown</h3>
           <div className="space-y-3">
             {topicMap.map(([topic, counts]) => {
@@ -170,7 +170,7 @@ export function AnalyticsPage() {
           const barW = Math.max(4, Math.min(16, Math.floor(600 / buckets.length) - 2))
 
           return (
-            <div className="bg-secondary border border-border rounded-xl p-5 mb-8">
+            <div className="card-enterprise p-5 mb-8">
               <h3 className="text-sm font-semibold mb-4">Activity Trend</h3>
               <div className="overflow-x-auto">
                 <svg width={buckets.length * (barW + 2) + 40} height={chartH + 30} className="min-w-full">

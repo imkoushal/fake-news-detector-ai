@@ -76,7 +76,7 @@ export function HistoryPage() {
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-2">History</h1>
+            <h1 className="text-2xl font-heading font-extrabold tracking-tight mb-2">History</h1>
             <p className="text-muted-foreground text-sm">{history.length} total · {filtered.length} shown</p>
           </div>
           <div className="flex gap-2">

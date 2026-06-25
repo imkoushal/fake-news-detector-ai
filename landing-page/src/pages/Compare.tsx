@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useAuth } from "../context/AuthContext"
 import { API_BASE, getAuthHeaders } from "../lib/api"
 import { Loader2, ArrowLeftRight } from "lucide-react"
-import { Button } from "../components/ui/button"
+
 
 export function ComparePage() {
   const { user } = useAuth()
@@ -35,8 +35,8 @@ export function ComparePage() {
     const conf = result.confidence?.toFixed(1) ?? 0
     const r = 30, c = 2 * Math.PI * r
     return (
-      <div className="bg-secondary border border-border rounded-xl p-5 space-y-4">
-        <h3 className="text-xs text-muted-foreground uppercase tracking-wider">{label}</h3>
+      <div className="card-enterprise p-5 space-y-4">
+        <h3 className="text-xs text-muted-foreground uppercase tracking-widest font-mono">{label}</h3>
         <div className="flex items-center gap-4">
           <div className="relative w-14 h-14 shrink-0">
             <svg viewBox="0 0 70 70" className="w-full h-full -rotate-90">
@@ -81,7 +81,7 @@ export function ComparePage() {
   return (
     <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Compare Articles</h1>
+        <h1 className="text-2xl font-heading font-extrabold tracking-tight mb-2">Compare Articles</h1>
         <p className="text-muted-foreground text-sm mb-8">Analyze two articles side by side to compare their credibility.</p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -89,23 +89,23 @@ export function ComparePage() {
             <label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">Article A</label>
             <textarea value={textA} onChange={e => setTextA(e.target.value)}
               placeholder="Paste first article..."
-              className="w-full h-40 bg-secondary border border-border rounded-xl p-4 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              className="w-full h-40 card-enterprise p-4 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50" />
             <p className="text-[10px] text-muted-foreground mt-1">{textA.length} characters</p>
           </div>
           <div>
             <label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">Article B</label>
             <textarea value={textB} onChange={e => setTextB(e.target.value)}
               placeholder="Paste second article..."
-              className="w-full h-40 bg-secondary border border-border rounded-xl p-4 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              className="w-full h-40 card-enterprise p-4 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50" />
             <p className="text-[10px] text-muted-foreground mt-1">{textB.length} characters</p>
           </div>
         </div>
 
         <div className="flex justify-center mb-8">
-          <Button size="lg" onClick={runComparison} disabled={loading || !textA.trim() || !textB.trim()}>
-            {loading ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Comparing...</span>
-              : <span className="flex items-center gap-2"><ArrowLeftRight className="w-4 h-4" /> Compare Both</span>}
-          </Button>
+          <button className="btn-gradient rounded-full px-8 py-3.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" onClick={runComparison} disabled={loading || !textA.trim() || !textB.trim()}>
+            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Comparing...</>
+              : <><ArrowLeftRight className="w-4 h-4" /> Compare Both</>}
+          </button>
         </div>
 
         {(resultA || resultB) && (
