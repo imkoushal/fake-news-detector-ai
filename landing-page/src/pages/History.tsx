@@ -21,9 +21,20 @@ export function HistoryPage() {
 
   useEffect(() => {
     if (!user) return
-    fetch(`${API_BASE}/api/v1/history`, { headers: getAuthHeaders() })
+    fetch(`${API_BASE}/api/v1/history?limit=500`, { headers: getAuthHeaders() })
       .then(r => r.ok ? r.json() : null)
-      .then(d => setHistory(d?.analyses ?? d ?? []))
+      .then(d => {
+        // Backend returns { items: [...], total, page, limit, pages }
+        const rows = d?.items ?? d?.analyses ?? d ?? []
+        // Normalize field names: backend uses "preview"/"date"/"red_flags"
+        // but our UI expects "text_preview"/"timestamp"/"red_flag_score"
+        setHistory(rows.map((h: any) => ({
+          ...h,
+          text_preview: h.text_preview ?? h.preview ?? "",
+          timestamp: h.timestamp ?? h.date ?? h.created_at ?? "",
+          red_flag_score: h.red_flag_score ?? (typeof h.red_flags === 'number' ? h.red_flags / 100 : 0),
+        })))
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [user])

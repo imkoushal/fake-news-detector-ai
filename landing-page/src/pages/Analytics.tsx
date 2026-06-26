@@ -14,9 +14,18 @@ export function AnalyticsPage() {
     if (!user) return
     Promise.all([
       fetch(`${API_BASE}/api/v1/community-stats`).then(r => r.ok ? r.json() : null),
-      fetch(`${API_BASE}/api/v1/history`, { headers: getAuthHeaders() }).then(r => r.ok ? r.json() : null),
+      fetch(`${API_BASE}/api/v1/history?limit=500`, { headers: getAuthHeaders() }).then(r => r.ok ? r.json() : null),
     ]).then(([community, history]) => {
-      setStats({ community, history: history?.analyses ?? history ?? [] })
+      // Backend returns { items: [...] } with fields: preview, date, red_flags
+      // Normalize to text_preview, timestamp, red_flag_score for UI consistency
+      const rows = history?.items ?? history?.analyses ?? history ?? []
+      const normalized = rows.map((h: any) => ({
+        ...h,
+        text_preview: h.text_preview ?? h.preview ?? "",
+        timestamp: h.timestamp ?? h.date ?? h.created_at ?? "",
+        red_flag_score: h.red_flag_score ?? (typeof h.red_flags === 'number' ? h.red_flags / 100 : 0),
+      }))
+      setStats({ community, history: normalized })
     }).catch(() => {}).finally(() => setLoading(false))
   }, [user])
 
