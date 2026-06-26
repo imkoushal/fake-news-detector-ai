@@ -71,10 +71,12 @@ function PublicLayout() {
 
 /* ─── Auth layout: sidebar + topbar ─── */
 function AuthLayout() {
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
+  // Wait for auth check to complete before deciding to redirect
+  if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><PageSkeleton /></div>
   if (!user) return <Navigate to="/" replace />
 
   const sidebarWidth = collapsed ? 68 : 240
