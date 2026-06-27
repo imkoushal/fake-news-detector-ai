@@ -28,15 +28,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const navigate = useNavigate();
 
+  // Track whether login() just set the user (skip unnecessary re-check)
+  const loginJustCalled = React.useRef(false);
+
   useEffect(() => {
     async function checkSession() {
       if (!token) {
         setIsLoading(false);
         return;
       }
+      // If login() just set the token+user, skip the API re-check
+      if (loginJustCalled.current) {
+        loginJustCalled.current = false;
+        setIsLoading(false);
+        return;
+      }
       try {
         const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
-          headers: getAuthHeaders()
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) throw new Error('Session invalid');
         const userData = await res.json();
@@ -53,11 +62,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   const login = (newToken: string, newUser: User) => {
+    loginJustCalled.current = true;
     localStorage.setItem('verify_token', newToken);
     setToken(newToken);
     setUser(newUser);
+    setIsLoading(false);
     setShowAuthModal(false);
-    navigate('/dashboard');
+    // Defer navigation to next tick so context state propagates to all children
+    setTimeout(() => navigate('/dashboard'), 0);
   };
 
   const logout = async () => {

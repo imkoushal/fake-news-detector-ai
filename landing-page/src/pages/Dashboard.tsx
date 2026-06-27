@@ -98,11 +98,7 @@ export function Dashboard() {
       .catch(() => {})
   }, [])
 
-  if (!user) return (
-    <div className="min-h-screen bg-background flex items-center justify-center text-foreground">
-      <Loader2 className="w-6 h-6 animate-spin mr-3" /> Checking session...
-    </div>
-  )
+  // AuthLayout already handles the !user redirect — no need for a guard here
 
   /* ─── analysis helpers ─── */
   const analyzeData = async (text: string) => {
@@ -270,7 +266,7 @@ export function Dashboard() {
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-accent to-primary" />
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-heading font-extrabold tracking-tight">{greeting}, {user.name?.split(" ")[0]}</h1>
+              <h1 className="text-2xl font-heading font-extrabold tracking-tight">{greeting}, {user?.name?.split(" ")[0]}</h1>
               <p className="text-sm text-muted-foreground mt-0.5">Here's your misinformation detection overview for today.</p>
             </div>
             <div className="flex items-center gap-2">
