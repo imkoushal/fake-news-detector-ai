@@ -30,7 +30,7 @@ export function SettingsPage() {
 
   const exportTelemetry = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/history`, { headers: getAuthHeaders() })
+      const res = await fetch(`${API_BASE}/api/v1/user/history`, { headers: getAuthHeaders() })
       const data = await res.json()
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "verifai-telemetry.json"; a.click()
@@ -41,7 +41,7 @@ export function SettingsPage() {
   const purgeArchives = async () => {
     if (!confirm("This will delete all your analysis history. Continue?")) return
     try {
-      await fetch(`${API_BASE}/api/v1/history`, { method: "DELETE", headers: getAuthHeaders() })
+      await fetch(`${API_BASE}/api/v1/user/history`, { method: "DELETE", headers: getAuthHeaders() })
       toast("History cleared.", "success")
     } catch { toast("Purge failed.", "error") }
   }

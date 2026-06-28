@@ -14,7 +14,7 @@ export function AnalyticsPage() {
     if (!user) return
     Promise.all([
       fetch(`${API_BASE}/api/v1/community-stats`).then(r => r.ok ? r.json() : null),
-      fetch(`${API_BASE}/api/v1/history?limit=500`, { headers: getAuthHeaders() }).then(r => r.ok ? r.json() : null),
+      fetch(`${API_BASE}/api/v1/user/history?limit=500`, { headers: getAuthHeaders() }).then(r => r.ok ? r.json() : null),
     ]).then(([community, history]) => {
       // Backend returns { items: [...] } with fields: preview, date, red_flags
       // Normalize to text_preview, timestamp, red_flag_score for UI consistency

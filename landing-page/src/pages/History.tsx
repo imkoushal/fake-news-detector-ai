@@ -21,7 +21,7 @@ export function HistoryPage() {
 
   useEffect(() => {
     if (!user) return
-    fetch(`${API_BASE}/api/v1/history?limit=500`, { headers: getAuthHeaders() })
+    fetch(`${API_BASE}/api/v1/user/history?limit=500`, { headers: getAuthHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         // Backend returns { items: [...], total, page, limit, pages }
