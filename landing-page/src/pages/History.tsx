@@ -39,8 +39,6 @@ export function HistoryPage() {
       .finally(() => setLoading(false))
   }, [user])
 
-  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc)
     else { setSortKey(key); setSortAsc(false) }
@@ -66,6 +64,9 @@ export function HistoryPage() {
 
   const pages = Math.ceil(filtered.length / perPage)
   const pageData = filtered.slice(page * perPage, (page + 1) * perPage)
+
+  // Loading guard MUST be after all hooks to avoid React error #310
+  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
 
   const exportCsv = () => {
     const header = "Date,Prediction,Confidence,RedFlags,Preview\n"

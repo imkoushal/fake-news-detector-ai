@@ -29,8 +29,6 @@ export function AnalyticsPage() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [user])
 
-  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-
   const allHistory = stats?.history || []
 
   // date-filtered history
@@ -74,6 +72,9 @@ export function AnalyticsPage() {
     })
     return Object.entries(topics).filter(([, v]) => v.real + v.fake > 0)
   }, [filtered])
+
+  // Loading guard MUST be after all hooks to avoid React error #310
+  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
 
   return (
     <div className="bg-background p-6 md:p-8 text-foreground">
