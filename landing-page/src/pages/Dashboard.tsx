@@ -1,255 +1,93 @@
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "../context/AuthContext"
 import { API_BASE, getAuthHeaders } from "../lib/api"
-import {
-  FileText, Link as LinkIcon, Mic, Upload,
-  AlertTriangle, ShieldAlert, FileAudio, Loader2, ThumbsUp,
-  ThumbsDown, Sparkles, ExternalLink, ChevronDown, Download,
-  GraduationCap, Globe, Search, ShieldCheck, Share2
-} from "lucide-react"
-import { Button } from "../components/ui/button"
-import { addBookmark } from "./Bookmarks"
-import { useToast } from "../context/ToastContext"
-
-/* ── Skeleton shimmer ── */
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse bg-muted rounded-lg ${className}`} />
-}
-
-function SkeletonCard() {
-  return (
-    <div className="bg-secondary rounded-xl border border-border p-6 space-y-4 animate-fade-up">
-      <div className="flex items-center gap-4">
-        <Skeleton className="w-16 h-16 rounded-full" />
-        <div className="space-y-2 flex-1"><Skeleton className="h-5 w-24" /><Skeleton className="h-3 w-32" /></div>
-      </div>
-      <Skeleton className="h-2 w-full" />
-      <Skeleton className="h-2 w-4/5" />
-      <Skeleton className="h-2 w-3/5" />
-    </div>
-  )
-}
-
-/* ── tiny SVG ring component ── */
-function Ring({ pct, color, label, detail }: { pct: number; color: string; label: string; detail: string }) {
-  const r = 34, c = 2 * Math.PI * r
-  return (
-    <div className="flex flex-col items-center gap-2 p-4 bg-background rounded-xl border border-border">
-      <svg viewBox="0 0 80 80" className="w-16 h-16">
-        <circle cx="40" cy="40" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="5" />
-        <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="5"
-          strokeDasharray={`${c}`} strokeDashoffset={`${c - (c * pct) / 100}`}
-          strokeLinecap="round" className="transition-all duration-700"
-          style={{ transform: "rotate(-90deg)", transformOrigin: "center" }} />
-      </svg>
-      <span className="text-lg font-bold" style={{ color }}>{pct}%</span>
-      <span className="text-xs font-medium text-foreground">{label}</span>
-      <span className="text-[10px] text-muted-foreground text-center leading-tight">{detail}</span>
-    </div>
-  )
-}
+import { Link } from "react-router-dom"
+import { Loader2, TrendingUp, TrendingDown, BarChart3, PieChart, Activity, Target, Search, ArrowRight, Clock, ShieldCheck } from "lucide-react"
 
 export function Dashboard() {
-  const { user, token } = useAuth()
-  const { toast } = useToast()
+  const { user } = useAuth()
+  const [stats, setStats] = useState<any>(null)
+  const [community, setCommunity] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [range, setRange] = useState<7 | 30 | 90 | 0>(0)
 
-  const [activeTab, setActiveTab] = useState<"text" | "url" | "audio">("text")
-  const [inputText, setInputText] = useState("")
-  const [inputUrl, setInputUrl] = useState("")
-  const [sensitivity, setSensitivity] = useState(50)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [result, setResult] = useState<any>(null)
-
-  // secondary API results
-  const [aiResult, setAiResult] = useState<any>(null)
-  const [gnewsResult, setGnewsResult] = useState<any>(null)
-  const [factResult, setFactResult] = useState<any>(null)
-  const [feedbackSent, setFeedbackSent] = useState(false)
-  const [communityStats, setCommunityStats] = useState<any>(null)
-  const [showExplain, setShowExplain] = useState(false)
-  const [showEducator, setShowEducator] = useState(false)
-  const [translateEnabled, setTranslateEnabled] = useState(false)
-  const [safeBrowsing, setSafeBrowsing] = useState<any>(null)
-  const [credibility, setCredibility] = useState<any>(null)
-  const [recording, setRecording] = useState(false)
-  const [processingMs, setProcessingMs] = useState(0)
-  const [recentAnalyses, setRecentAnalyses] = useState<any[]>([])
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // keyboard shortcut: Ctrl+Enter to analyze
-  const handleKeyboard = useCallback((e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault()
-      if (activeTab === 'text' && inputText.trim() && !loading) analyzeData(inputText)
-      else if (activeTab === 'url' && inputUrl.trim() && !loading) document.querySelector<HTMLButtonElement>('[data-analyze-url]')?.click()
-    }
-  }, [activeTab, inputText, inputUrl, loading])
-  useEffect(() => { document.addEventListener('keydown', handleKeyboard); return () => document.removeEventListener('keydown', handleKeyboard) }, [handleKeyboard])
-
-  // load community stats once
   useEffect(() => {
-    fetch(`${API_BASE}/api/v1/community-stats`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => d && setCommunityStats(d))
-      .catch(() => {})
-  }, [])
+    if (!user) return
+    Promise.all([
+      fetch(`${API_BASE}/api/v1/community-stats`).then(r => r.ok ? r.json() : null),
+      fetch(`${API_BASE}/api/v1/user/history?limit=500`, { headers: getAuthHeaders() }).then(r => r.ok ? r.json() : null),
+    ]).then(([comm, history]) => {
+      const rows = history?.items ?? history?.analyses ?? history ?? []
+      const normalized = rows.map((h: any) => ({
+        ...h,
+        text_preview: h.text_preview ?? h.preview ?? "",
+        timestamp: h.timestamp ?? h.date ?? h.created_at ?? "",
+        red_flag_score: h.red_flag_score ?? (typeof h.red_flags === 'number' ? h.red_flags / 100 : 0),
+      }))
+      setCommunity(comm)
+      setStats(normalized)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [user])
 
-  // AuthLayout already handles the !user redirect — no need for a guard here
+  const allHistory = stats || []
 
-  /* ─── analysis helpers ─── */
-  const analyzeData = async (text: string) => {
-    setError(""); setLoading(true); setResult(null)
-    setAiResult(null); setGnewsResult(null); setFactResult(null); setFeedbackSent(false)
-    const t0 = performance.now()
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/analyze`, {
-        method: "POST", headers: getAuthHeaders(),
-        body: JSON.stringify({ text, sensitivity: sensitivity / 100, translate: translateEnabled })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || "Analysis failed")
-      setProcessingMs(Math.round(performance.now() - t0))
-      setResult(data)
-      setRecentAnalyses(prev => [{ preview: text.slice(0, 60), prediction: data.prediction, confidence: data.confidence, ts: new Date().toISOString() }, ...prev].slice(0, 5))
-      // fire secondary APIs in parallel (non-blocking)
-      runSecondary(text)
-    } catch (err: any) { setError(err.message) }
-    finally { setLoading(false) }
-  }
+  const filtered = useMemo(() => {
+    if (range === 0) return allHistory
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - range)
+    return allHistory.filter((h: any) => h.timestamp && new Date(h.timestamp) >= cutoff)
+  }, [allHistory, range])
 
-  const runSecondary = (text: string) => {
-    const h = getAuthHeaders()
-    // AI verification (Groq/Gemini)
-    fetch(`${API_BASE}/api/v1/smart-verify`, { method: "POST", headers: h, body: JSON.stringify({ text }) })
-      .then(r => r.ok ? r.json() : null).then(d => d && setAiResult(d)).catch(() => {})
-    // GNews cross-reference
-    fetch(`${API_BASE}/api/v1/gnews-search`, { method: "POST", headers: h, body: JSON.stringify({ text: text.slice(0, 200) }) })
-      .then(r => r.ok ? r.json() : null).then(d => d && setGnewsResult(d)).catch(() => {})
-    // Fact check
-    fetch(`${API_BASE}/api/v1/fact-check`, { method: "POST", headers: h, body: JSON.stringify({ text: text.slice(0, 200) }) })
-      .then(r => r.ok ? r.json() : null).then(d => d && setFactResult(d)).catch(() => {})
-  }
+  const totalAnalyzed = filtered.length
+  const fakeCount = filtered.filter((h: any) => h.prediction === "FAKE").length
+  const realCount = filtered.filter((h: any) => h.prediction === "REAL").length
+  const avgConf = filtered.length > 0 ? (filtered.reduce((s: number, h: any) => s + (h.confidence || 0), 0) / filtered.length) : 0
+  const total = realCount + fakeCount || 1
+  const fakePercent = ((fakeCount / total) * 100).toFixed(1)
+  const realPercent = ((realCount / total) * 100).toFixed(1)
 
-  const handleAnalyzeText = async () => {
-    if (!inputText.trim()) { setError("Please enter some text."); return }
-    await analyzeData(inputText)
-  }
+  const confBuckets = useMemo(() => {
+    const buckets = [
+      { label: "50-60%", min: 50, max: 60, count: 0 },
+      { label: "60-70%", min: 60, max: 70, count: 0 },
+      { label: "70-80%", min: 70, max: 80, count: 0 },
+      { label: "80-90%", min: 80, max: 90, count: 0 },
+      { label: "90-100%", min: 90, max: 101, count: 0 },
+    ]
+    filtered.forEach((h: any) => {
+      const c = h.confidence || 0
+      const b = buckets.find(b => c >= b.min && c < b.max)
+      if (b) b.count++
+    })
+    return buckets
+  }, [filtered])
 
-  const handleAnalyzeUrl = async () => {
-    if (!inputUrl.trim()) { setError("Please enter a URL."); return }
-    setError(""); setLoading(true); setResult(null)
-    try {
-      const r = await fetch(`${API_BASE}/api/v1/fetch-url`, {
-        method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ url: inputUrl })
-      })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.detail || "Failed to fetch URL")
-      if (!d.text || d.text.trim().length < 10) throw new Error("Not enough text extracted. Paste the article directly.")
-      setInputText(d.text)
-      // fire Safe Browsing + Source Credibility checks for URLs
-      const h = getAuthHeaders()
-      fetch(`${API_BASE}/api/v1/safe-browsing`, { method: "POST", headers: h, body: JSON.stringify({ url: inputUrl }) })
-        .then(r => r.ok ? r.json() : null).then(d => d && setSafeBrowsing(d)).catch(() => {})
-      fetch(`${API_BASE}/api/v1/source-credibility`, { method: "POST", headers: h, body: JSON.stringify({ url: inputUrl }) })
-        .then(r => r.ok ? r.json() : null).then(d => d && setCredibility(d)).catch(() => {})
-      await analyzeData(d.text)
-    } catch (err: any) { setError(err.message); setLoading(false) }
-  }
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mr = new MediaRecorder(stream)
-      chunksRef.current = []
-      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      mr.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop())
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        if (blob.size < 1000) { setError('Recording too short.'); return }
-        setLoading(true); setError('')
-        const fd = new FormData(); fd.append('file', blob, 'recording.webm')
-        try {
-          const r = await fetch(`${API_BASE}/api/v1/transcribe`, {
-            method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd
-          })
-          const d = await r.json()
-          if (!r.ok) throw new Error(d.detail || 'Transcription failed')
-          if (!d.text) throw new Error('No speech detected.')
-          setInputText(d.text); setActiveTab('text')
-          await analyzeData(d.text)
-        } catch (err: any) { setError(err.message); setLoading(false) }
+  const topicMap = useMemo(() => {
+    const topics: Record<string, { real: number; fake: number }> = {
+      "Politics": { real: 0, fake: 0 }, "Health": { real: 0, fake: 0 },
+      "Technology": { real: 0, fake: 0 }, "Finance": { real: 0, fake: 0 },
+      "Social Media": { real: 0, fake: 0 }, "Other": { real: 0, fake: 0 },
+    }
+    const rules: [string, RegExp][] = [
+      ["Politics", /politic|election|govern|minister|parliament|congress|bjp|aap|vote|democrat|republican/i],
+      ["Health", /health|covid|vaccine|hospital|doctor|medical|disease|virus|cure|patient/i],
+      ["Technology", /tech|ai|software|google|apple|microsoft|crypto|bitcoin|startup|hack/i],
+      ["Finance", /bank|stock|market|invest|rupee|dollar|economy|gdp|inflation|rbi|tax/i],
+      ["Social Media", /whatsapp|facebook|instagram|twitter|tiktok|youtube|viral|forward|share/i],
+    ]
+    filtered.forEach((h: any) => {
+      const txt = h.text_preview || h.preview || ""
+      const pred = h.prediction === "FAKE" ? "fake" : "real"
+      let matched = false
+      for (const [topic, re] of rules) {
+        if (re.test(txt)) { topics[topic][pred]++; matched = true; break }
       }
-      mr.start()
-      mediaRecorderRef.current = mr
-      setRecording(true)
-    } catch { setError('Microphone access denied.') }
-  }
+      if (!matched) topics["Other"][pred]++
+    })
+    return Object.entries(topics).filter(([, v]) => v.real + v.fake > 0)
+  }, [filtered])
 
-  const stopRecording = () => {
-    mediaRecorderRef.current?.stop()
-    setRecording(false)
-  }
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 25 * 1024 * 1024) { setError("File too large. Max 25MB."); return }
-    setError(""); setLoading(true); setResult(null)
-    const fd = new FormData(); fd.append("file", file)
-    try {
-      const r = await fetch(`${API_BASE}/api/v1/transcribe`, {
-        method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd
-      })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.detail || "Transcription failed")
-      if (!d.text) throw new Error("No speech detected.")
-      setInputText(d.text); setActiveTab("text")
-      await analyzeData(d.text)
-    } catch (err: any) { setError(err.message); setLoading(false) }
-    if (fileInputRef.current) fileInputRef.current.value = ""
-  }
-
-  const sendFeedback = async (correct: boolean) => {
-    if (!result) return
-    try {
-      await fetch(`${API_BASE}/api/v1/feedback`, {
-        method: "POST", headers: getAuthHeaders(),
-        body: JSON.stringify({
-          text_preview: inputText.slice(0, 200),
-          original_prediction: result.prediction,
-          user_correction: correct ? result.prediction : (result.prediction === "FAKE" ? "REAL" : "FAKE")
-        })
-      })
-      setFeedbackSent(true)
-    } catch {}
-  }
-
-  const exportText = () => {
-    if (!result) return
-    const lines = [
-      `VERIFAI — Verification Report`, `Generated: ${new Date().toISOString()}`, ``,
-      `Verdict: ${result.prediction}`, `Confidence: ${result.confidence.toFixed(1)}%`,
-      `Tier: ${result.confidence_tier}`, `Red Flag Score: ${result.red_flag_score}/10`,
-      `Fake Probability: ${(result.fake_probability*100).toFixed(1)}%`,
-      `Real Probability: ${(result.real_probability*100).toFixed(1)}%`, ``,
-      `--- Input Text ---`, inputText.slice(0,2000), ``,
-      aiResult ? `--- AI Analysis ---\n${aiResult.analysis||'N/A'}` : '',
-      gnewsResult?.articles?.length ? `--- Web Sources ---\n${gnewsResult.articles.map((a:any)=>`• ${a.title} (${a.source?.name})`).join('\n')}` : '',
-      factResult?.claims?.length ? `--- Fact Checks ---\n${factResult.claims.map((c:any)=>`• ${c.text} — ${c.claimReview?.[0]?.textualRating||'Unrated'}`).join('\n')}` : '',
-    ].filter(Boolean).join('\n')
-    const blob = new Blob([lines], {type:'text/plain'})
-    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='verifai-report.txt'; a.click()
-  }
-
-  /* ─── ring data helpers ─── */
-  const mlPct = result ? Math.round(result.confidence) : 0
-  const aiPct = aiResult?.confidence ?? 0
-  const gnewsPct = gnewsResult?.articles?.length > 0 ? Math.min(90, gnewsResult.articles.length * 15) : 0
-  const factPct = factResult?.claims?.length > 0 ? 85 : (factResult ? 40 : 0)
+  // Loading guard after all hooks
+  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
 
   const greeting = (() => {
     const h = new Date().getHours()
@@ -258,16 +96,39 @@ export function Dashboard() {
     return "Good evening"
   })()
 
+  const DonutChart = () => {
+    const size = 140, cx = size / 2, cy = size / 2, r = 50, stroke = 14
+    const circumference = 2 * Math.PI * r
+    const realArc = (realCount / total) * circumference
+    const fakeArc = (fakeCount / total) * circumference
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--border))" strokeWidth={stroke} opacity="0.3" />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#4ADE80" strokeWidth={stroke}
+          strokeDasharray={`${realArc} ${circumference}`} strokeDashoffset="0"
+          transform={`rotate(-90 ${cx} ${cy})`} strokeLinecap="round" className="transition-all duration-700" />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="hsl(var(--destructive))" strokeWidth={stroke}
+          strokeDasharray={`${fakeArc} ${circumference}`} strokeDashoffset={`-${realArc}`}
+          transform={`rotate(-90 ${cx} ${cy})`} strokeLinecap="round" className="transition-all duration-700" />
+        <text x={cx} y={cy - 6} textAnchor="middle" className="fill-foreground text-2xl font-bold" fontSize="22">{totalAnalyzed}</text>
+        <text x={cx} y={cy + 12} textAnchor="middle" className="fill-muted-foreground" fontSize="10">Total</text>
+      </svg>
+    )
+  }
+
+  const recentFive = allHistory.slice(0, 5)
+
   return (
     <div className="bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-6xl mx-auto">
-        {/* ── Executive Brief Card ── */}
+
+        {/* Greeting Header */}
         <div className="card-enterprise p-6 mb-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-accent to-primary" />
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-heading font-extrabold tracking-tight">{greeting}, {user?.name?.split(" ")[0]}</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Here's your misinformation detection overview for today.</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Here's your misinformation detection overview.</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="stat-pill"><span className="w-2 h-2 rounded-full bg-[#4ADE80] animate-pulse inline-block mr-1.5" />System Online</span>
@@ -276,589 +137,267 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* ── Key Indicators Grid ── */}
-        {communityStats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger-children">
-            {[
-              { val: communityStats.total_analyses?.toLocaleString() ?? "—", label: "Total Checks", icon: "🔍", color: "bg-primary/10 text-primary" },
-              { val: communityStats.fake_percentage ? `${communityStats.fake_percentage}%` : "—", label: "Detected Fake", icon: "⚠️", color: "bg-destructive/10 text-destructive" },
-              { val: communityStats.avg_confidence ? `${communityStats.avg_confidence}%` : "—", label: "Avg Confidence", icon: "📊", color: "bg-accent/10 text-accent" },
-              { val: communityStats.today_count?.toLocaleString() ?? "—", label: "Today", icon: "📅", color: "bg-[#4ADE80]/10 text-[#4ADE80]" },
-            ].map((s, i) => (
-              <div key={i} className="card-enterprise p-4 flex items-center gap-3 fade-up-stagger">
-                <div className={`w-10 h-10 rounded-xl ${s.color} flex items-center justify-center text-lg shrink-0`}>{s.icon}</div>
-                <div>
-                  <div className="text-xl font-heading font-bold">{s.val}</div>
-                  <div className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest">{s.label}</div>
-                </div>
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <Link to="/analytics" className="card-enterprise p-5 hover:border-primary/40 transition-all group cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"><Search className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold group-hover:text-primary transition-colors">Analyze Content</div>
+                <div className="text-[10px] text-muted-foreground">Check text, URL, or audio</div>
               </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+          </Link>
+          <Link to="/history" className="card-enterprise p-5 hover:border-primary/40 transition-all group cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center"><Clock className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold group-hover:text-primary transition-colors">View History</div>
+                <div className="text-[10px] text-muted-foreground">{allHistory.length} analyses stored</div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+          </Link>
+          <Link to="/compare" className="card-enterprise p-5 hover:border-primary/40 transition-all group cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#4ADE80]/10 text-[#4ADE80] flex items-center justify-center"><ShieldCheck className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold group-hover:text-primary transition-colors">Compare Articles</div>
+                <div className="text-[10px] text-muted-foreground">Side-by-side verification</div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+          </Link>
+        </div>
+
+        {/* Community + User Stat Cards */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Your Statistics</h2>
+          <div className="flex gap-1.5">
+            {([
+              [7, "7D"], [30, "30D"], [90, "90D"], [0, "All"]
+            ] as [number, string][]).map(([v, label]) => (
+              <button key={v} onClick={() => setRange(v as any)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-colors ${range === v ? "bg-primary/15 border-primary/40 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                {label}
+              </button>
             ))}
           </div>
-        )}
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* ── Left: Input Panel ── */}
-          <div className="lg:col-span-7 flex flex-col gap-6">
-            <div className="card-enterprise overflow-hidden">
-              {/* Tabs */}
-              <div className="flex border-b border-border">
-                {([["text", FileText, "Text"], ["url", LinkIcon, "URL"], ["audio", Mic, "Audio"]] as const).map(([key, Icon, label]) => (
-                  <button key={key} onClick={() => setActiveTab(key as any)}
-                    className={`flex-1 py-3.5 text-sm font-medium flex items-center justify-center gap-2 transition-all relative ${activeTab === key ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
-                    <Icon className="w-4 h-4" /> {label}
-                    {activeTab === key && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
-                  </button>
-                ))}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger-children">
+          {[
+            { label: "ARTICLES ANALYZED", value: totalAnalyzed, icon: <Activity className="w-4 h-4" />, color: "text-primary bg-primary/10" },
+            { label: "FAKE DETECTED", value: fakeCount, icon: <TrendingDown className="w-4 h-4" />, color: "text-destructive bg-destructive/10" },
+            { label: "VERIFIED REAL", value: realCount, icon: <TrendingUp className="w-4 h-4" />, color: "text-[#4ADE80] bg-[#4ADE80]/10" },
+            { label: "AVG CONFIDENCE", value: `${avgConf.toFixed(1)}%`, icon: <Target className="w-4 h-4" />, color: "text-accent bg-accent/10" },
+          ].map((s, i) => (
+            <div key={i} className="card-enterprise p-5 fade-up-stagger">
+              <div className="flex items-center justify-between mb-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${s.color}`}>{s.icon}</div>
               </div>
+              <div className="text-2xl font-heading font-bold">{s.value}</div>
+              <div className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest mt-1">{s.label}</div>
+            </div>
+          ))}
+        </div>
 
-              <div className="p-6">
-                {/* Text tab */}
-                {activeTab === "text" && (
-                  <div className="animate-fade-in">
-                    <textarea placeholder="Paste the news article or social media post here..."
-                      className="w-full h-48 bg-background border border-border rounded-lg p-4 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                      value={inputText} onChange={e => setInputText(e.target.value)} maxLength={5000} />
-
-                    {/* Feature 2: Char count + Sensitivity + Translate */}
-                    <div className="flex items-center justify-between mt-2 mb-4 gap-3 flex-wrap">
-                      <span className="text-xs text-muted-foreground">
-                        {inputText.length} / 5,000 chars
-                        {inputText.trim() && <> · {inputText.trim().split(/\s+/).length} words · ~{Math.max(1, Math.ceil(inputText.trim().split(/\s+/).length / 200))} min read</>}
-                      </span>
-                      <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input type="checkbox" checked={translateEnabled} onChange={e => setTranslateEnabled(e.target.checked)}
-                            className="w-3.5 h-3.5 accent-primary cursor-pointer" />
-                          <span className="text-xs text-muted-foreground">Translate</span>
-                        </label>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">Sensitivity:</span>
-                        <input type="range" min={0} max={100} value={sensitivity}
-                          onChange={e => setSensitivity(+e.target.value)}
-                          className="w-20 h-1 accent-primary cursor-pointer" />
-                          <span className="text-xs font-medium text-primary w-8">{(sensitivity / 100).toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Input quality warnings */}
-                    {inputText.trim().length > 0 && (() => {
-                      const txt = inputText.trim()
-                      const warns: { icon: string; msg: string; level: 'warn' | 'error' }[] = []
-                      if (txt.length < 50) warns.push({ icon: '⚠️', msg: 'Very short text — results may be unreliable', level: 'warn' })
-                      else if (txt.length < 150) warns.push({ icon: '💡', msg: 'Short text — longer articles yield better accuracy', level: 'warn' })
-                      const capsRatio = (txt.replace(/[^A-Z]/g, '').length) / Math.max(txt.replace(/[^a-zA-Z]/g, '').length, 1)
-                      if (capsRatio > 0.6 && txt.length > 20) warns.push({ icon: '🔠', msg: 'Excessive caps detected — common in clickbait', level: 'warn' })
-                      const urlCount = (txt.match(/https?:\/\//g) || []).length
-                      if (urlCount > 3) warns.push({ icon: '🔗', msg: `${urlCount} URLs found — consider using the URL tab instead`, level: 'warn' })
-                      const words = txt.split(/\s+/)
-                      const unique = new Set(words.map(w => w.toLowerCase()))
-                      if (words.length > 20 && unique.size / words.length < 0.4) warns.push({ icon: '🔁', msg: 'Repetitive text detected — may skew analysis', level: 'warn' })
-                      if (/[\u0900-\u097F\u0980-\u09FF\u0600-\u06FF\u4E00-\u9FFF\u3040-\u309F]/.test(txt) && !translateEnabled)
-                        warns.push({ icon: '🌐', msg: 'Non-English script detected — enable "Translate" for better results', level: 'error' })
-                      return warns.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5 mb-3">
-                          {warns.map((w, i) => (
-                            <span key={i} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium ${
-                              w.level === 'error' ? 'bg-destructive/10 text-destructive' : 'bg-accent/10 text-accent'}`}>
-                              {w.icon} {w.msg}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null
-                    })()}
-
-                    <button className="w-full btn-gradient rounded-xl py-3.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleAnalyzeText} disabled={loading}>
-                      {loading ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</span> : "Analyze Content →"}
-                    </button>
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Donut */}
+          <div className="card-enterprise p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <PieChart className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-semibold">Prediction Distribution</h3>
+            </div>
+            <div className="flex items-center justify-center gap-8">
+              <DonutChart />
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full bg-[#4ADE80]" />
+                  <div>
+                    <div className="text-lg font-bold">{realPercent}%</div>
+                    <div className="text-[10px] text-muted-foreground font-mono uppercase">Real ({realCount})</div>
                   </div>
-                )}
-
-                {/* URL tab */}
-                {activeTab === "url" && (
-                  <div className="animate-fade-in space-y-4">
-                    <input type="url" placeholder="https://example.com/news-article"
-                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      value={inputUrl} onChange={e => setInputUrl(e.target.value)} />
-                    <Button className="w-full" size="lg" onClick={handleAnalyzeUrl} disabled={loading}>
-                      {loading ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Fetching & Analyzing...</span> : "Analyze URL"}
-                    </Button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full bg-destructive" />
+                  <div>
+                    <div className="text-lg font-bold">{fakePercent}%</div>
+                    <div className="text-[10px] text-muted-foreground font-mono uppercase">Fake ({fakeCount})</div>
                   </div>
-                )}
-
-                {/* Audio tab */}
-                {activeTab === "audio" && (
-                  <div className="animate-fade-in text-center py-8">
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors ${recording ? 'bg-destructive/20 text-destructive animate-pulse' : 'bg-primary/10 text-primary'}`}>
-                      {recording ? <Mic className="w-8 h-8" /> : <FileAudio className="w-8 h-8" />}
-                    </div>
-                    <h3 className="text-lg font-medium mb-2">{recording ? 'Recording...' : 'Voice Input'}</h3>
-                    <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
-                      {recording ? 'Speak clearly into your microphone. Click Stop when done.' : 'Record live or upload an audio file. We\'ll transcribe and analyze.'}
-                    </p>
-                    <input type="file" accept="audio/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-                    <div className="flex gap-3 justify-center">
-                      {recording ? (
-                        <Button variant="outline" size="lg" onClick={stopRecording} className="border-destructive/50 text-destructive hover:bg-destructive/10">
-                          ⏹ Stop Recording
-                        </Button>
-                      ) : (
-                        <>
-                          <Button variant="outline" size="lg" onClick={startRecording} disabled={loading}>
-                            <Mic className="w-4 h-4 mr-2" /> Record
-                          </Button>
-                          <Button variant="outline" size="lg" onClick={() => fileInputRef.current?.click()} disabled={loading}>
-                            {loading
-                              ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Processing...</span>
-                              : <span className="flex items-center gap-2"><Upload className="w-4 h-4" /> Upload File</span>}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {error && (
-                  <div className="mt-4 p-3 bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-lg flex items-start gap-2">
-                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" /><p>{error}</p>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* ── Right: Results Panel ── */}
-          <div className="lg:col-span-5 flex flex-col gap-6">
-            {result ? (
-              <>
-                {/* Verdict card */}
-                <div className={`card-enterprise p-6 animate-fade-up relative overflow-hidden ${result.prediction === "FAKE" ? "border-verdict-fake" : "border-verdict-real"}`}>
-                  <div className={`absolute top-0 left-0 right-0 h-1 ${result.prediction === "FAKE" ? "bg-destructive" : "bg-[#4ADE80]"}`} />
-                  <div className="flex items-center gap-4 mb-6">
-                    {/* Confidence gauge */}
-                    <div className="relative w-16 h-16 shrink-0">
-                      <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
-                        <circle cx="40" cy="40" r="34" fill="none" stroke="hsl(var(--border))" strokeWidth="6" />
-                        <circle cx="40" cy="40" r="34" fill="none"
-                          stroke={result.prediction === "FAKE" ? "hsl(var(--destructive))" : "#4ADE80"}
-                          strokeWidth="6" strokeLinecap="round"
-                          strokeDasharray={`${2 * Math.PI * 34}`}
-                          strokeDashoffset={`${2 * Math.PI * 34 * (1 - result.confidence / 100)}`}
-                          className="transition-all duration-1000" />
-                      </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-sm font-heading font-bold">{Math.round(result.confidence)}%</span>
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-heading font-extrabold uppercase tracking-wide">{result.prediction}</h2>
-                      <p className="text-xs text-muted-foreground font-mono">{result.confidence_tier} · {result.confidence.toFixed(1)}%</p>
-                    </div>
-                  </div>
-
-                  {/* Probability bars */}
-                  <div className="space-y-4">
-                    {[
-                      { label: "Fake Probability", val: result.fake_probability, color: "bg-destructive" },
-                      { label: "Real Probability", val: result.real_probability, color: "bg-[#4ADE80]" },
-                      { label: "Red Flag Severity", val: result.red_flag_score / 10, color: "bg-accent", fmt: `${result.red_flag_score}/10` },
-                    ].map((b, i) => (
-                      <div key={i}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-muted-foreground text-xs">{b.label}</span>
-                          <span className="font-heading font-bold text-xs">{b.fmt ?? `${(b.val * 100).toFixed(1)}%`}</span>
-                        </div>
-                        <div className="h-2 w-full bg-background rounded-full overflow-hidden">
-                          <div className={`h-full ${b.color} transition-all duration-500 rounded-full`} style={{ width: `${(b.fmt ? b.val : b.val) * 100}%` }} />
-                        </div>
+          {/* Confidence Histogram */}
+          <div className="card-enterprise p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <BarChart3 className="w-4 h-4 text-accent" />
+              <h3 className="text-sm font-semibold">Confidence Distribution</h3>
+            </div>
+            {(() => {
+              const maxCount = Math.max(...confBuckets.map(b => b.count), 1)
+              const barH = 100
+              return (
+                <div className="flex items-end justify-around gap-2" style={{ height: barH + 30 }}>
+                  {confBuckets.map((b, i) => {
+                    const h = (b.count / maxCount) * barH
+                    return (
+                      <div key={i} className="flex flex-col items-center gap-1 flex-1">
+                        <span className="text-[10px] text-muted-foreground font-mono">{b.count}</span>
+                        <div className="w-full rounded-t-md bg-gradient-to-t from-primary/80 to-accent/80 transition-all duration-500 hover:opacity-80"
+                          style={{ height: Math.max(h, 2) }} title={`${b.label}: ${b.count} analyses`} />
+                        <span className="text-[9px] text-muted-foreground font-mono">{b.label}</span>
                       </div>
-                    ))}
-                  </div>
-
-                  {/* Indicator words */}
-                  {(result.fake_indicator_words?.length > 0 || result.real_indicator_words?.length > 0) && (
-                    <div className="mt-5 pt-4 border-t border-border">
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Key Indicator Words</h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {result.fake_indicator_words?.slice(0, 5).map((w: string, i: number) => (
-                          <span key={`f${i}`} className="text-xs bg-destructive/15 text-destructive px-2 py-0.5 rounded-full">{w}</span>
-                        ))}
-                        {result.real_indicator_words?.slice(0, 5).map((w: string, i: number) => (
-                          <span key={`r${i}`} className="text-xs bg-[#4ADE80]/15 text-[#4ADE80] px-2 py-0.5 rounded-full">{w}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {result.input_quality !== "sufficient" && (
-                    <div className="mt-4 p-3 bg-accent/10 border border-accent/30 rounded-lg">
-                      <p className="text-xs text-accent font-medium">
-                        ⚠️ {result.input_quality === "short_claim" ? "Very short input — confidence capped at 60%." : "Short headline — confidence capped at 80%."} Paste the full article for best results.
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground/50">Model v{result.model_version} · {result.timestamp?.split("T")[0]} · {processingMs < 1000 ? `${processingMs}ms` : `${(processingMs / 1000).toFixed(1)}s`}</span>
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => { addBookmark(result, inputText); toast('Bookmarked!', 'success') }}
-                        className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
-                        🔖 Save
-                      </button>
-                      <button onClick={() => analyzeData(inputText)}
-                        className="text-[11px] text-primary hover:underline flex items-center gap-1">
-                        ↻ Re-analyze
-                      </button>
-                    </div>
-                  </div>
+                    )
+                  })}
                 </div>
-
-                {/* Feature 3: 4-source verification rings */}
-                <div className="grid grid-cols-2 gap-3 animate-fade-up" style={{ animationDelay: "0.15s" }}>
-                  <Ring pct={mlPct} color="hsl(var(--primary))" label="ML Model" detail="5-model ensemble" />
-                  <Ring pct={aiPct} color="#a78bfa" label="AI Analysis" detail={aiResult ? (aiResult.verdict || "Done") : "Loading..."} />
-                  <Ring pct={gnewsPct} color="#38bdf8" label="GNews" detail={gnewsResult ? `${gnewsResult.articles?.length ?? 0} sources` : "Searching..."} />
-                  <Ring pct={factPct} color="#facc15" label="Fact Check" detail={factResult ? `${factResult.claims?.length ?? 0} claims found` : "Checking..."} />
-                </div>
-
-                {/* Feature 4: AI Analysis panel */}
-                {aiResult && (
-                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.25s" }}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="w-4 h-4 text-[#a78bfa]" />
-                      <h3 className="text-sm font-semibold">AI Verification</h3>
-                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
-                        aiResult.verdict === "LIKELY_TRUE" ? "bg-[#4ADE80]/15 text-[#4ADE80]" :
-                        aiResult.verdict === "LIKELY_FALSE" ? "bg-destructive/15 text-destructive" :
-                        "bg-accent/15 text-accent"
-                      }`}>{aiResult.verdict?.replace(/_/g, " ") || aiResult.credibility}</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{aiResult.analysis || "No detailed analysis available."}</p>
-                  </div>
-                )}
-
-                {/* Feature 5: User feedback */}
-                <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.3s" }}>
-                  <h3 className="text-sm font-semibold mb-2">Was this prediction correct?</h3>
-                  {feedbackSent ? (
-                    <p className="text-xs text-[#4ADE80]">✓ Thank you for your feedback!</p>
-                  ) : (
-                    <div className="flex gap-3">
-                      <Button variant="outline" size="sm" onClick={() => sendFeedback(true)}>
-                        <ThumbsUp className="w-4 h-4 mr-1.5" /> Yes, correct
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => sendFeedback(false)}>
-                        <ThumbsDown className="w-4 h-4 mr-1.5" /> No, wrong
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Share Results */}
-                <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.32s" }}>
-                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Share2 className="w-4 h-4" /> Share Results</h3>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                      const text = `VERIFAI: "${inputText.slice(0, 60)}..." → ${result.prediction} (${result.confidence.toFixed(1)}% confidence)`
-                      navigator.clipboard.writeText(text).then(() => {
-                        const btn = document.getElementById('copy-btn')
-                        if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => btn.textContent = '📋 Copy', 2000) }
-                      })
-                    }}>
-                      <span id="copy-btn">📋 Copy</span>
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                      const text = encodeURIComponent(`VERIFAI analysis: ${result.prediction} (${result.confidence.toFixed(1)}%) — Try it: https://fake-news-detector-8djq.onrender.com`)
-                      window.open(`https://wa.me/?text=${text}`, '_blank')
-                    }}>
-                      💬 WhatsApp
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                      const text = encodeURIComponent(`Just verified a news article using @VerifAI_app — ${result.prediction} with ${result.confidence.toFixed(1)}% confidence! Try it:`)
-                      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent('https://fake-news-detector-8djq.onrender.com')}`, '_blank')
-                    }}>
-                      𝕏 Tweet
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Feature 6: Explainable AI Insights */}
-                <div className="card-enterprise overflow-hidden animate-fade-up" style={{ animationDelay: "0.35s" }}>
-                  <button onClick={() => setShowExplain(!showExplain)} className="w-full flex items-center justify-between p-5 text-left hover:bg-background/30 transition-colors">
-                    <span className="text-sm font-semibold flex items-center gap-2"><Search className="w-4 h-4 text-primary" /> Explainable AI Insights</span>
-                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showExplain ? 'rotate-180' : ''}`} />
-                  </button>
-                  {showExplain && (
-                    <div className="px-5 pb-5 space-y-3 border-t border-border pt-4">
-                      {result.red_flags?.length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Suspicious Patterns</h4>
-                          <div className="space-y-1.5">
-                            {result.red_flags.map((f: any, i: number) => (
-                              <div key={i} className="flex items-start gap-2 text-xs">
-                                <span className="text-destructive mt-0.5">🚩</span>
-                                <span className="text-muted-foreground">{typeof f === 'string' ? f : f.description || f.flag}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      <div>
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Model Confidence</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="bg-background rounded-lg p-2.5 text-center">
-                            <div className="text-lg font-bold text-foreground">{(result.real_probability*100).toFixed(0)}%</div>
-                            <div className="text-[10px] text-[#4ADE80]">Real Score</div>
-                          </div>
-                          <div className="bg-background rounded-lg p-2.5 text-center">
-                            <div className="text-lg font-bold text-foreground">{(result.fake_probability*100).toFixed(0)}%</div>
-                            <div className="text-[10px] text-destructive">Fake Score</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Feature 7: Web Sources (GNews) */}
-                {gnewsResult?.articles?.length > 0 && (
-                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.4s" }}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Globe className="w-4 h-4 text-[#38bdf8]" />
-                      <h3 className="text-sm font-semibold">Web Sources</h3>
-                      <span className="ml-auto text-xs text-muted-foreground">{gnewsResult.articles.length} found</span>
-                    </div>
-                    <div className="space-y-2.5">
-                      {gnewsResult.articles.slice(0, 5).map((a: any, i: number) => (
-                        <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 group p-2 rounded-lg hover:bg-background/50 transition-colors">
-                          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0 group-hover:text-primary" />
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium text-foreground group-hover:text-primary truncate">{a.title}</p>
-                            <p className="text-[10px] text-muted-foreground">{a.source?.name} · {a.publishedAt?.split('T')[0]}</p>
-                          </div>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Feature 8: Fact Check Database */}
-                {factResult && (
-                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.45s" }}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Search className="w-4 h-4 text-[#facc15]" />
-                      <h3 className="text-sm font-semibold">Fact Check Database</h3>
-                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${factResult.claims?.length ? 'bg-[#facc15]/15 text-[#facc15]' : 'bg-muted text-muted-foreground'}`}>
-                        {factResult.claims?.length ? `${factResult.claims.length} MATCHES` : 'NO MATCHES'}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mb-3">Cross-referenced against 200+ fact-checking organizations.</p>
-                    {factResult.claims?.length > 0 ? (
-                      <div className="space-y-2">
-                        {factResult.claims.slice(0, 4).map((c: any, i: number) => (
-                          <div key={i} className="bg-background rounded-lg p-3">
-                            <p className="text-xs font-medium text-foreground mb-1">{c.text}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              Rating: <span className="font-medium text-[#facc15]">{c.claimReview?.[0]?.textualRating || 'Unrated'}</span>
-                              {c.claimReview?.[0]?.publisher?.name && ` · ${c.claimReview[0].publisher.name}`}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">No matching claims found in fact-check databases.</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Safe Browsing panel */}
-                {safeBrowsing && (
-                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.48s" }}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <ShieldCheck className="w-4 h-4 text-[#4ADE80]" />
-                      <h3 className="text-sm font-semibold">Safe Browsing</h3>
-                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
-                        safeBrowsing.safe ? 'bg-[#4ADE80]/15 text-[#4ADE80]' : 'bg-destructive/15 text-destructive'}`}>
-                        {safeBrowsing.safe ? 'SAFE' : 'THREATS FOUND'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {safeBrowsing.safe
-                        ? 'URL passed all safety checks. No malware, phishing, or social engineering detected.'
-                        : `Threats: ${safeBrowsing.threats?.join(', ') || 'Unknown'}. Exercise caution.`}
-                    </p>
-                  </div>
-                )}
-
-                {/* Source Credibility panel */}
-                {credibility && (
-                  <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.49s" }}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Globe className="w-4 h-4 text-[#a78bfa]" />
-                      <h3 className="text-sm font-semibold">Source Credibility</h3>
-                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
-                        (credibility.score ?? 50) >= 70 ? 'bg-[#4ADE80]/15 text-[#4ADE80]' :
-                        (credibility.score ?? 50) >= 40 ? 'bg-accent/15 text-accent' :
-                        'bg-destructive/15 text-destructive'}`}>
-                        {credibility.score ?? 50}/100
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="h-2 w-full bg-background rounded-full overflow-hidden">
-                        <div className={`h-full transition-all duration-500 ${
-                          (credibility.score ?? 50) >= 70 ? 'bg-[#4ADE80]' : (credibility.score ?? 50) >= 40 ? 'bg-accent' : 'bg-destructive'
-                        }`} style={{ width: `${credibility.score ?? 50}%` }} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {credibility.domain && <><span className="font-medium text-foreground">{credibility.domain}</span> · </>}
-                        {credibility.category || 'Unknown category'}
-                        {credibility.description && ` · ${credibility.description}`}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Feature 9: Export Report */}
-                <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.5s" }}>
-                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Download className="w-4 h-4" /> Export Report</h3>
-                  <div className="flex gap-3">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={exportText}>
-                      📝 Export as Text
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { window.print() }}>
-                      📄 Print / PDF
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Feature 10: Educator Mode */}
-                <div className="card-enterprise overflow-hidden animate-fade-up" style={{ animationDelay: "0.55s" }}>
-                  <div className="flex items-center justify-between p-5">
-                    <span className="text-sm font-semibold flex items-center gap-2"><GraduationCap className="w-4 h-4 text-primary" /> Educator Mode</span>
-                    <button onClick={() => setShowEducator(!showEducator)}
-                      className={`w-10 h-5 rounded-full transition-colors ${showEducator ? 'bg-primary' : 'bg-muted'} relative`}>
-                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${showEducator ? 'left-5' : 'left-0.5'}`} />
-                    </button>
-                  </div>
-                  {showEducator && (
-                    <div className="px-5 pb-5 border-t border-border pt-4 space-y-3">
-                      {[
-                        { step: 1, title: 'Text Preprocessing', desc: 'Input cleaned, normalized, and tokenized. HTML tags, special characters removed.' },
-                        { step: 2, title: 'TF-IDF Vectorization', desc: `Text converted to ${result.model_version ? '25,020' : 'N'} numerical features using term frequency-inverse document frequency.` },
-                        { step: 3, title: 'Meta-Feature Extraction', desc: '20 handcrafted features: readability, sentiment, entity density, sentence structure.' },
-                        { step: 4, title: 'ML Ensemble Voting', desc: '5 models (LR, RF, SGD, SVC, LightGBM) independently classify and vote.' },
-                        { step: 5, title: 'Red Flag Scan', desc: `Heuristic scanner detected ${result.red_flag_score}/10 severity across ${result.red_flags?.length || 0} patterns.` },
-                        { step: 6, title: 'Final Verdict', desc: `Combined score: ${result.confidence.toFixed(1)}% confidence → ${result.prediction}.` },
-                      ].map(s => (
-                        <div key={s.step} className="flex gap-3">
-                          <div className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center shrink-0">{s.step}</div>
-                          <div>
-                            <p className="text-xs font-semibold text-foreground">{s.title}</p>
-                            <p className="text-[11px] text-muted-foreground leading-relaxed">{s.desc}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* India Threat Scanner */}
-                {(() => {
-                  const txt = inputText.toLowerCase()
-                  const threats: { type: string; label: string; desc: string }[] = []
-                  if (/upi|paytm|phonepe|google\s*pay|bhim|gpay/.test(txt) && /reward|prize|won|cashback|offer|rupee|lakhs?|crore/.test(txt))
-                    threats.push({ type: "🏦", label: "UPI Fraud Alert", desc: "Contains UPI app mentions with prize/reward language — common payment scam pattern." })
-                  if (/government|modi|scheme|yojana|pm[\s-]kisan|aadhaar|ayushman|pradhan\s*mantri/.test(txt) && /apply|register|click|link|form|free|subsidy/.test(txt))
-                    threats.push({ type: "🏛️", label: "Fake Govt Scheme", desc: "References government programs with suspicious call-to-action — verify on official .gov.in sites." })
-                  if (/forward|share|whatsapp|viral|send\s*to|pass\s*on|circulating/.test(txt))
-                    threats.push({ type: "📲", label: "WhatsApp Forward", desc: "Text shows forwarded message patterns — chain messages often contain unverified claims." })
-                  if (/ayurved|desi\s*ilaj|home\s*remed|cure\s*for|miracle|100%\s*effective/.test(txt) && /cancer|diabetes|covid|corona/.test(txt))
-                    threats.push({ type: "💊", label: "Health Misinformation", desc: "Contains miracle cure claims for serious diseases — consult qualified medical professionals." })
-
-                  return threats.length > 0 ? (
-                    <div className="bg-secondary rounded-xl border border-accent/30 p-5 animate-fade-up" style={{ animationDelay: "0.6s" }}>
-                      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                        🇮🇳 India Threat Scanner
-                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-accent/15 text-accent font-medium">{threats.length} ALERT{threats.length > 1 ? 'S' : ''}</span>
-                      </h3>
-                      <div className="space-y-2.5">
-                        {threats.map((t, i) => (
-                          <div key={i} className="bg-background rounded-lg p-3 flex items-start gap-2.5">
-                            <span className="text-lg">{t.type}</span>
-                            <div>
-                              <p className="text-xs font-semibold text-accent">{t.label}</p>
-                              <p className="text-[11px] text-muted-foreground leading-relaxed">{t.desc}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null
-                })()}
-              </>
-            ) : loading ? (
-              /* Skeleton loaders while analyzing */
-              <div className="flex flex-col gap-6">
-                <SkeletonCard />
-                <div className="grid grid-cols-2 gap-3">
-                  <Skeleton className="h-28 rounded-xl" />
-                  <Skeleton className="h-28 rounded-xl" />
-                  <Skeleton className="h-28 rounded-xl" />
-                  <Skeleton className="h-28 rounded-xl" />
-                </div>
-                <Skeleton className="h-24 rounded-xl" />
-              </div>
-            ) : (
-              <div className="bg-background border border-border border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center h-full min-h-[300px]">
-                <ShieldAlert className="w-12 h-12 text-muted mb-4" />
-                <h3 className="text-foreground font-medium mb-1">No Analysis Yet</h3>
-                <p className="text-muted-foreground text-sm max-w-[200px]">
-                  Submit text, a URL, or an audio file to see the AI verification results here.
-                </p>
-                <p className="text-muted-foreground/50 text-[10px] mt-3">Tip: Press Ctrl+Enter to analyze</p>
-              </div>
-            )}
+              )
+            })()}
+            {filtered.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">No data yet.</p>}
           </div>
         </div>
 
-        {/* Recent Analyses widget */}
-        {recentAnalyses.length > 0 && (
-          <div className="mt-8 bg-secondary border border-border rounded-xl p-5">
-            <h3 className="text-sm font-semibold mb-3">Recent (this session)</h3>
+        {/* Activity Trend */}
+        {(() => {
+          const days = range === 0 ? 30 : range
+          const buckets: { date: string; real: number; fake: number }[] = []
+          for (let i = days - 1; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i)
+            buckets.push({ date: d.toISOString().split("T")[0], real: 0, fake: 0 })
+          }
+          filtered.forEach((h: any) => {
+            const key = h.timestamp?.split("T")[0]
+            const b = buckets.find(x => x.date === key)
+            if (b) h.prediction === "FAKE" ? b.fake++ : b.real++
+          })
+          const maxVal = Math.max(...buckets.map(b => b.real + b.fake), 1)
+          const chartH = 120
+          const barW = Math.max(4, Math.min(16, Math.floor(600 / buckets.length) - 2))
+          return (
+            <div className="card-enterprise p-6 mb-8">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Activity Trend</h3>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className="w-2.5 h-2.5 rounded-sm bg-[#4ADE80]" /> Real</span>
+                  <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className="w-2.5 h-2.5 rounded-sm bg-destructive" /> Fake</span>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <svg width={buckets.length * (barW + 2) + 40} height={chartH + 30} className="min-w-full">
+                  <text x="0" y="12" className="fill-muted-foreground" fontSize="9">{maxVal}</text>
+                  <text x="0" y={chartH / 2 + 4} className="fill-muted-foreground" fontSize="9">{Math.round(maxVal / 2)}</text>
+                  <text x="0" y={chartH} className="fill-muted-foreground" fontSize="9">0</text>
+                  <line x1="28" y1="0" x2={buckets.length * (barW + 2) + 32} y2="0" stroke="hsl(var(--border))" strokeWidth="0.5" />
+                  <line x1="28" y1={chartH / 2} x2={buckets.length * (barW + 2) + 32} y2={chartH / 2} stroke="hsl(var(--border))" strokeWidth="0.5" strokeDasharray="4" />
+                  {buckets.map((b, i) => {
+                    const bTotal = b.real + b.fake
+                    const h = (bTotal / maxVal) * chartH
+                    const realH = bTotal > 0 ? (b.real / bTotal) * h : 0
+                    const fakeH = h - realH
+                    const x = 30 + i * (barW + 2)
+                    return (
+                      <g key={i}>
+                        <title>{b.date}: {b.real} real, {b.fake} fake</title>
+                        <rect x={x} y={chartH - h} width={barW} height={realH} rx="1" fill="#4ADE80" opacity="0.85" />
+                        <rect x={x} y={chartH - fakeH} width={barW} height={fakeH} rx="1" fill="hsl(var(--destructive))" opacity="0.85" />
+                        {(i === 0 || i === buckets.length - 1 || i % 7 === 0) && (
+                          <text x={x + barW / 2} y={chartH + 14} textAnchor="middle" className="fill-muted-foreground" fontSize="8">
+                            {b.date.slice(5)}
+                          </text>
+                        )}
+                      </g>
+                    )
+                  })}
+                </svg>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Bottom: Topic Breakdown + Recent Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Topic Breakdown */}
+          <div className="card-enterprise p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <BarChart3 className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-semibold">Topic Breakdown</h3>
+            </div>
+            <div className="space-y-3">
+              {topicMap.map(([topic, counts]) => {
+                const topicTotal = counts.real + counts.fake
+                const maxBar = Math.max(...topicMap.map(([, c]) => c.real + c.fake)) || 1
+                return (
+                  <div key={topic}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-foreground font-medium">{topic}</span>
+                      <span className="text-muted-foreground">{topicTotal} ({counts.fake} fake)</span>
+                    </div>
+                    <div className="flex h-3 rounded overflow-hidden bg-background">
+                      <div className="bg-[#4ADE80] transition-all duration-500" style={{ width: `${(counts.real / maxBar) * 100}%` }} />
+                      <div className="bg-destructive transition-all duration-500" style={{ width: `${(counts.fake / maxBar) * 100}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+              {topicMap.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No data yet. Analyze articles to see topic breakdown.</p>}
+            </div>
+          </div>
+
+          {/* Recent Analyses */}
+          <div className="card-enterprise p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-accent" />
+                <h3 className="text-sm font-semibold">Recent Analyses</h3>
+              </div>
+              <Link to="/history" className="text-[10px] text-primary hover:underline font-medium">View All →</Link>
+            </div>
             <div className="space-y-2">
-              {recentAnalyses.map((r, i) => (
-                <div key={i} className="flex items-center gap-3 bg-background rounded-lg px-3 py-2">
-                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${r.prediction === 'FAKE' ? 'bg-destructive/15 text-destructive' : 'bg-[#4ADE80]/15 text-[#4ADE80]'}`}>{r.prediction}</span>
-                  <span className="text-xs text-muted-foreground truncate flex-1">{r.preview}...</span>
-                  <span className="text-[10px] text-muted-foreground shrink-0">{r.confidence?.toFixed(0)}%</span>
+              {recentFive.length > 0 ? recentFive.map((r: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 bg-background rounded-lg px-3 py-2.5 border border-border/50">
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${r.prediction === 'FAKE' ? 'bg-destructive/15 text-destructive' : 'bg-[#4ADE80]/15 text-[#4ADE80]'}`}>{r.prediction}</span>
+                  <span className="text-xs text-muted-foreground truncate flex-1">{(r.text_preview || r.preview || "").slice(0, 60)}...</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0 font-mono">{r.confidence?.toFixed(0)}%</span>
+                </div>
+              )) : (
+                <div className="text-center py-8">
+                  <p className="text-xs text-muted-foreground">No analyses yet.</p>
+                  <Link to="/analytics" className="text-xs text-primary hover:underline mt-2 inline-block">Start your first analysis →</Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Community Stats Banner */}
+        {community && (
+          <div className="mt-8 card-enterprise p-5">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">Community Overview</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { val: community.total_analyses?.toLocaleString() ?? "—", label: "Total Checks", icon: "🔍" },
+                { val: community.fake_percentage ? `${community.fake_percentage}%` : "—", label: "Detected Fake", icon: "⚠️" },
+                { val: community.avg_confidence ? `${community.avg_confidence}%` : "—", label: "Avg Confidence", icon: "📊" },
+                { val: community.today_count?.toLocaleString() ?? "—", label: "Today", icon: "📅" },
+              ].map((s, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-lg">{s.icon}</span>
+                  <div>
+                    <div className="text-base font-heading font-bold">{s.val}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono uppercase">{s.label}</div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* Suspicious text highlighting */}
-        {result && inputText.trim() && (() => {
-          const suspiciousPatterns = [
-            { re: /\b(breaking|urgent|shocking|exclusive|alert)\b/gi, label: 'Sensational' },
-            { re: /\b(sources say|reportedly|allegedly|rumor|unconfirmed)\b/gi, label: 'Unverified' },
-            { re: /\b(miracle|100%|guaranteed|secret|they don'?t want you to know)\b/gi, label: 'Clickbait' },
-          ]
-          const found: { word: string; label: string }[] = []
-          suspiciousPatterns.forEach(p => {
-            let m; while ((m = p.re.exec(inputText)) !== null) found.push({ word: m[0], label: p.label })
-          })
-          return found.length > 0 ? (
-            <div className="mt-4 bg-secondary border border-accent/30 rounded-xl p-4">
-              <h4 className="text-xs font-semibold mb-2 text-accent">⚠️ Suspicious Keywords Found</h4>
-              <div className="flex flex-wrap gap-1.5">
-                {found.map((f, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent rounded-full text-[10px] font-medium">
-                    "{f.word}" <span className="text-muted-foreground">({f.label})</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null
-        })()}
       </div>
     </div>
   )

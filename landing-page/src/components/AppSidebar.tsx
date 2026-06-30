@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import {
   LayoutDashboard, Search, ArrowLeftRight, Layers,
-  BarChart3, History, Bookmark, Settings, MessageSquare,
+  History, Bookmark, Settings, MessageSquare,
   Info, LogOut, Sun, Moon, ChevronLeft, ChevronRight
 } from "lucide-react"
 import { useState, useEffect } from "react"
@@ -17,7 +17,7 @@ const navGroups = [
   {
     label: "Analysis",
     items: [
-      { path: "/dashboard", icon: Search, label: "Analyze", hash: "#analyze" },
+      { path: "/analytics", icon: Search, label: "Analyze" },
       { path: "/compare", icon: ArrowLeftRight, label: "Compare" },
       { path: "/batch", icon: Layers, label: "Batch Analysis" },
     ],
@@ -25,7 +25,6 @@ const navGroups = [
   {
     label: "Data",
     items: [
-      { path: "/analytics", icon: BarChart3, label: "Analytics" },
       { path: "/history", icon: History, label: "History" },
       { path: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
     ],
