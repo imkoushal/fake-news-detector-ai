@@ -267,9 +267,9 @@ export function AnalyticsPage() {
 
 
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* ÔöÇÔöÇ Left: Input Panel ÔöÇÔöÇ */}
-          <div className="lg:col-span-7 flex flex-col gap-6">
+        <div className="space-y-8">
+          {/* Input Panel — centered */}
+          <div className="max-w-3xl mx-auto">
             <div className="card-enterprise overflow-hidden">
               {/* Tabs */}
               <div className="flex border-b border-border">
@@ -398,8 +398,8 @@ export function AnalyticsPage() {
             </div>
           </div>
 
-          {/* ÔöÇÔöÇ Right: Results Panel ÔöÇÔöÇ */}
-          <div className="lg:col-span-5 flex flex-col gap-6">
+          {/* Results Panel — full width */}
+          <div className="flex flex-col gap-6">
             {result ? (
               <>
                 {/* Verdict card */}
@@ -482,13 +482,16 @@ export function AnalyticsPage() {
                   </div>
                 </div>
 
-                {/* Feature 3: 4-source verification rings */}
-                <div className="grid grid-cols-2 gap-3 animate-fade-up" style={{ animationDelay: "0.15s" }}>
+                {/* 4-source verification rings */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-up" style={{ animationDelay: "0.15s" }}>
                   <Ring pct={mlPct} color="hsl(var(--primary))" label="ML Model" detail="5-model ensemble" />
                   <Ring pct={aiPct} color="#a78bfa" label="AI Analysis" detail={aiResult ? (aiResult.verdict || "Done") : "Loading..."} />
                   <Ring pct={gnewsPct} color="#38bdf8" label="GNews" detail={gnewsResult ? `${gnewsResult.articles?.length ?? 0} sources` : "Searching..."} />
                   <Ring pct={factPct} color="#facc15" label="Fact Check" detail={factResult ? `${factResult.claims?.length ?? 0} claims found` : "Checking..."} />
                 </div>
+
+                {/* Secondary panels in 2-column grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                 {/* Feature 4: AI Analysis panel */}
                 {aiResult && (
@@ -764,6 +767,7 @@ export function AnalyticsPage() {
                     </div>
                   ) : null
                 })()}
+                </div>{/* close 2-col grid */}
               </>
             ) : loading ? (
               /* Skeleton loaders while analyzing */
