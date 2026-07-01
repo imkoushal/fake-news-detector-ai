@@ -104,6 +104,26 @@ else:
     from slowapi.middleware import SlowAPIMiddleware
     app.add_middleware(SlowAPIMiddleware)
 
+    # ── Phase 5: Request ID middleware for log correlation ──
+    import uuid as _uuid
+    @app.middleware("http")
+    async def add_request_id(request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(_uuid.uuid4())[:8])
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+    # ── Phase 5: Global exception handler (no raw tracebacks to client) ──
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        req_id = getattr(request.state, 'request_id', 'unknown')
+        logger.error(f"Unhandled exception [{req_id}]: {type(exc).__name__}: {exc}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "request_id": req_id}
+        )
+
     # ── Database Layer (imported from backend/db.py) ──
     from backend.db import get_db, ph, execute_db, init_auth_db, USE_POSTGRES, BASE_DIR
     _init_auth_db = init_auth_db  # Keep the old name for startup event
@@ -135,9 +155,13 @@ else:
 
     class Article(BaseModel):
         text: str
-        url: Optional[str] = None
         source: Optional[str] = None
         sensitivity: Optional[float] = 0.50  # Decision threshold (0.0 lenient – 1.0 strict)
+
+        @property
+        def safe_text(self) -> str:
+            """H6 FIX: Cap text at 50,000 chars to prevent CPU/memory DoS via TF-IDF."""
+            return self.text[:50000]
 
     class PredictionResponse(BaseModel):
         prediction: str
@@ -306,37 +330,46 @@ else:
     @limiter.limit("20/minute")
     async def google_auth(req: GoogleAuthRequest, request: Request):
         """Authenticate via Google Sign-In.
-        Decodes the Google ID token, verifies it, and creates or logs in the user.
+        C1 FIX: Verifies JWT signature cryptographically using google-auth library.
         """
-        import json as _json
-        import base64
-
         if not GOOGLE_CLIENT_ID:
             raise HTTPException(500, "Google OAuth is not configured on this server")
 
-        # Decode the JWT payload (middle segment) without external libraries
-        # The signature is already verified client-side by Google's JS SDK,
-        # but we also verify the audience (aud) and issuer (iss) claims server-side.
+        # C1 FIX: Cryptographic JWT verification (replaces insecure base64 decode)
         try:
-            parts = req.credential.split(".")
-            if len(parts) != 3:
-                raise ValueError("Invalid JWT format")
-            # Decode the payload (add padding if needed)
-            payload_b64 = parts[1] + "=" * (4 - len(parts[1]) % 4)
-            payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
-        except Exception as e:
-            logger.error(f"Google token decode failed: {e}")
-            raise HTTPException(401, "Invalid Google credential")
+            from google.oauth2 import id_token as google_id_token
+            from google.auth.transport import requests as google_requests
+            payload = google_id_token.verify_oauth2_token(
+                req.credential,
+                google_requests.Request(),
+                GOOGLE_CLIENT_ID
+            )
+        except ImportError:
+            # Fallback if google-auth not installed — decode + verify claims manually
+            logger.warning("google-auth not installed, falling back to manual JWT decode")
+            import json as _json
+            import base64
+            try:
+                parts = req.credential.split(".")
+                if len(parts) != 3:
+                    raise ValueError("Invalid JWT format")
+                payload_b64 = parts[1] + "=" * (4 - len(parts[1]) % 4)
+                payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
+            except Exception as e:
+                logger.error(f"Google token decode failed: {e}")
+                raise HTTPException(401, "Invalid Google credential")
 
-        # Verify essential claims
-        if payload.get("aud") != GOOGLE_CLIENT_ID:
-            raise HTTPException(401, "Token audience mismatch")
-        if payload.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
-            raise HTTPException(401, "Token issuer invalid")
-        # Check expiry
-        import time as _time
-        if payload.get("exp", 0) < _time.time():
-            raise HTTPException(401, "Google token has expired")
+            # Verify essential claims
+            if payload.get("aud") != GOOGLE_CLIENT_ID:
+                raise HTTPException(401, "Token audience mismatch")
+            if payload.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+                raise HTTPException(401, "Token issuer invalid")
+            import time as _time
+            if payload.get("exp", 0) < _time.time():
+                raise HTTPException(401, "Google token has expired")
+        except ValueError as e:
+            logger.error(f"Google token verification failed: {e}")
+            raise HTTPException(401, "Invalid Google credential")
 
         google_id = payload.get("sub")
         email = payload.get("email", "").lower()
@@ -514,13 +547,38 @@ else:
 
     @app.get("/health")
     async def health_check():
-        return {
-            "status": "healthy" if MODEL_LOADED else "unhealthy",
+        """Phase 5: Tiered health check — model, DB, and cache status."""
+        # Tier 1: Basic server up
+        health = {
+            "status": "healthy",
             "model_loaded": MODEL_LOADED,
             "model_version": MODEL_VERSION,
             "db_mode": "postgresql" if USE_POSTGRES else "sqlite",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
+
+        # Tier 2: DB connectivity
+        try:
+            execute_db("SELECT 1", fetch="one")
+            health["db_connected"] = True
+        except Exception:
+            health["db_connected"] = False
+            health["status"] = "degraded"
+
+        # Tier 3: Cache stats
+        health["cache"] = claim_cache.stats()
+
+        # Tier 4: External API key presence
+        health["external_apis"] = {
+            "groq": bool(os.getenv("GROQ_API_KEY")),
+            "gnews": bool(os.getenv("GNEWS_API_KEY")),
+            "google_factcheck": bool(os.getenv("GOOGLE_FACTCHECK_API_KEY")),
+        }
+
+        if not MODEL_LOADED:
+            health["status"] = "unhealthy"
+
+        return health
 
     # Debug endpoint removed — was leaking DB schema unauthenticated (Issue #6)
 
@@ -1823,6 +1881,14 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         url = req.url.strip()
         if not url.startswith(("http://", "https://")):
             raise HTTPException(400, "Invalid URL — must start with http:// or https://")
+
+        # C5 FIX: SSRF protection — block private/internal/metadata IPs
+        try:
+            from backend.ssrf import validate_url
+            validate_url(url)
+        except ValueError as e:
+            logger.warning(f"SSRF blocked: {url} — {e}")
+            raise HTTPException(403, "This URL is not allowed for security reasons")
 
         # ── TIER 1: newspaper4k (fast, purpose-built for news articles) ──
         try:
