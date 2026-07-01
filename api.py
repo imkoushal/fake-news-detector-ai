@@ -197,7 +197,8 @@ else:
             err = str(e).lower()
             if "unique" in err or "duplicate" in err:
                 raise HTTPException(409, "An account with this email already exists")
-            raise HTTPException(500, str(e))
+            logger.error(f"Signup error: {e}")
+            raise HTTPException(500, "Account creation failed. Please try again.")
         finally:
             conn.close()
 
@@ -213,6 +214,8 @@ else:
             )
             user = c.fetchone()
             if not user:
+                # M5 FIX: Dummy bcrypt hash to prevent timing-based user enumeration
+                _hash_password("dummy-password-for-constant-time")
                 raise HTTPException(401, "Invalid email or password")
             if not _verify_password(req.password, user[3], user[4]):
                 raise HTTPException(401, "Invalid email or password")
@@ -441,6 +444,14 @@ else:
     @app.on_event("startup")
     async def startup_load_model():
         """Load model after the server binds the port (prevents Render port-scan timeout)."""
+        # M7 FIX: Validate critical secrets at startup — log warnings, don't crash
+        missing_keys = []
+        for key in ["GROQ_API_KEY", "GNEWS_API_KEY"]:
+            if not os.getenv(key):
+                missing_keys.append(key)
+        if missing_keys:
+            logger.warning(f"Missing API keys (features will be degraded): {', '.join(missing_keys)}")
+
         logger.info("Server is up — loading ML model in startup event...")
         _load_model()
         _init_auth_db()
@@ -1371,7 +1382,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             raise
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
-            raise HTTPException(500, f"Transcription failed: {str(e)}")
+            raise HTTPException(500, "Transcription failed. Please try a different audio file.")
 
     # ── Community Dashboard — Upgrade 8 ──
     # Public anonymized stats showing platform-wide analysis trends.
@@ -1379,51 +1390,55 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     @app.get("/api/v1/community-stats")
     async def community_stats():
         """Return anonymized, aggregated community statistics."""
-        conn = get_db()
-        c = conn.cursor()
         try:
             # Total analyses
-            c.execute("SELECT COUNT(*) FROM analyses")
-            total = c.fetchone()[0]
+            total_row = execute_db("SELECT COUNT(*) FROM analyses", fetch="one")
+            total = total_row[0] if total_row else 0
 
             # Real vs Fake breakdown
-            c.execute("SELECT prediction, COUNT(*) FROM analyses GROUP BY prediction")
-            breakdown = dict(c.fetchall())
+            breakdown_rows = execute_db("SELECT prediction, COUNT(*) FROM analyses GROUP BY prediction", fetch="all")
+            breakdown = dict(breakdown_rows) if breakdown_rows else {}
             fake_count = breakdown.get("FAKE", 0)
             real_count = breakdown.get("REAL", 0)
 
             # Average confidence
-            c.execute("SELECT COALESCE(AVG(confidence), 0) FROM analyses")
-            avg_confidence = round(c.fetchone()[0], 1)
+            avg_row = execute_db("SELECT COALESCE(AVG(confidence), 0) FROM analyses", fetch="one")
+            avg_confidence = round(avg_row[0], 1) if avg_row else 0.0
 
             # High-confidence fakes (confidence >= 80)
-            c.execute("SELECT COUNT(*) FROM analyses WHERE prediction = 'FAKE' AND confidence >= 80")
-            high_conf_fake = c.fetchone()[0]
+            high_conf_row = execute_db("SELECT COUNT(*) FROM analyses WHERE prediction = 'FAKE' AND confidence >= 80", fetch="one")
+            high_conf_fake = high_conf_row[0] if high_conf_row else 0
 
-            # Recent 7-day trend
-            c.execute("""
-                SELECT DATE(created_at) as day, prediction, COUNT(*)
+            # Recent 7-day trend (M4 FIX: cross-DB compatible date expression)
+            seven_days_ago = (datetime.now() - timedelta(days=7)).isoformat()
+            date_expr = "created_at::DATE" if USE_POSTGRES else "DATE(created_at)"
+
+            trend_rows = execute_db(f"""
+                SELECT {date_expr} as day, prediction, COUNT(*)
                 FROM analyses
-                WHERE created_at >= DATE('now', '-7 days')
+                WHERE created_at >= {ph()}
                 GROUP BY day, prediction
                 ORDER BY day
-            """)
-            trend_rows = c.fetchall()
+            """, (seven_days_ago,), fetch="all")
+
             daily_trend = {}
-            for day, pred, cnt in trend_rows:
-                if day not in daily_trend:
-                    daily_trend[day] = {"date": day, "real": 0, "fake": 0, "total": 0}
-                daily_trend[day][pred.lower()] = cnt
-                daily_trend[day]["total"] += cnt
+            if trend_rows:
+                for day, pred, cnt in trend_rows:
+                    day_str = str(day)[:10]
+                    if day_str not in daily_trend:
+                        daily_trend[day_str] = {"date": day_str, "real": 0, "fake": 0, "total": 0}
+                    daily_trend[day_str][pred.lower()] = cnt
+                    daily_trend[day_str]["total"] += cnt
             trend_data = list(daily_trend.values())
 
-            # Average red flag score
-            c.execute("SELECT COALESCE(AVG(red_flag_score), 0) FROM analyses WHERE red_flag_score > 0")
-            avg_red_flag = round(c.fetchone()[0] * 100, 1)
+            # Average red flag score (M4 FIX: use execute_db instead of undefined cursor)
+            red_flag_row = execute_db("SELECT COALESCE(AVG(red_flag_score), 0) FROM analyses WHERE red_flag_score > 0", fetch="one")
+            avg_red_flag = round(red_flag_row[0] * 100, 1) if red_flag_row else 0.0
 
-            # Today's count
-            c.execute("SELECT COUNT(*) FROM analyses WHERE DATE(created_at) = DATE('now')")
-            today_count = c.fetchone()[0]
+            # Today's count (M4 FIX: cross-DB compatible 'today' expression)
+            today_expr = "CURRENT_DATE" if USE_POSTGRES else "DATE('now')"
+            today_row = execute_db(f"SELECT COUNT(*) FROM analyses WHERE {date_expr} = {today_expr}", fetch="one")
+            today_count = today_row[0] if today_row else 0
 
         except Exception as e:
             logger.error(f"Community stats query failed: {e}")
@@ -1432,8 +1447,6 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "message": "Stats temporarily unavailable",
                 "total_analyses": 0,
             }
-        finally:
-            conn.close()
 
         # Cache stats
         cache_data = claim_cache.stats()
@@ -1569,7 +1582,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             raise
         except Exception as e:
             logger.error(f"GNews search failed: {e}")
-            raise HTTPException(502, f"GNews search failed: {str(e)}")
+            raise HTTPException(502, "GNews search failed. Please try again.")
 
     @app.post("/api/v1/batch")
     @limiter.limit("10/minute")
@@ -1596,7 +1609,8 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                     "red_flag_score": detect_fake_news_red_flags(article.text)
                 })
             except Exception as e:
-                results.append({"id": article.id, "error": str(e)})
+                logger.error(f"Batch analysis error for article {article.id}: {e}")
+                results.append({"id": article.id, "error": "Analysis failed for this article"})
 
         return {"total": len(batch.articles), "processed": len(results),
                 "results": results, "timestamp": datetime.now().isoformat()}
@@ -2021,6 +2035,13 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             # Serve actual files from dist (JS, CSS, images, etc.)
             if full_path:
                 file_path = FRONTEND_DIR / full_path
+                # M3 FIX: Prevent path traversal (e.g. ../../etc/passwd)
+                try:
+                    file_path = file_path.resolve()
+                    if not str(file_path).startswith(str(FRONTEND_DIR.resolve())):
+                        raise HTTPException(403, "Forbidden")
+                except (ValueError, OSError):
+                    raise HTTPException(400, "Invalid path")
                 if file_path.is_file():
                     return FileResponse(str(file_path))
             # Everything else → index.html (React Router handles client-side routing)
