@@ -362,7 +362,21 @@ def main():
             df["content"] = df["content"] + " " + df[col].str.strip()
 
     df["content"] = df["content"].str.replace(r"\s+", " ", regex=True).str.strip()
-    
+
+    # ML-1 FIX: Strip source datelines/bylines that leak ISOT source identity.
+    # ISOT "True" articles all carry "CITY (Reuters) -" prefix — TF-IDF learns
+    # source style rather than veracity. Strip these before training.
+    dateline_patterns = [
+        r'^[A-Z]{2,}[A-Z\s/,]*(\(Reuters\)|\(AP\)|\(AFP\))\s*[-–—]\s*',  # WASHINGTON (Reuters) -
+        r'^[A-Z][a-z]+,\s+[A-Z][a-z]+\s+\d+\s+\(Reuters\)\s*[-–—]\s*',  # London, June 5 (Reuters) -
+        r'^\([A-Z]+\)\s*[-–—]\s*',  # (REUTERS) -
+        r'^By\s+[A-Z][a-z]+\s+[A-Z][a-z]+.*?\n',  # By John Smith\n
+    ]
+    for pattern in dateline_patterns:
+        df["content"] = df["content"].str.replace(pattern, '', regex=True)
+    df["content"] = df["content"].str.strip()
+    print("  ✅ Stripped source datelines/bylines (Reuters, AP, AFP) to prevent leakage")
+
     # Remove very short texts and exact duplicates
     df = df[df["content"].str.len() > 10].drop_duplicates(subset="content").reset_index(drop=True)
 
@@ -502,9 +516,9 @@ def main():
     # --- Model 1: Logistic Regression (with RandomizedSearchCV) ---
     print("\n🎯 [1/5] Training Logistic Regression (RandomizedSearchCV)...")
     t0 = time.time()
-    # Custom weights: penalize misclassifying REAL 1.5x more than FAKE
-    CUSTOM_WEIGHTS = {0: 1.0, 1: 1.5}
-    lr_clf = LogisticRegression(max_iter=2000, class_weight=CUSTOM_WEIGHTS, random_state=42)
+    # ML-2 FIX: Removed CUSTOM_WEIGHTS. Data is already balanced (step 4),
+    # so applying class_weight={0:1.0, 1:1.5} double-corrects and biases toward REAL.
+    lr_clf = LogisticRegression(max_iter=2000, random_state=42)
     lr_param_dist = {
         "C": loguniform(0.01, 100),
         "solver": ["lbfgs", "liblinear"],
@@ -530,7 +544,7 @@ def main():
     print("\n🎯 [2/5] Training Random Forest...")
     t0 = time.time()
     rf_clf = RandomForestClassifier(
-        n_estimators=100, max_depth=15, class_weight=CUSTOM_WEIGHTS,
+        n_estimators=100, max_depth=15,
         random_state=42, n_jobs=-1
     )
     rf_clf.fit(X_train_tfidf, y_train)
@@ -540,7 +554,7 @@ def main():
     print("\n🎯 [3/5] Training SGD Classifier...")
     t0 = time.time()
     sgd_clf = SGDClassifier(
-        loss="modified_huber", max_iter=1000, class_weight=CUSTOM_WEIGHTS,
+        loss="modified_huber", max_iter=1000,
         random_state=42, n_jobs=-1
     )
     sgd_clf.fit(X_train_tfidf, y_train)
@@ -549,7 +563,7 @@ def main():
     # --- Model 4: LinearSVC (calibrated for probabilities) ---
     print("\n🎯 [4/5] Training LinearSVC (calibrated)...")
     t0 = time.time()
-    svc_base = LinearSVC(max_iter=2000, class_weight=CUSTOM_WEIGHTS, random_state=42)
+    svc_base = LinearSVC(max_iter=2000, random_state=42)
     svc_clf = CalibratedClassifierCV(svc_base, cv=3, method="sigmoid")
     svc_clf.fit(X_train_tfidf, y_train)
     eval_model("SVC", svc_clf, X_train_tfidf, y_train, X_val_tfidf, y_val, t0)
@@ -562,7 +576,7 @@ def main():
     lgbm_clf = lgb.LGBMClassifier(
         n_estimators=200, max_depth=10, learning_rate=0.1,
         num_leaves=80, min_child_samples=20, subsample=0.8,
-        class_weight=CUSTOM_WEIGHTS, random_state=42, n_jobs=-1, verbose=-1
+        random_state=42, n_jobs=-1, verbose=-1
     )
     lgbm_clf.fit(X_train_tfidf, y_train)
     eval_model("LGBM", lgbm_clf, X_train_tfidf, y_train, X_val_tfidf, y_val, t0)
@@ -592,7 +606,11 @@ def main():
     )
     # Mark all estimators as pre-fitted so VotingClassifier skips re-training
     voting_clf.estimators_ = [lr_best, rf_clf, sgd_clf, svc_clf, lgbm_clf]
-    voting_clf.le_ = None  # Not needed for binary classification with pre-fitted
+    # ML-3 FIX: Use a proper LabelEncoder so .predict() works (was le_=None → crash)
+    from sklearn.preprocessing import LabelEncoder
+    _le = LabelEncoder()
+    _le.classes_ = np.array([0, 1])
+    voting_clf.le_ = _le
     voting_clf.classes_ = np.array([0, 1])
     n_models = len(estimators)
     print(f"✅ Voting ensemble created: {n_models} base models, soft voting ({time.time()-t0:.1f}s)")
@@ -718,6 +736,20 @@ def main():
     print(f"✅ Saved OOD centroid → {MODEL_DIR / 'ood_centroid.npy'}")
     print(f"✅ Saved config       → {MODEL_DIR / 'config.json'}")
     print(f"✅ Versioned copy     → {version_dir}")
+
+    # ML-5: Generate SHA-256 checksums for model integrity verification
+    import hashlib as _hashlib
+    checksums = {}
+    for artifact_name in ["model.joblib", "tfidf.joblib", "scaler.joblib", "ood_centroid.npy"]:
+        artifact_path = MODEL_DIR / artifact_name
+        if artifact_path.exists():
+            h = _hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+            checksums[artifact_name] = h
+    checksums_path = MODEL_DIR / "checksums.json"
+    with open(checksums_path, "w") as f:
+        json.dump(checksums, f, indent=2)
+    print(f"✅ Saved checksums    → {checksums_path}")
+
     print("\n" + "=" * 80)
     print("🎉 TRAINING COMPLETE - ACCURACY: {:.2f}%".format(acc*100))
     print("=" * 80)

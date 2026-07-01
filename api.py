@@ -537,8 +537,9 @@ else:
         cleaned = clean_text(text)
         tfidf_features = tfidf.transform([cleaned])
 
-        # Compute and scale the 20 meta-features, then concatenate with TF-IDF
-        meta = compute_meta_features(text).reshape(1, -1)
+        # ML-4 FIX: Normalize whitespace to match training preprocessing
+        text_normalized = re.sub(r'\s+', ' ', text).strip()
+        meta = compute_meta_features(text_normalized).reshape(1, -1)
         meta_scaled = scaler.transform(meta)
         features = hstack([tfidf_features, meta_scaled])
 
@@ -1583,7 +1584,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             try:
                 cleaned = clean_text(article.text)
                 tfidf_features = tfidf.transform([cleaned])
-                meta = compute_meta_features(article.text).reshape(1, -1)
+                meta = compute_meta_features(re.sub(r'\s+', ' ', article.text).strip()).reshape(1, -1)
                 meta_scaled = scaler.transform(meta)
                 features = hstack([tfidf_features, meta_scaled])
                 proba = model.predict_proba(features)[0]
