@@ -1,5 +1,5 @@
 # ============================================================
-# Multi-stage Dockerfile for Fake News Detector
+# Dockerfile for Fake News Detector — Production API
 # ============================================================
 
 # --- Stage 1: Builder ---
@@ -12,12 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
+# Install production dependencies only (not spacy/streamlit/training deps)
+COPY requirements-deploy.txt ./
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .[all]
-
-# Download spaCy model
-RUN python -m spacy download en_core_web_sm || true
+    pip install --no-cache-dir -r requirements-deploy.txt
 
 # --- Stage 2: Runtime ---
 FROM python:3.11-slim as runtime
@@ -45,8 +43,7 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import requests; r = requests.get('http://localhost:8000/health'); exit(0 if r.status_code == 200 else 1)" || exit 1
 
-# Default: run Streamlit
-EXPOSE 8501 8000
+EXPOSE 8000
 
-# Entry point script
-CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+# Run the FastAPI production server
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]

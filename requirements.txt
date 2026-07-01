@@ -16,4 +16,5 @@ requests>=2.31.0
 beautifulsoup4>=4.12.0
 lxml>=5.0.0
 newspaper4k>=0.9.0
+spacy>=3.8.0
 # playwright is optional (local dev only — too heavy for Render free tier)
