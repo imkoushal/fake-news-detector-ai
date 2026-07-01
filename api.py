@@ -731,7 +731,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             "Content-Type": "application/json"
         }
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
             "messages": [
                 {"role": "system", "content": "You are an expert media analyst and fact-checker with access to live news feeds."},
                 {"role": "user", "content": prompt_text}
