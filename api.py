@@ -63,9 +63,9 @@ else:
     # ── CORS — read allowed origins from env, default to localhost for dev ──
     _cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8501,http://localhost:5173,http://localhost:5174")
     ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(",") if o.strip()]
-    # In production, the React SPA is served from the same origin, so add wildcard fallback
+    # In production, add the actual Render domain instead of wildcard
     if os.getenv("RENDER"):
-        ALLOWED_ORIGINS.append("*")
+        ALLOWED_ORIGINS.append("https://fake-news-detector-8djq.onrender.com")
 
     app.add_middleware(
         CORSMiddleware,
@@ -77,8 +77,8 @@ else:
 
     limiter = Limiter(
         key_func=lambda request: (
-            # Per-user rate limiting (3.8): use user_id for auth'd users, IP for anonymous
-            request.headers.get("Authorization", "").replace("Bearer ", "") or get_remote_address(request)
+            # Per-user rate limiting: use IP address as the key (safe, not spoofable)
+            get_remote_address(request)
         )
     )
     app.state.limiter = limiter
@@ -98,6 +98,11 @@ else:
             headers={"Retry-After": "60"}
         )
     app.add_exception_handler(RateLimitExceeded, _custom_rate_limit_handler)
+
+    # Register SlowAPI middleware so rate limits are actually enforced
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.middleware import SlowAPIMiddleware
+    app.add_middleware(SlowAPIMiddleware)
 
     # ── Database Layer (PostgreSQL in production, SQLite locally) ──
     BASE_DIR = Path(__file__).resolve().parent
@@ -767,7 +772,7 @@ else:
         real_prob, fake_prob = float(proba[1]), float(proba[0])
         red_flag_score = detect_fake_news_red_flags(text)
         # Use client-supplied sensitivity as the decision threshold
-        threshold = max(0.0, min(1.0, article.sensitivity or 0.50))
+        threshold = max(0.0, min(1.0, article.sensitivity if article.sensitivity is not None else 0.50))
         prediction = "REAL" if real_prob >= threshold else "FAKE"
         confidence = max(real_prob, fake_prob) * 100
 
@@ -2163,8 +2168,9 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     @app.get("/api/v1/admin/stats")
     async def admin_stats(request: Request):
         """Protected admin endpoint — returns global platform stats."""
+        import secrets as _secrets
         token = request.headers.get("Authorization", "").replace("Bearer ", "")
-        if not ADMIN_SECRET or token != ADMIN_SECRET:
+        if not ADMIN_SECRET or not _secrets.compare_digest(token, ADMIN_SECRET):
             raise HTTPException(403, "Admin access required")
 
         conn = get_db()
