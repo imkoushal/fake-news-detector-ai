@@ -104,250 +104,24 @@ else:
     from slowapi.middleware import SlowAPIMiddleware
     app.add_middleware(SlowAPIMiddleware)
 
-    # ── Database Layer (PostgreSQL in production, SQLite locally) ──
-    BASE_DIR = Path(__file__).resolve().parent
-    DATABASE_URL = os.environ.get("DATABASE_URL")
-    USE_POSTGRES = False
+    # ── Database Layer (imported from backend/db.py) ──
+    from backend.db import get_db, ph, execute_db, init_auth_db, USE_POSTGRES, BASE_DIR
+    _init_auth_db = init_auth_db  # Keep the old name for startup event
 
-    if DATABASE_URL:
-        try:
-            import psycopg2
-            USE_POSTGRES = True
-        except ImportError:
-            pass
-
-    if USE_POSTGRES:
-        logger.info("PostgreSQL mode — persistent cloud database")
-    else:
-        logger.info("SQLite mode — local development")
-
-    # Connection pool for PostgreSQL (reuse connections instead of opening/closing each request)
-    _pg_pool = None
-
-    if USE_POSTGRES:
-        try:
-            from psycopg2 import pool as pg_pool
-            url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-            _pg_pool = pg_pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=url)
-            logger.info("PostgreSQL connection pool created (1-10 connections)")
-        except Exception as e:
-            logger.warning(f"Failed to create PostgreSQL connection pool: {e}. Falling back to SQLite.")
-            USE_POSTGRES = False
-            _pg_pool = None
-
-    class _PooledConnection:
-        """Wraps a psycopg2 connection so that .close() returns it to the pool."""
-        def __init__(self, conn, pool):
-            self._conn = conn
-            self._pool = pool
-        def close(self):
-            try:
-                self._pool.putconn(self._conn)
-            except Exception:
-                try:
-                    self._conn.close()
-                except Exception:
-                    pass
-        def __getattr__(self, name):
-            return getattr(self._conn, name)
-
-    def get_db():
-        """Get a database connection (pooled for PostgreSQL)."""
-        if USE_POSTGRES:
-            if _pg_pool:
-                conn = _pg_pool.getconn()
-                conn.autocommit = False
-                return _PooledConnection(conn, _pg_pool)
-            else:
-                url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-                conn = psycopg2.connect(url)
-                conn.autocommit = False
-                return conn
-        else:
-            return sqlite3.connect(str(BASE_DIR / "users.db"))
-
-    def ph(n=1):
-        """Return SQL placeholder(s) — %s for PostgreSQL, ? for SQLite."""
-        p = "%s" if USE_POSTGRES else "?"
-        return ", ".join([p] * n)
-
-    # ── Centralized DB Execution Helper (Codex Fix #2) ──
-    def execute_db(query: str, params: tuple = (), *, fetch: str = "none", commit: bool = False):
-        """Run a SQL query with guaranteed connection cleanup.
-
-        Args:
-            query:  SQL string with placeholders.
-            params: Tuple of parameter values.
-            fetch:  'none' | 'one' | 'all' — what to return from the cursor.
-            commit: Whether to commit the transaction.
-
-        Returns:
-            None, a single row tuple, or a list of row tuples.
-        """
-        conn = get_db()
-        c = conn.cursor()
-        try:
-            c.execute(query, params)
-            if commit:
-                conn.commit()
-            if fetch == "one":
-                return c.fetchone()
-            elif fetch == "all":
-                return c.fetchall()
-            return None
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            conn.close()
-
-    def _init_auth_db():
-        conn = get_db()
-        c = conn.cursor()
-        if USE_POSTGRES:
-            c.execute('''CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                salt TEXT NOT NULL,
-                google_id TEXT,
-                avatar_url TEXT DEFAULT '',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            c.execute('''CREATE TABLE IF NOT EXISTS sessions (
-                token TEXT PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP
-            )''')
-            c.execute('''CREATE TABLE IF NOT EXISTS analyses (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                text_preview TEXT NOT NULL,
-                prediction TEXT NOT NULL,
-                confidence REAL NOT NULL,
-                real_prob REAL NOT NULL,
-                fake_prob REAL NOT NULL,
-                red_flag_score REAL NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-        else:
-            c.execute('''CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                salt TEXT NOT NULL,
-                google_id TEXT,
-                avatar_url TEXT DEFAULT '',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )''')
-            c.execute('''CREATE TABLE IF NOT EXISTS sessions (
-                token TEXT PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                expires_at DATETIME,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )''')
-            c.execute('''CREATE TABLE IF NOT EXISTS analyses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                text_preview TEXT NOT NULL,
-                prediction TEXT NOT NULL,
-                confidence REAL NOT NULL,
-                real_prob REAL NOT NULL,
-                fake_prob REAL NOT NULL,
-                red_flag_score REAL NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )''')
-
-        # Migration: add expires_at column if it doesn't exist (for pre-existing databases)
-        try:
-            if USE_POSTGRES:
-                c.execute("ALTER TABLE sessions ADD COLUMN expires_at TIMESTAMP")
-            else:
-                c.execute("ALTER TABLE sessions ADD COLUMN expires_at DATETIME")
-            logger.info("Migrated sessions table: added expires_at column")
-        except Exception:
-            pass  # Column already exists — this is expected
-
-        # Migration: add google_id and avatar_url columns for Google OAuth support
-        for col, col_type in [("google_id", "TEXT"), ("avatar_url", "TEXT DEFAULT ''")]:
-            try:
-                c.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
-                logger.info(f"Migrated users table: added {col} column")
-            except Exception:
-                pass  # Column already exists — this is expected
-
-        conn.commit()
-        conn.close()
-
-    # _init_auth_db() is now called in the startup event (startup_load_model)
-
-    # ── Claim Cache — Tier 1 Upgrade 3 (extracted to app/services/cache.py) ──
-    from app.services.cache import ClaimCache
+    # ── Thread-safe Claim Cache (imported from backend/cache.py) ──
+    from backend.cache import ClaimCache
     claim_cache = ClaimCache(max_size=500, ttl_seconds=3600)
     logger.info("Claim cache initialized (max=500, TTL=1h)")
 
-    def _hash_password(password: str) -> str:
-        """Hash a password using bcrypt (salt is embedded in the output)."""
-        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-    def _verify_password(password: str, stored_hash: str, stored_salt: str = "") -> bool:
-        """Verify a password against its hash.
-        Supports both bcrypt (new) and legacy SHA-256 (old) hashes.
-        """
-        if stored_salt == "bcrypt" or stored_hash.startswith("$2b$"):
-            # Modern bcrypt hash
-            return bcrypt.checkpw(password.encode(), stored_hash.encode())
-        else:
-            # Legacy SHA-256 fallback — needed until all users re-login
-            import hashlib
-            legacy = hashlib.sha256((stored_salt + password).encode()).hexdigest()
-            return legacy == stored_hash
-
-    # ── Session token TTL (7 days) ──
-    SESSION_TTL_DAYS = 7
-
-    def _sanitize_preview(text: str, max_len: int = 200) -> str:
-        """Unicode-safe text preview sanitizer (Manus AI Fix #5).
-        Strips control characters but preserves accented letters, quotes, and international text.
-        """
-        # Strip control characters (U+0000-U+001F, U+007F-U+009F) but keep printable Unicode
-        sanitized = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
-        # Collapse excessive whitespace
-        sanitized = re.sub(r'\s+', ' ', sanitized).strip()
-        # Truncate safely
-        return sanitized[:max_len]
-
-    def _get_user_from_token(request: Request):
-        """Extract user_id from auth token. Rejects expired tokens."""
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
-        if not token:
-            return None
-        conn = get_db()
-        c = conn.cursor()
-        c.execute(f"SELECT user_id, expires_at FROM sessions WHERE token = {ph()}", (token,))
-        row = c.fetchone()
-        if not row:
-            conn.close()
-            return None
-        # Check expiry (if expires_at column exists and is set)
-        if row[1]:
-            try:
-                exp = datetime.fromisoformat(str(row[1]))
-                if datetime.now() > exp:
-                    # Token expired — clean it up
-                    c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (token,))
-                    conn.commit()
-                    conn.close()
-                    return None
-            except (ValueError, TypeError):
-                pass
-        conn.close()
-        return row[0]
+    # ── Auth Helpers (imported from backend/auth.py) ──
+    from backend.auth import (
+        hash_password as _hash_password,
+        verify_password as _verify_password,
+        sanitize_preview as _sanitize_preview,
+        get_user_from_token as _get_user_from_token,
+        create_session as _create_session,
+        SESSION_TTL_DAYS,
+    )
 
     # ── Pydantic Models ──
     class SignupRequest(BaseModel):
@@ -1404,8 +1178,8 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     # Comprehensive domain reputation database with India-first focus.
     # Each entry: (credibility_score 0-100, category, bias, description)
 
-    # Source Credibility DB (extracted to app/data/credibility_db.py)
-    from app.data.credibility_db import SOURCE_CREDIBILITY_DB
+    # Source Credibility DB (moved to backend/credibility_db.py)
+    from backend.credibility_db import SOURCE_CREDIBILITY_DB
 
     def _check_source_credibility(text: str) -> dict:
         """Extract domains from text and check their credibility scores."""
@@ -1495,8 +1269,8 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         claim_cache.set(text, "source-credibility", result)
         return result
 
-    # India Threat Scanner (extracted to app/data/threat_patterns.py)
-    from app.data.threat_patterns import INDIA_THREAT_PATTERNS, scan_india_threats as _scan_india_threats
+    # India Threat Scanner (moved to backend/threat_patterns.py)
+    from backend.threat_patterns import INDIA_THREAT_PATTERNS, scan_india_threats as _scan_india_threats
 
     @app.post("/api/v1/india-threat-scan")
     @limiter.limit("20/minute")
