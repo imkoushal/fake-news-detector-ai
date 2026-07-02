@@ -35,6 +35,7 @@ try:
     import joblib
     import re
     import requests
+    import httpx
     from datetime import datetime, timedelta
     import bcrypt
     import secrets
@@ -1951,7 +1952,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             if result["word_count"] >= 20:
                 logger.info(f"URL extraction via requests+BS4: {result['word_count']} words from {url}")
                 return {**result, "url": url, "extraction_method": "beautifulsoup"}
-        except requests.exceptions.Timeout:
+        except httpx.TimeoutException:
             raise HTTPException(504, "URL fetch timed out. The site may be slow or blocking scrapers.")
         except Exception as e:
             logger.warning(f"All extraction tiers failed for {url}: {e}")
