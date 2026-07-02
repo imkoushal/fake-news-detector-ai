@@ -77,8 +77,15 @@ export function AnalyticsPage() {
   const [recentAnalyses, setRecentAnalyses] = useState<any[]>([])
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  // F4 FIX: AbortController to cancel in-flight requests
+  const abortRef = useRef<AbortController | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Cleanup on unmount — abort any pending requests
+  useEffect(() => {
+    return () => { abortRef.current?.abort() }
+  }, [])
 
   // keyboard shortcut: Ctrl+Enter to analyze
   const handleKeyboard = useCallback((e: KeyboardEvent) => {
@@ -96,13 +103,19 @@ export function AnalyticsPage() {
 
   /* ÔöÇÔöÇÔöÇ analysis helpers ÔöÇÔöÇÔöÇ */
   const analyzeData = async (text: string) => {
+    // Cancel any in-flight requests before starting new one
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setError(""); setLoading(true); setResult(null)
     setAiResult(null); setGnewsResult(null); setFactResult(null); setFeedbackSent(false)
     const t0 = performance.now()
     try {
       const res = await fetch(`${API_BASE}/api/v1/analyze`, {
         method: "POST", headers: getAuthHeaders(),
-        body: JSON.stringify({ text, sensitivity: sensitivity / 100, translate: translateEnabled })
+        body: JSON.stringify({ text, sensitivity: sensitivity / 100, translate: translateEnabled }),
+        signal: controller.signal
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || "Analysis failed")
@@ -110,21 +123,23 @@ export function AnalyticsPage() {
       setResult(data)
       setRecentAnalyses(prev => [{ preview: text.slice(0, 60), prediction: data.prediction, confidence: data.confidence, ts: new Date().toISOString() }, ...prev].slice(0, 5))
       // fire secondary APIs in parallel (non-blocking)
-      runSecondary(text)
-    } catch (err: any) { setError(err.message) }
+      runSecondary(text, controller.signal)
+    } catch (err: any) {
+      if (err.name !== 'AbortError') setError(err.message)
+    }
     finally { setLoading(false) }
   }
 
-  const runSecondary = (text: string) => {
+  const runSecondary = (text: string, signal: AbortSignal) => {
     const h = getAuthHeaders()
     // AI verification (Groq/Gemini)
-    fetch(`${API_BASE}/api/v1/smart-verify`, { method: "POST", headers: h, body: JSON.stringify({ text }) })
+    fetch(`${API_BASE}/api/v1/smart-verify`, { method: "POST", headers: h, body: JSON.stringify({ text }), signal })
       .then(r => r.ok ? r.json() : null).then(d => d && setAiResult(d)).catch(() => {})
     // GNews cross-reference
-    fetch(`${API_BASE}/api/v1/gnews-search`, { method: "POST", headers: h, body: JSON.stringify({ text: text.slice(0, 200) }) })
+    fetch(`${API_BASE}/api/v1/gnews-search`, { method: "POST", headers: h, body: JSON.stringify({ text: text.slice(0, 200) }), signal })
       .then(r => r.ok ? r.json() : null).then(d => d && setGnewsResult(d)).catch(() => {})
     // Fact check
-    fetch(`${API_BASE}/api/v1/fact-check`, { method: "POST", headers: h, body: JSON.stringify({ text: text.slice(0, 200) }) })
+    fetch(`${API_BASE}/api/v1/fact-check`, { method: "POST", headers: h, body: JSON.stringify({ text: text.slice(0, 200) }), signal })
       .then(r => r.ok ? r.json() : null).then(d => d && setFactResult(d)).catch(() => {})
   }
 

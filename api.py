@@ -491,6 +491,12 @@ else:
         _migrate_google_columns()
         _init_feedback_table()
 
+    @app.on_event("shutdown")
+    async def shutdown_close_client():
+        """H1: Close shared httpx.AsyncClient to prevent connection leaks."""
+        from backend.http_client import close_client
+        await close_client()
+
     # ── Word Explainability Helper (3.7) ──
     def _get_top_words(text: str, top_n: int = 6):
         """Return top words pushing toward FAKE and REAL using LR base estimator."""
@@ -722,7 +728,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     class GeminiRequest(BaseModel):
         text: str
 
-    def _run_gnews_search(text: str):
+    async def _run_gnews_search(text: str):
         """Internal helper: run GNews search and return structured results."""
         gnews_key = os.getenv("GNEWS_API_KEY", "")
         if not gnews_key or len(text.strip()) < 10:
@@ -734,7 +740,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             if not keywords:
                 keywords = " ".join(text.split()[:5])
 
-            import requests as req_lib
+            from backend.http_client import get_client
             params = {
                 "q": keywords,
                 "apikey": gnews_key,
@@ -742,7 +748,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "max": 10,
                 "sortby": "relevance"
             }
-            resp = req_lib.get("https://gnews.io/api/v4/search", params=params, timeout=10)
+            resp = await get_client().get("https://gnews.io/api/v4/search", params=params)
             if resp.status_code != 200:
                 return None
 
@@ -789,7 +795,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             logger.error(f"GNews search failed (internal): {e}")
             return None
 
-    def _call_groq(prompt_text: str):
+    async def _call_groq(prompt_text: str):
         """Internal helper: call Groq LLaMA API and return parsed result."""
         groq_key = os.getenv("GROQ_API_KEY", "")
         if not groq_key:
@@ -809,17 +815,18 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             "max_tokens": 500
         }
 
-        resp = requests.post(
+        from backend.http_client import get_client
+        resp = await get_client().post(
             "https://api.groq.com/openai/v1/chat/completions",
-            headers=headers, json=payload, timeout=15
+            headers=headers, json=payload
         )
 
         if resp.status_code != 200:
-            error_msg = resp.json().get("error", {}).get("message", resp.text[:200])
+            error_msg = resp.json().get("error", {}).get("message", resp.text[:200]) if resp.headers.get('content-type', '').startswith('application/json') else resp.text[:200]
             logger.error(f"Groq API error {resp.status_code}: {error_msg}")
             return None
 
-        result_text = resp.json()["choices"][0]["message"]["content"]
+        result_text = resp.json()["choices"][0]["message"]["content"] if resp.headers.get('content-type', '').startswith('application/json') else resp.text
 
         # Parse structured response
         credibility = "MEDIUM"
@@ -881,7 +888,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             return cached
 
         # Step 1: Run GNews search for live context
-        gnews_result = _run_gnews_search(text)
+        gnews_result = await _run_gnews_search(text)
 
         # Step 2: Build the prompt — RAG or simple depending on GNews results
         if gnews_result and gnews_result["total_articles"] > 0:
@@ -901,7 +908,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             logger.info("Smart verify: fallback mode (no live news context)")
 
         # Step 3: Call Groq with the enriched prompt
-        ai_result = _call_groq(prompt)
+        ai_result = await _call_groq(prompt)
 
         if not ai_result:
             groq_key = os.getenv("GROQ_API_KEY", "")
@@ -943,7 +950,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     # ── Google Fact Check API Integration ──
     GOOGLE_FACTCHECK_API_KEY = os.getenv("GOOGLE_FACTCHECK_API_KEY", "")
 
-    def _run_factcheck_search(text: str):
+    async def _run_factcheck_search(text: str):
         """Search Google Fact Check API for existing fact-checks matching this claim.
         Uses Google's ClaimReview database which indexes 200+ fact-checking orgs
         including AFP, Snopes, PolitiFact, AltNews, BoomLive, PIB India.
@@ -957,16 +964,15 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             if not keywords:
                 keywords = " ".join(text.split()[:8])
 
-            import requests as req_lib
+            from backend.http_client import get_client
             params = {
                 "query": keywords,
                 "key": GOOGLE_FACTCHECK_API_KEY,
                 "languageCode": "en",
             }
-            resp = req_lib.get(
+            resp = await get_client().get(
                 "https://factchecktools.googleapis.com/v1alpha1/claims:search",
-                params=params,
-                timeout=10
+                params=params
             )
             if resp.status_code != 200:
                 logger.warning(f"Fact Check API returned status {resp.status_code}")
@@ -1054,7 +1060,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             cached["cache_status"] = "hit"
             return cached
 
-        result = _run_factcheck_search(text)
+        result = await _run_factcheck_search(text)
 
         if result is None:
             if not GOOGLE_FACTCHECK_API_KEY:
@@ -1096,7 +1102,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 unique.append(u_clean)
         return unique[:20]  # Cap at 20 URLs
 
-    def _check_safe_browsing(urls: list):
+    async def _check_safe_browsing(urls: list):
         """Check URLs against Google Safe Browsing API.
         Returns threat info for any flagged URLs.
         """
@@ -1104,7 +1110,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             return None
 
         try:
-            import requests as req_lib
+            from backend.http_client import get_client
             payload = {
                 "client": {
                     "clientId": "fake-news-detector",
@@ -1123,10 +1129,9 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 }
             }
 
-            resp = req_lib.post(
+            resp = await get_client().post(
                 f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GOOGLE_SAFE_BROWSING_API_KEY}",
-                json=payload,
-                timeout=10
+                json=payload
             )
 
             if resp.status_code != 200:
@@ -1221,7 +1226,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "message": "Safe Browsing API not configured. Set GOOGLE_SAFE_BROWSING_API_KEY env var."
             }
 
-        result = _check_safe_browsing(urls)
+        result = await _check_safe_browsing(urls)
 
         if result is None:
             return {
@@ -1398,19 +1403,19 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             raise HTTPException(400, "Audio file too small — likely empty or corrupted.")
 
         try:
-            import requests as req_lib
+            from backend.http_client import get_client
 
-            # Send to Groq Whisper API
-            resp = req_lib.post(
+            # Send to Groq Whisper API (multipart form requires httpx Files)
+            resp = await get_client().post(
                 "https://api.groq.com/openai/v1/audio/transcriptions",
                 headers={"Authorization": f"Bearer {groq_key}"},
                 files={"file": (audio.filename or "audio.wav", audio_bytes, content_type or "audio/wav")},
                 data={
                     "model": "whisper-large-v3",
                     "response_format": "verbose_json",
-                    "language": "",  # Auto-detect language
+                    "language": "",
                 },
-                timeout=30
+                timeout=30.0
             )
 
             if resp.status_code != 200:
@@ -1583,7 +1588,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             keywords = " ".join(text.split()[:5])
 
         try:
-            import requests as req_lib
+            from backend.http_client import get_client
             params = {
                 "q": keywords,
                 "apikey": GNEWS_API_KEY,
@@ -1591,7 +1596,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "max": 10,
                 "sortby": "relevance"
             }
-            resp = req_lib.get("https://gnews.io/api/v4/search", params=params, timeout=10)
+            resp = await get_client().get("https://gnews.io/api/v4/search", params=params)
 
             if resp.status_code != 200:
                 raise HTTPException(502, f"GNews API returned status {resp.status_code}")
@@ -1938,7 +1943,8 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "Accept-Language": "en-US,en;q=0.9",
                 "Accept-Encoding": "gzip, deflate, br",
             }
-            resp = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+            from backend.http_client import get_client
+            resp = await get_client().get(url, headers=headers)
             resp.raise_for_status()
 
             result = _extract_article_from_html(resp.text)
