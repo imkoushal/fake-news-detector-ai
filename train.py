@@ -4,8 +4,9 @@ Hybrid Fake News Detector - Model Training Pipeline v4.3
 Phase 1: Consolidated data pipeline (100K+ articles), LIAR + WELFake integration,
          near-deduplication, fixed train/serve skew & data leakage.
 Phase 2: 20 handcrafted meta-features hstacked with TF-IDF.
-Phase 3: 5-model StackingClassifier (LR, RF, SGD, LinearSVC, LightGBM)
-         replaces 2-model VotingClassifier for learned model combination.
+Phase 3: 5-model soft VotingClassifier (LR, RF, SGD, LinearSVC, LightGBM)
+         replaces the earlier 2-model ensemble (averaged probabilities; see the
+         note at model-assembly for why Stacking was not used).
 Phase 4: RandomizedSearchCV for LR + LightGBM hyperparameter tuning,
          cross-domain validation (separate script).
 """
@@ -41,7 +42,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.svm import LinearSVC
-from sklearn.ensemble import StackingClassifier, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.base import clone, BaseEstimator, ClassifierMixin
 from sklearn.metrics import (

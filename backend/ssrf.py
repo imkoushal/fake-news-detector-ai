@@ -5,9 +5,12 @@ Validates URLs against private/internal IP ranges before fetching.
 import socket
 import ipaddress
 import logging
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 logger = logging.getLogger("fake_news_api")
+
+# HTTP status codes that indicate a redirect (validated per-hop by safe_get).
+_REDIRECT_STATUS = {301, 302, 303, 307, 308}
 
 # IP ranges that must NEVER be fetched by the server
 _BLOCKED_NETWORKS = [
@@ -73,3 +76,40 @@ def validate_url(url: str) -> str:
                 raise ValueError(f"URL resolves to blocked IP range: {ip}")
 
     return url
+
+
+async def safe_get(client, url: str, headers: dict | None = None, max_redirects: int = 5):
+    """SSRF-safe HTTP GET that validates the target on every redirect hop.
+
+    Auto-following redirects (httpx `follow_redirects=True`) is an SSRF bypass:
+    a public URL can 30x-redirect to an internal address (e.g. the cloud metadata
+    endpoint) which never gets re-validated. This helper disables automatic
+    redirects and re-runs `validate_url` against each `Location` before fetching it.
+
+    Note: this closes the redirect bypass. A determined attacker controlling DNS
+    could still perform a rebinding (TOCTOU) attack between validation and connect;
+    fully closing that requires pinning the resolved IP into the socket, which is
+    incompatible with TLS SNI for the https news sources this app fetches.
+
+    Args:
+        client: an ``httpx.AsyncClient``.
+        url: the initial URL (validated before the first request).
+        headers: optional request headers.
+        max_redirects: maximum number of redirect hops to follow.
+
+    Returns:
+        The final ``httpx.Response``.
+
+    Raises:
+        ValueError: if the initial URL or any redirect target is blocked, or if
+            the redirect limit is exceeded.
+    """
+    current = validate_url(url)
+    for _ in range(max_redirects + 1):
+        resp = await client.get(current, headers=headers, follow_redirects=False)
+        if resp.status_code in _REDIRECT_STATUS and "location" in resp.headers:
+            location = urljoin(current, resp.headers["location"])
+            current = validate_url(location)  # raises ValueError if blocked
+            continue
+        return resp
+    raise ValueError("Too many redirects")

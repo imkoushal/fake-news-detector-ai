@@ -32,8 +32,10 @@ if USE_POSTGRES:
     try:
         from psycopg2 import pool as pg_pool
         url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-        _pg_pool = pg_pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=url)
-        logger.info("PostgreSQL connection pool created (1-10 connections)")
+        # ThreadedConnectionPool is required: FastAPI runs sync DB calls in a
+        # threadpool, so getconn/putconn are called concurrently across threads.
+        _pg_pool = pg_pool.ThreadedConnectionPool(minconn=1, maxconn=10, dsn=url)
+        logger.info("PostgreSQL connection pool created (1-10 connections, thread-safe)")
     except Exception as e:
         logger.warning(f"Failed to create PostgreSQL connection pool: {e}. Falling back to SQLite.")
         USE_POSTGRES = False
@@ -73,7 +75,9 @@ def get_db():
             conn.autocommit = False
             return conn
     else:
-        return sqlite3.connect(str(BASE_DIR / "users.db"))
+        # check_same_thread=False: connection may be created and used within the
+        # same FastAPI threadpool worker; the per-call open/close keeps it safe.
+        return sqlite3.connect(str(BASE_DIR / "users.db"), check_same_thread=False)
 
 
 def ph(n=1):

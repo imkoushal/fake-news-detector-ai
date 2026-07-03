@@ -5,7 +5,7 @@ import re
 import logging
 import bcrypt
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from backend.db import get_db, ph
 
@@ -45,7 +45,12 @@ def sanitize_preview(text: str, max_len: int = 200) -> str:
 
 def get_user_from_token(request) -> int | None:
     """Extract user_id from auth token. Rejects expired tokens."""
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    auth_header = request.headers.get("Authorization", "").strip()
+    # Strip the "Bearer " scheme prefix only (case-insensitive), not any occurrence.
+    if auth_header[:7].lower() == "bearer ":
+        token = auth_header[7:].strip()
+    else:
+        token = auth_header
     if not token:
         return None
     conn = get_db()
@@ -55,18 +60,22 @@ def get_user_from_token(request) -> int | None:
     if not row:
         conn.close()
         return None
-    # Check expiry
+    # Check expiry — fail closed: any unparseable/invalid expiry is treated as expired.
     if row[1]:
+        expired = False
         try:
             exp = datetime.fromisoformat(str(row[1]))
-            if datetime.now() > exp:
-                # Token expired — clean it up
-                c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (token,))
-                conn.commit()
-                conn.close()
-                return None
+            # Compare using a matching aware/naive "now" so a tz-aware DB timestamp
+            # (PostgreSQL) doesn't raise and get silently accepted.
+            now = datetime.now(timezone.utc) if exp.tzinfo else datetime.now()
+            expired = now > exp
         except (ValueError, TypeError):
-            pass
+            expired = True
+        if expired:
+            c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (token,))
+            conn.commit()
+            conn.close()
+            return None
     conn.close()
     return row[0]
 

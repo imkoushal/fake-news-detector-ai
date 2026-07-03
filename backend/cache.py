@@ -2,6 +2,7 @@
 Thread-safe TTL-based in-memory LRU cache for API verification results.
 Prevents redundant external API calls for repeated viral claims.
 """
+import copy
 import hashlib
 import time
 import threading
@@ -36,7 +37,7 @@ class ClaimCache:
                 if time.time() - ts < self._ttl:
                     self._hits += 1
                     self._cache.move_to_end(key)
-                    return {**data}  # Return a copy to avoid mutation
+                    return copy.deepcopy(data)  # Deep copy to avoid mutation
                 else:
                     del self._cache[key]
             self._misses += 1
