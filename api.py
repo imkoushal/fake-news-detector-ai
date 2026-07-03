@@ -19,6 +19,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fake_news_api")
 
+# Single source of truth for the application version (keep in sync with README).
+APP_VERSION = "8.0"
+
 from scipy.sparse import hstack  # noqa: E402
 
 # Import canonical preprocessing and feature functions (same as training pipeline)
@@ -58,7 +61,7 @@ else:
     app = FastAPI(
         title="Fake News Detector API",
         description="Hybrid ML-powered fake news detection API",
-        version="5.0"
+        version=APP_VERSION,
     )
 
     # ── CORS — read allowed origins from env, default to localhost for dev ──
@@ -176,7 +179,7 @@ else:
         real_indicator_words: List[str] = []
         category: Optional[str] = None
         timestamp: str
-        model_version: str = "5.0"
+        model_version: str = APP_VERSION
 
     class BatchArticle(BaseModel):
         id: str
@@ -437,16 +440,19 @@ else:
 
     # ── ML Model Loading (deferred to startup event for fast port binding) ──
     MODEL_DIR = BASE_DIR / "models"
-    MODEL_VERSION = "5.0"  # fallback
+    MODEL_VERSION = APP_VERSION  # fallback
     MODEL_METRICS = {}
     MODEL_LOADED = False
+    # Decision threshold learned on the validation set during training (config.json).
+    # Falls back to 0.5 only if the model config is unavailable.
+    MODEL_THRESHOLD = 0.5
     model = None
     tfidf = None
     scaler = None
 
     def _load_model():
         """Load ML model artifacts. Called during FastAPI startup event."""
-        global model, tfidf, scaler, MODEL_LOADED, MODEL_VERSION, MODEL_METRICS
+        global model, tfidf, scaler, MODEL_LOADED, MODEL_VERSION, MODEL_METRICS, MODEL_THRESHOLD
         try:
             model = joblib.load(MODEL_DIR / "model.joblib")
             tfidf = joblib.load(MODEL_DIR / "tfidf.joblib")
@@ -460,6 +466,7 @@ else:
                 with open(cfg_path) as f:
                     cfg = _json.load(f)
                 MODEL_VERSION = cfg.get("version", MODEL_VERSION)
+                MODEL_THRESHOLD = float(cfg.get("threshold", MODEL_THRESHOLD))
                 model_type_name = cfg.get("model_type", model_type_name)
                 MODEL_METRICS = {
                     "accuracy": cfg.get("accuracy"),
@@ -622,8 +629,9 @@ else:
         proba = model.predict_proba(features)[0]
         real_prob, fake_prob = float(proba[1]), float(proba[0])
         red_flag_score = detect_fake_news_red_flags(text)
-        # Use client-supplied sensitivity as the decision threshold
-        threshold = max(0.0, min(1.0, article.sensitivity if article.sensitivity is not None else 0.50))
+        # Use client-supplied sensitivity as the decision threshold when provided,
+        # otherwise fall back to the threshold learned on the validation set (config.json).
+        threshold = max(0.0, min(1.0, article.sensitivity if article.sensitivity is not None else MODEL_THRESHOLD))
         prediction = "REAL" if real_prob >= threshold else "FAKE"
         confidence = max(real_prob, fake_prob) * 100
 
@@ -1115,7 +1123,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             payload = {
                 "client": {
                     "clientId": "fake-news-detector",
-                    "clientVersion": "5.0"
+                    "clientVersion": APP_VERSION
                 },
                 "threatInfo": {
                     "threatTypes": [
@@ -1539,8 +1547,8 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "hit_rate": cache_data["hit_rate"],
             },
             "platform": {
-                "version": "7.0",
-                "endpoints": 12,
+                "version": APP_VERSION,
+                "endpoints": len({r.path for r in app.routes if getattr(r, "path", "").startswith("/api/v1/")}),
                 "source_db_size": len(SOURCE_CREDIBILITY_DB),
                 "threat_categories": len(INDIA_THREAT_PATTERNS),
             },
@@ -1560,7 +1568,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         if len(text) < 10:
             raise HTTPException(400, "Text too short for verification")
 
-        result = _call_groq(AI_VERIFY_PROMPT_SIMPLE.format(text=text))
+        result = await _call_groq(AI_VERIFY_PROMPT_SIMPLE.format(text=text))
         if not result:
             raise HTTPException(502, "AI verification failed")
 
@@ -1667,7 +1675,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 proba = model.predict_proba(features)[0]
                 real_prob, fake_prob = float(proba[1]), float(proba[0])
                 results.append({
-                    "id": article.id, "prediction": "FAKE" if fake_prob > 0.5 else "REAL",
+                    "id": article.id, "prediction": "REAL" if real_prob >= MODEL_THRESHOLD else "FAKE",
                     "confidence": max(real_prob, fake_prob) * 100,
                     "real_probability": real_prob, "fake_probability": fake_prob,
                     "red_flag_score": detect_fake_news_red_flags(article.text)
@@ -1945,7 +1953,9 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "Accept-Encoding": "gzip, deflate, br",
             }
             from backend.http_client import get_client
-            resp = await get_client().get(url, headers=headers)
+            from backend.ssrf import safe_get
+            # SSRF-safe fetch: re-validates the target on every redirect hop.
+            resp = await safe_get(get_client(), url, headers=headers)
             resp.raise_for_status()
 
             result = _extract_article_from_html(resp.text)
