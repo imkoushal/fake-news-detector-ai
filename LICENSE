@@ -1,0 +1,42 @@
+Attribution-Required License (ARL)
+
+Copyright (c) 2026 Koushal Ray (https://github.com/imkoushal)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to use,
+copy, modify, merge, publish, distribute, and/or sublicense the Software,
+subject to the following conditions:
+
+1. ATTRIBUTION REQUIRED — Any project, product, application, research paper,
+   or derivative work that uses this Software (in whole or in part) MUST
+   include clearly visible credit to the original author in ALL of the
+   following forms:
+
+   a) In the project's README or documentation:
+      "Built upon Fake News Detector AI by Koushal Ray
+       (https://github.com/imkoushal/fake-news-detector-ai)"
+
+   b) In any user-facing interface (e.g., About page, footer, or credits):
+      "Powered by Fake News Detector AI — Koushal Ray"
+
+   c) In any academic or published work:
+      Cite as: "Koushal Ray. Fake News Detector AI: A Hybrid ML & RAG-Based
+      Misinformation Detection System. 2026.
+      https://github.com/imkoushal/fake-news-detector-ai"
+
+2. NOTIFICATION — If you use this Software in a public-facing product or
+   service, you must notify the original author by opening an issue or
+   sending an email within 30 days of deployment.
+
+3. NO MISREPRESENTATION — You may not claim original authorship of this
+   Software or present it as your own work without the attribution above.
+
+4. LICENSE INCLUSION — This license file must be included in all copies or
+   substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
