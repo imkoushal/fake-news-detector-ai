@@ -160,7 +160,9 @@ else:
     class Article(BaseModel):
         text: str
         source: Optional[str] = None
-        sensitivity: Optional[float] = 0.50  # Decision threshold (0.0 lenient – 1.0 strict)
+        # None → fall back to the threshold learned on the validation set (config.json).
+        # An explicit value (0.0 lenient – 1.0 strict) overrides it per-request.
+        sensitivity: Optional[float] = None
 
         @property
         def safe_text(self) -> str:
@@ -184,6 +186,11 @@ else:
     class BatchArticle(BaseModel):
         id: str
         text: str
+
+        @property
+        def safe_text(self) -> str:
+            """H6 FIX: Cap text at 50,000 chars to prevent CPU/memory DoS via TF-IDF."""
+            return self.text[:50000]
 
     class BatchRequest(BaseModel):
         articles: List[BatchArticle]
@@ -270,15 +277,17 @@ else:
 
     @app.get("/api/v1/auth/me")
     async def get_me(request: Request):
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
-        if not token:
-            raise HTTPException(401, "Not authenticated")
+        # Resolve via the shared helper so expiry is enforced (and expired
+        # sessions are purged) — consistent with every other authed endpoint.
+        user_id = _get_user_from_token(request)
+        if not user_id:
+            raise HTTPException(401, "Invalid session")
         conn = get_db()
         c = conn.cursor()
         try:
             c.execute(
-                f"SELECT u.id, u.name, u.email, u.avatar_url FROM users u JOIN sessions s ON s.user_id = u.id WHERE s.token = {ph()}",
-                (token,)
+                f"SELECT id, name, email, avatar_url FROM users WHERE id = {ph()}",
+                (user_id,)
             )
             user = c.fetchone()
             if not user:
@@ -602,7 +611,8 @@ else:
         if not MODEL_LOADED:
             raise HTTPException(503, "Model not loaded")
 
-        text = article.text.strip()
+        # H6 FIX: use safe_text (50k cap) to bound TF-IDF/meta CPU & memory.
+        text = article.safe_text.strip()
         word_count = len(text.split())
 
         # Soft validation: reject only truly empty/trivial input
@@ -1667,9 +1677,10 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         results = []
         for article in batch.articles:
             try:
-                cleaned = clean_text(article.text)
+                text = article.safe_text  # H6 FIX: bound input size
+                cleaned = clean_text(text)
                 tfidf_features = tfidf.transform([cleaned])
-                meta = compute_meta_features(re.sub(r'\s+', ' ', article.text).strip()).reshape(1, -1)
+                meta = compute_meta_features(re.sub(r'\s+', ' ', text).strip()).reshape(1, -1)
                 meta_scaled = scaler.transform(meta)
                 features = hstack([tfidf_features, meta_scaled])
                 proba = model.predict_proba(features)[0]
@@ -1678,7 +1689,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                     "id": article.id, "prediction": "REAL" if real_prob >= MODEL_THRESHOLD else "FAKE",
                     "confidence": max(real_prob, fake_prob) * 100,
                     "real_probability": real_prob, "fake_probability": fake_prob,
-                    "red_flag_score": detect_fake_news_red_flags(article.text)
+                    "red_flag_score": detect_fake_news_red_flags(text)
                 })
             except Exception as e:
                 logger.error(f"Batch analysis error for article {article.id}: {e}")
@@ -1905,10 +1916,20 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             raise HTTPException(403, "This URL is not allowed for security reasons")
 
         # ── TIER 1: newspaper4k (fast, purpose-built for news articles) ──
+        # SSRF: fetch the HTML ourselves via safe_get (which re-validates every
+        # redirect hop) and hand it to newspaper via input_html, so newspaper never
+        # issues its own redirect-following request to a possibly-internal address.
         try:
             from newspaper import Article
+            from backend.http_client import get_client
+            from backend.ssrf import safe_get
+            _t1_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            }
+            _t1_resp = await safe_get(get_client(), url, headers=_t1_headers)
+            _t1_resp.raise_for_status()
             article = Article(url)
-            article.download()
+            article.download(input_html=_t1_resp.text)
             article.parse()
             if article.text and len(article.text.split()) >= 30:
                 logger.info(f"URL extraction via newspaper4k: {len(article.text.split())} words from {url}")
@@ -1925,6 +1946,22 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         # ── TIER 2: Playwright headless browser (renders JavaScript) ──
         try:
             from playwright.sync_api import sync_playwright
+            from backend.ssrf import validate_url as _validate_url
+
+            def _ssrf_route_guard(route):
+                # SSRF: re-validate every top-level navigation (the initial request
+                # AND each redirect hop, which Playwright re-intercepts) so a 30x to
+                # an internal IP (e.g. cloud metadata) can't slip past the one-time
+                # check above. Non-navigation sub-resources are passed through.
+                req = route.request
+                if req.is_navigation_request():
+                    try:
+                        _validate_url(req.url)
+                    except ValueError:
+                        route.abort()
+                        return
+                route.continue_()
+
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 context = browser.new_context(
@@ -1932,6 +1969,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                     viewport={"width": 1280, "height": 720},
                 )
                 page = context.new_page()
+                page.route("**/*", _ssrf_route_guard)
                 page.goto(url, wait_until="domcontentloaded", timeout=15000)
                 page.wait_for_timeout(3000)  # Let JS render
                 html = page.content()
@@ -2117,14 +2155,16 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         async def serve_spa(full_path: str):
             # Serve actual files from dist (JS, CSS, images, etc.)
             if full_path:
-                file_path = FRONTEND_DIR / full_path
-                # M3 FIX: Prevent path traversal (e.g. ../../etc/passwd)
+                base = FRONTEND_DIR.resolve()
                 try:
-                    file_path = file_path.resolve()
-                    if not str(file_path).startswith(str(FRONTEND_DIR.resolve())):
-                        raise HTTPException(403, "Forbidden")
+                    file_path = (FRONTEND_DIR / full_path).resolve()
                 except (ValueError, OSError):
                     raise HTTPException(400, "Invalid path")
+                # M3 FIX: Prevent path traversal. is_relative_to avoids the
+                # `startswith` sibling-prefix bypass (e.g. .../dist-secret/x
+                # would pass a str prefix check against .../dist).
+                if not file_path.is_relative_to(base):
+                    raise HTTPException(403, "Forbidden")
                 if file_path.is_file():
                     return FileResponse(str(file_path))
             # Everything else → index.html (React Router handles client-side routing)
