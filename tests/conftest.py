@@ -48,3 +48,39 @@ def empty_text():
 @pytest.fixture
 def db_path(tmp_path):
     return str(tmp_path / "test.db")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _init_test_db(tmp_path_factory):
+    """Create the auth/analysis schema in an isolated SQLite file for the session.
+
+    The API creates these tables in its FastAPI ``startup`` event, but the test
+    suite instantiates ``TestClient(app)`` at module scope (not as a context
+    manager), so ``startup`` never fires and the ``users``/``sessions``/``analyses``
+    tables are missing. We redirect the SQLite path to a temp dir (``get_db`` reads
+    ``backend.db.BASE_DIR`` at call time) and initialise the schema explicitly, so
+    DB-backed endpoints work without polluting the repo's ``users.db``.
+    """
+    from backend import db
+
+    db.BASE_DIR = tmp_path_factory.mktemp("db")
+    db.init_auth_db()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_http_client():
+    """Isolate the shared httpx client singleton across tests.
+
+    ``backend.http_client._client`` is a lazily-created module-level singleton. In
+    the full suite it gets created inside the event loop of whichever test first
+    makes an HTTP call (e.g. a TestClient request), then leaks to later tests.
+    ``test_close_client`` runs ``asyncio.run(close_client())`` on a fresh loop, so a
+    client bound to a prior (now-closed) loop makes ``aclose()`` raise RuntimeError.
+    Reset the singleton around each test so no client crosses event loops.
+    """
+    import backend.http_client as hc
+
+    hc._client = None
+    yield
+    hc._client = None

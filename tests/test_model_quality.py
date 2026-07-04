@@ -93,7 +93,13 @@ def pipeline() -> Any:
             return X_tfidf
 
         def predict(self, X, raw_texts=None):
-            return self.model.predict(self._build_features(X, raw_texts))
+            # Production classifies via predict_proba (soft voting) + a threshold —
+            # it never calls the ensemble's hard-voting predict(), whose
+            # VotingClassifier.le_ is None for this post-hoc soft ensemble. Mirror
+            # production: derive the label from predict_proba via classes_.
+            proba = self.predict_proba(X, raw_texts)
+            classes = getattr(self.model, "classes_", np.array([0, 1]))
+            return classes[np.argmax(proba, axis=1)]
 
         def predict_proba(self, X, raw_texts=None):
             return self.model.predict_proba(self._build_features(X, raw_texts))
