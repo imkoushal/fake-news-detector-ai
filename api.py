@@ -40,6 +40,7 @@ try:
     import requests
     import httpx
     from datetime import datetime, timedelta
+    from contextlib import asynccontextmanager
     import bcrypt
     import secrets
     import sqlite3
@@ -57,11 +58,35 @@ if not FASTAPI_AVAILABLE:
         pass
     app = DummyApp()
 else:
+    # ── Lifespan handler (replaces deprecated on_event startup/shutdown) ──
+    # Forward-references _load_model / _init_auth_db / etc., which are defined
+    # further down at module scope — resolved at call time, i.e. at startup.
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # ── Startup: validate secrets, load model after the port binds ──
+        # M7 FIX: Validate critical secrets at startup — log warnings, don't crash
+        missing_keys = [k for k in ("GROQ_API_KEY", "GNEWS_API_KEY") if not os.getenv(k)]
+        if missing_keys:
+            logger.warning(f"Missing API keys (features will be degraded): {', '.join(missing_keys)}")
+
+        logger.info("Server is up — loading ML model in lifespan startup...")
+        _load_model()
+        _init_auth_db()
+        _migrate_google_columns()
+        _init_feedback_table()
+
+        yield
+
+        # ── Shutdown: H1 — close shared httpx.AsyncClient to prevent leaks ──
+        from backend.http_client import close_client
+        await close_client()
+
     # ── Initialize FastAPI ──
     app = FastAPI(
         title="Fake News Detector API",
         description="Hybrid ML-powered fake news detection API",
         version=APP_VERSION,
+        lifespan=lifespan,
     )
 
     # ── CORS — read allowed origins from env, default to localhost for dev ──
@@ -491,28 +516,8 @@ else:
             MODEL_LOADED = False
             logger.warning(f"Model could not be loaded: {e}")
 
-    @app.on_event("startup")
-    async def startup_load_model():
-        """Load model after the server binds the port (prevents Render port-scan timeout)."""
-        # M7 FIX: Validate critical secrets at startup — log warnings, don't crash
-        missing_keys = []
-        for key in ["GROQ_API_KEY", "GNEWS_API_KEY"]:
-            if not os.getenv(key):
-                missing_keys.append(key)
-        if missing_keys:
-            logger.warning(f"Missing API keys (features will be degraded): {', '.join(missing_keys)}")
-
-        logger.info("Server is up — loading ML model in startup event...")
-        _load_model()
-        _init_auth_db()
-        _migrate_google_columns()
-        _init_feedback_table()
-
-    @app.on_event("shutdown")
-    async def shutdown_close_client():
-        """H1: Close shared httpx.AsyncClient to prevent connection leaks."""
-        from backend.http_client import close_client
-        await close_client()
+    # NOTE: model loading, DB init, and httpx shutdown are handled by the
+    # `lifespan` context manager defined above (replaces deprecated on_event).
 
     # ── Word Explainability Helper (3.7) ──
     def _get_top_words(text: str, top_n: int = 6):

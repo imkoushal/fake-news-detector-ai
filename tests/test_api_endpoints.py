@@ -14,11 +14,21 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from fastapi.testclient import TestClient
 from api import app
 
+# Enter the app lifespan once so startup runs (loads the ML model into api's
+# module globals). Starlette only fires lifespan startup/shutdown when the
+# TestClient is used as a context manager — a bare TestClient(app) would leave
+# the model unloaded and skip every endpoint test. The globals persist after
+# the context exits (shutdown only closes the httpx client), so a plain client
+# is fine for the actual requests below.
+with TestClient(app):
+    pass
+
 client = TestClient(app)
 
-# Check if model is loaded (may fail in CI without lightgbm)
-_info = client.get("/api/v1/info").json()
-MODEL_LOADED = _info.get("model_loaded", False)
+# Check if model is loaded (skips ML-dependent tests only if it genuinely isn't).
+# The model_loaded flag lives on /health — /api/v1/info exposes it as
+# status == "operational" but has no model_loaded key.
+MODEL_LOADED = client.get("/health").json().get("model_loaded", False)
 
 
 # ── Health & Info ──
@@ -58,7 +68,7 @@ class TestAnalyzeEndpoint:
         "Forward this to everyone you know IMMEDIATELY!!!"
     )
 
-    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model not loaded (missing lightgbm)")
+    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model artifacts not available")
     def test_analyze_returns_prediction(self):
         r = client.post("/api/v1/analyze", json={"text": self.REAL_ARTICLE})
         assert r.status_code == 200
@@ -68,14 +78,14 @@ class TestAnalyzeEndpoint:
         assert "real_probability" in data
         assert "fake_probability" in data
 
-    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model not loaded")
+    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model artifacts not available")
     def test_analyze_returns_meta_features(self):
         r = client.post("/api/v1/analyze", json={"text": self.REAL_ARTICLE})
         data = r.json()
         assert "red_flag_score" in data
         assert "input_quality" in data
 
-    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model not loaded")
+    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model artifacts not available")
     def test_analyze_detects_fake_patterns(self):
         r = client.post("/api/v1/analyze", json={"text": self.FAKE_ARTICLE})
         data = r.json()
@@ -90,14 +100,14 @@ class TestAnalyzeEndpoint:
         r = client.post("/api/v1/analyze", json={"text": "hi"})
         assert r.status_code in [400, 422, 503]
 
-    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model not loaded")
+    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model artifacts not available")
     def test_analyze_handles_unicode(self):
         r = client.post("/api/v1/analyze", json={
             "text": "The prime minister announced a new policy to support farmers across the country with additional subsidies."
         })
         assert r.status_code == 200
 
-    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model not loaded")
+    @pytest.mark.skipif(not MODEL_LOADED, reason="ML model artifacts not available")
     def test_analyze_input_quality_short_claim(self):
         r = client.post("/api/v1/analyze", json={"text": "vaccine causes autism share now urgent"})
         data = r.json()
