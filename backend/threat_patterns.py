@@ -122,6 +122,79 @@ INDIA_THREAT_PATTERNS = {
 }
 
 
+# ── Phase 10.2: Hinglish + Devanagari expansion ──────────────────────────────
+# The base keywords above are English-only, but the target audience (Indian
+# WhatsApp/Telegram users) writes in romanized Hindi ("Hinglish") and Devanagari.
+# We MERGE extra keywords into the categories above instead of editing them, so
+# the base list stays intact and the two scripts are reviewable in one place.
+#
+# False-positive discipline:
+#   • Romanized terms are multi-word phrases ("otp bhejo", not "otp") so they
+#     can't collide with substrings of unrelated English words
+#     (e.g. "sena" inside "arsenal", "muft" inside "mufti").
+#   • Devanagari terms share no bytes with ASCII, so single words are safe.
+# scan_india_threats lowercases input; .lower() is a no-op on Devanagari and
+# substring matching works identically for both scripts.
+_HINGLISH_EXPANSION = {
+    "upi_banking_fraud": [
+        "otp bataye", "otp bhejo", "otp share karo", "otp batao",
+        "khata band", "khata block", "account band ho",
+        "kyc update karo", "kyc karwaye", "turant transfer",
+        "paisa transfer karo", "link par click karo", "bank se call",
+        "ओटीपी", "खाता बंद", "केवाईसी", "यूपीआई", "लिंक पर क्लिक",
+    ],
+    "fake_govt_scheme": [
+        "sarkari yojana", "yojana ka labh", "muft me", "abhi apply karo",
+        "aakhri tarikh", "antim tithi", "labharthi list", "panjikaran karo",
+        "सरकारी योजना", "मुफ्त", "मुफ़्त", "पंजीकरण", "आवेदन करें",
+        "अंतिम तिथि", "लाभार्थी",
+    ],
+    "whatsapp_forward": [
+        "sabko bhejo", "sabko forward karo", "har group me bhejo",
+        "delete hone se pehle", "jaldi share karo", "zaroor share kare",
+        "aage bhejo", "sabko batao",
+        "सभी को भेजें", "शेयर करें", "फॉरवर्ड करें", "जरूर भेजें",
+        "आगे भेजें", "वायरल",
+    ],
+    "health_misinfo": [
+        "ramban ilaj", "gharelu nuskha", "desi ilaj", "chamatkari ilaj",
+        "corona ka ilaj", "bina dawa theek", "immunity badhaye",
+        "रामबाण इलाज", "घरेलू नुस्खा", "चमत्कारी इलाज", "कोरोना का इलाज",
+        "गौमूत्र", "देसी इलाज",
+    ],
+    "communal_trigger": [
+        "hindu khatre mein hai", "dharm khatre mein", "dharmantaran",
+        "gau hatya", "jabran dharmantaran",
+        "हिंदू खतरे में", "धर्म खतरे में", "धर्मांतरण", "गौ हत्या",
+    ],
+    "fake_job_scam": [
+        "sarkari naukri", "ghar baithe kamaye", "ghar baithe kaam",
+        "roz kamaye", "part time kaam", "registration fees jama",
+        "naukri pakki", "paise jama karo",
+        "सरकारी नौकरी", "घर बैठे कमाएं", "पंजीकरण शुल्क", "रोज कमाएं",
+    ],
+    "religious_manipulation": [
+        "bhagwan ka sandesh", "mandir me chamatkar", "doodh pi raha",
+        "duniya ka ant", "murti doodh pi",
+        "चमत्कार", "भगवान का संदेश", "दूध पी रही", "प्रलय", "कयामत",
+    ],
+    "conspiracy_india": [
+        "yudh shuru", "jang ka elan", "curfew laga", "internet band kiya",
+        "sena alert par", "seema par hamla",
+        "युद्ध शुरू", "कर्फ्यू", "इंटरनेट बंद", "सेना अलर्ट", "सीमा पर हमला",
+    ],
+    "fake_reward_lottery": [
+        "aap jeet gaye", "inaam jeeta", "lucky draw jeeta",
+        "muft recharge", "muft mobile", "inaam claim karo", "badhai ho aap",
+        "आप जीत गए", "इनाम", "लकी ड्रा", "बधाई हो", "मुफ्त रिचार्ज", "पुरस्कार",
+    ],
+}
+
+for _cat, _extra_kws in _HINGLISH_EXPANSION.items():
+    if _cat in INDIA_THREAT_PATTERNS:
+        INDIA_THREAT_PATTERNS[_cat]["keywords"].extend(_extra_kws)
+
+
 def scan_india_threats(text: str) -> dict:
     """Scan text for India-specific misinformation and scam patterns."""
     text_lower = text.lower()
