@@ -75,6 +75,20 @@ else:
         _migrate_google_columns()
         _init_feedback_table()
 
+        # ── Register the Telegram webhook if configured (Phase 9.1) ──
+        # Never crash startup on failure (same policy as the M7 secret check).
+        tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        tg_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+        tg_base = os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL", "")
+        if tg_token and tg_secret and tg_base:
+            try:
+                from backend.telegram_bot import set_webhook
+                await set_webhook(tg_base, tg_secret)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Telegram webhook registration skipped: {e}")
+        elif tg_token:
+            logger.info("Telegram token set but PUBLIC_BASE_URL/RENDER_EXTERNAL_URL or secret missing — webhook not auto-registered")
+
         yield
 
         # ── Shutdown: H1 — close shared httpx.AsyncClient to prevent leaks ──
@@ -900,7 +914,15 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         RAG-powered verification: runs GNews FIRST, then injects live news
         context into the Groq LLaMA prompt for real-time fact-checking.
         """
-        text = req.text.strip()[:3000]
+        return await _run_smart_verify(req.text)
+
+    async def _run_smart_verify(text: str) -> dict:
+        """
+        Core RAG verification logic, shared by the /smart-verify HTTP endpoint
+        and the Telegram bot (backend/telegram_bot.py). Returns the same
+        response dict the endpoint returns.
+        """
+        text = text.strip()[:3000]
         if len(text) < 10:
             raise HTTPException(400, "Text too short for verification")
 
@@ -1389,6 +1411,101 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         result["cache_status"] = "miss"
         claim_cache.set(text, "india-threat", result)
         return result
+
+    # ── Telegram bot webhook (Phase 9.1) ──
+    # Thin adapter over _run_smart_verify + _scan_india_threats. Puts VerifAI
+    # inside the chat apps where misinformation actually spreads.
+    import backend.telegram_bot as tg
+
+    # Light global daily-call ceiling so a viral spike can't run up the Groq/GNews
+    # bill (roadmap Rule 2). In-memory; resets when the UTC date changes.
+    _tg_budget = {"date": "", "count": 0}
+    _TG_DAILY_LIMIT = int(os.getenv("TELEGRAM_DAILY_LIMIT", "500"))
+
+    def _tg_budget_ok() -> bool:
+        today = datetime.now().strftime("%Y-%m-%d")
+        if _tg_budget["date"] != today:
+            _tg_budget["date"] = today
+            _tg_budget["count"] = 0
+        if _tg_budget["count"] >= _TG_DAILY_LIMIT:
+            return False
+        _tg_budget["count"] += 1
+        return True
+
+    async def _tg_handle_check(chat_id: int, text: str):
+        """Background task: verify a claim and send the result back to the chat."""
+        try:
+            verify = await _run_smart_verify(text)
+        except HTTPException as e:
+            await tg.send_message(chat_id, f"⚠️ {tg._esc(e.detail)}")
+            return
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Telegram check failed: {e}")
+            await tg.send_message(chat_id, "⚠️ Something went wrong while checking. Please try again.")
+            return
+
+        threat = None
+        try:
+            threat = _scan_india_threats(text)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Telegram threat scan failed (non-fatal): {e}")
+
+        await tg.send_message(chat_id, tg.format_verdict_reply(verify, threat))
+
+    @app.post("/api/v1/telegram/webhook/{secret}")
+    async def telegram_webhook(secret: str, request: Request):
+        """Receive Telegram updates. Validates a shared secret, replies fast, and
+        processes the verification in the background."""
+        import asyncio
+
+        expected = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+        header_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        # Constant-time-ish comparison; reject silently (200 no-op) to avoid probing.
+        if not expected or secret != expected or header_secret != expected:
+            logger.warning("Telegram webhook: secret mismatch — ignoring")
+            return {"ok": True}
+
+        try:
+            update = await request.json()
+        except Exception:
+            return {"ok": True}
+
+        parsed = tg.parse_update(update)
+        if not parsed:
+            return {"ok": True}
+
+        chat_id = parsed["chat_id"]
+        command = parsed["command"]
+        text = parsed["text"]
+
+        if command in ("/start",):
+            await tg.send_message(chat_id, tg.WELCOME_TEXT)
+            return {"ok": True}
+        if command in ("/help",):
+            await tg.send_message(chat_id, tg.HELP_TEXT)
+            return {"ok": True}
+        if command:
+            await tg.send_message(chat_id, tg.HELP_TEXT)
+            return {"ok": True}
+
+        if not text or len(text.strip()) < 10:
+            await tg.send_message(
+                chat_id,
+                "Send me a claim, headline, or forwarded message (at least a sentence) and I'll check it. /help for tips.",
+            )
+            return {"ok": True}
+
+        if not tg.allow_request(chat_id):
+            await tg.send_message(chat_id, "⏳ You're checking too fast — please wait a moment and try again.")
+            return {"ok": True}
+
+        if not _tg_budget_ok():
+            await tg.send_message(chat_id, "🛌 VerifAI has hit its free daily check limit. Please try again tomorrow.")
+            return {"ok": True}
+
+        await tg.send_message(chat_id, tg.CHECKING_TEXT)
+        asyncio.create_task(_tg_handle_check(chat_id, text))
+        return {"ok": True}
 
     # ── Voice Transcription — Upgrade 6 ──
     # Uses Groq Whisper API to transcribe audio files (WhatsApp voice notes, recordings)

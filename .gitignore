@@ -83,3 +83,6 @@ test-site*.cjs
 
 # Caches
 .ruff_cache/
+
+# Local planning doc — do not commit
+ROADMAP.md
