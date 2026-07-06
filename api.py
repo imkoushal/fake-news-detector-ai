@@ -69,11 +69,13 @@ else:
         if missing_keys:
             logger.warning(f"Missing API keys (features will be degraded): {', '.join(missing_keys)}")
 
-        logger.info("Server is up — loading ML model in lifespan startup...")
-        _load_model()
+        logger.info("Initializing database schemas...")
         _init_auth_db()
         _migrate_google_columns()
         _init_feedback_table()
+
+        logger.info("Server is up — loading ML model in lifespan startup...")
+        _load_model()
 
         # ── Register the Telegram webhook if configured (Phase 9.1) ──
         # Never crash startup on failure (same policy as the M7 secret check).
