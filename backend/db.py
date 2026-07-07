@@ -199,3 +199,11 @@ def init_auth_db():
 
     conn.commit()
     conn.close()
+
+    # Growth metrics table (§5). Imported lazily to avoid a circular import at
+    # module load; created here so both app startup and the test harness get it.
+    try:
+        from backend.metrics import init_metrics_db
+        init_metrics_db()
+    except Exception as e:
+        logger.warning(f"metrics init skipped: {e}")

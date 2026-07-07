@@ -222,6 +222,16 @@ export function AnalyticsPage() {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  // §5 viral-loop metric: fire-and-forget, never blocks the share action.
+  const logShare = (channel: string) => {
+    try {
+      fetch(`${API_BASE}/api/v1/share`, {
+        method: "POST", headers: getAuthHeaders(),
+        body: JSON.stringify({ channel }),
+      }).catch(() => {})
+    } catch { /* ignore */ }
+  }
+
   const sendFeedback = async (correct: boolean) => {
     if (!result) return
     try {
@@ -550,6 +560,7 @@ export function AnalyticsPage() {
                       navigator.clipboard.writeText(text).then(() => {
                         const btn = document.getElementById('copy-btn')
                         if (btn) { btn.textContent = 'Ô£ô Copied!'; setTimeout(() => btn.textContent = '­ƒôï Copy', 2000) }
+                        logShare('copy')
                       })
                     }}>
                       <span id="copy-btn">­ƒôï Copy</span>
@@ -557,12 +568,14 @@ export function AnalyticsPage() {
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => {
                       const text = encodeURIComponent(`VERIFAI analysis: ${result.prediction} (${result.confidence.toFixed(1)}%) ÔÇö Try it: https://fake-news-detector-8djq.onrender.com`)
                       window.open(`https://wa.me/?text=${text}`, '_blank')
+                      logShare('whatsapp')
                     }}>
                       ­ƒÆ¼ WhatsApp
                     </Button>
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => {
                       const text = encodeURIComponent(`Just verified a news article using @VerifAI_app ÔÇö ${result.prediction} with ${result.confidence.toFixed(1)}% confidence! Try it:`)
                       window.open(`https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent('https://fake-news-detector-8djq.onrender.com')}`, '_blank')
+                      logShare('twitter')
                     }}>
                       ­ØòÅ Tweet
                     </Button>

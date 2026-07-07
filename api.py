@@ -73,6 +73,7 @@ else:
         _init_auth_db()
         _migrate_google_columns()
         _init_feedback_table()
+        _metrics.init_metrics_db()  # §5 growth metrics (never crashes startup)
 
         logger.info("Server is up — loading ML model in lifespan startup...")
         _load_model()
@@ -173,6 +174,9 @@ else:
     from backend.db import get_db, ph, execute_db, init_auth_db, USE_POSTGRES, BASE_DIR
     _init_auth_db = init_auth_db  # Keep the old name for startup event
 
+    # ── Growth metrics (§5) — activation / retention / viral / cost ──
+    from backend import metrics as _metrics
+
     # ── Thread-safe Claim Cache (imported from backend/cache.py) ──
     from backend.cache import ClaimCache
     claim_cache = ClaimCache(max_size=500, ttl_seconds=3600)
@@ -264,6 +268,7 @@ else:
             expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
             c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token, user_id, expires_at))
             conn.commit()
+            _metrics.log_event(_metrics.EVENT_SIGNUP, user_id=user_id, source="web", meta={"method": "password"})
             return {
                 "token": token,
                 "user": {"id": user_id, "name": req.name.strip(), "email": req.email.strip().lower()}
@@ -439,6 +444,7 @@ else:
             # Check if user exists by google_id or email
             c.execute(f"SELECT id, name, email, avatar_url FROM users WHERE email = {ph()}", (email,))
             user = c.fetchone()
+            is_new_user = user is None
 
             if user:
                 # Existing user — update google_id and avatar if not set
@@ -467,6 +473,8 @@ else:
             expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
             c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token, user_id, expires_at))
             conn.commit()
+            if is_new_user:
+                _metrics.log_event(_metrics.EVENT_SIGNUP, user_id=user_id, source="web", meta={"method": "google"})
 
             return {
                 "token": token,
@@ -687,6 +695,11 @@ else:
         # Save analysis to DB only if input is long enough to be reliable
         # Short claims (< 30 words) produce dampened scores — don't pollute history
         user_id = _get_user_from_token(request)
+        # §5 metrics: every analysis is a "check" (ML path — local model, ~$0).
+        _metrics.log_event(
+            _metrics.EVENT_CHECK, user_id=user_id, source="web", cost_usd=0.0,
+            meta={"path": "ml", "prediction": prediction, "quality": input_quality},
+        )
         if user_id and input_quality == "sufficient":
             preview = _sanitize_preview(text, max_len=200)
             conn = get_db()
@@ -916,13 +929,15 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         RAG-powered verification: runs GNews FIRST, then injects live news
         context into the Groq LLaMA prompt for real-time fact-checking.
         """
-        return await _run_smart_verify(req.text)
+        return await _run_smart_verify(req.text, source="web", user_id=_get_user_from_token(request))
 
-    async def _run_smart_verify(text: str) -> dict:
+    async def _run_smart_verify(text: str, *, source: str = "web", user_id: int | None = None) -> dict:
         """
         Core RAG verification logic, shared by the /smart-verify HTTP endpoint
         and the Telegram bot (backend/telegram_bot.py). Returns the same
         response dict the endpoint returns.
+
+        ``source``/``user_id`` are used only for §5 metrics logging.
         """
         text = text.strip()[:3000]
         if len(text) < 10:
@@ -933,6 +948,11 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         if cached:
             cached["cache_status"] = "hit"
             logger.info("Cache HIT for smart-verify")
+            # Cache hit = a real check, but zero marginal LLM cost.
+            _metrics.log_event(
+                _metrics.EVENT_CHECK, user_id=user_id, source=source, cost_usd=0.0,
+                meta={"path": "rag", "cache": "hit"},
+            )
             return cached
 
         # Step 1: Run GNews search for live context
@@ -993,6 +1013,13 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 
         response["cache_status"] = "miss"
         claim_cache.set(text, "smart-verify", response)
+        # Cache miss = one Groq call (+ a GNews call when live context was found).
+        gnews_hit = bool(gnews_result and gnews_result.get("total_articles", 0) > 0)
+        _metrics.log_event(
+            _metrics.EVENT_CHECK, user_id=user_id, source=source,
+            cost_usd=_metrics.estimate_rag_cost(groq_calls=1, gnews_calls=1 if gnews_hit else 0),
+            meta={"path": "rag", "cache": "miss", "mode": response["mode"]},
+        )
         return response
 
     # ── Google Fact Check API Integration ──
@@ -1437,7 +1464,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     async def _tg_handle_check(chat_id: int, text: str):
         """Background task: verify a claim and send the result back to the chat."""
         try:
-            verify = await _run_smart_verify(text)
+            verify = await _run_smart_verify(text, source="telegram")
         except HTTPException as e:
             await tg.send_message(chat_id, f"⚠️ {tg._esc(e.detail)}")
             return
@@ -2196,6 +2223,27 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         finally:
             conn.close()
 
+    # ── §5 Share event (viral loop instrumentation) ──
+    class ShareRequest(BaseModel):
+        channel: Optional[str] = None  # e.g. "whatsapp", "twitter", "copy"
+
+    @app.post("/api/v1/share")
+    @limiter.limit("60/minute")
+    async def log_share(req: ShareRequest, request: Request):
+        """Record a share action for the viral-coefficient metric.
+
+        Fire-and-forget from the frontend share buttons. Anonymous allowed;
+        never fails the caller — a metrics write must not break the UI.
+        """
+        channel = (req.channel or "unknown").strip().lower()[:32]
+        _metrics.log_event(
+            _metrics.EVENT_SHARE,
+            user_id=_get_user_from_token(request),
+            source="web",
+            meta={"channel": channel},
+        )
+        return {"ok": True}
+
     # ── Admin Dashboard Endpoint (Tier 3.4) ──
     ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
 
@@ -2263,6 +2311,17 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             }
         finally:
             conn.close()
+
+    @app.get("/api/v1/admin/metrics")
+    async def admin_metrics(request: Request, window_days: int = 30):
+        """Protected admin endpoint — §5 growth metrics (activation, D7
+        retention, viral coefficient, cost-per-check) over a trailing window."""
+        import secrets as _secrets
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if not ADMIN_SECRET or not _secrets.compare_digest(token, ADMIN_SECRET):
+            raise HTTPException(403, "Admin access required")
+        window_days = max(1, min(int(window_days), 365))
+        return _metrics.compute_metrics(window_days=window_days)
 
     # ── API catch-all: return proper 404 for unmatched /api/ paths ──
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
