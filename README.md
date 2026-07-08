@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
-  <a href="https://buymeacoffee.com/imkoushal"><img src="https://img.shields.io/badge/☕_Buy_Me_a_Coffee-Support-FFDD00?style=for-the-badge" alt="Buy Me a Coffee" /></a>
+  <a href="https://razorpay.me/imkoushal"><img src="https://img.shields.io/badge/☕_Support-Donate-FFDD00?style=for-the-badge" alt="Support" /></a>
 </p>
 
 <p align="center">
