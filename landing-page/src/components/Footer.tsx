@@ -31,7 +31,7 @@ export function Footer() {
             <div className="space-y-2.5">
               <a href="https://github.com/imkoushal/fake-news-detector-ai" target="_blank" rel="noreferrer" className="block text-sm text-white/40 hover:text-white transition-colors">GitHub</a>
               <a href="https://github.com/imkoushal/fake-news-detector-ai/issues" target="_blank" rel="noreferrer" className="block text-sm text-white/40 hover:text-white transition-colors">Report Bug</a>
-              <a href="https://razorpay.me/imkoushal" target="_blank" rel="noreferrer" className="block text-sm text-amber-400/60 hover:text-amber-400 transition-colors">☕ Support VerifAI</a>
+              <a href="https://razorpay.me/@koushalkishorray" target="_blank" rel="noreferrer" className="block text-sm text-amber-400/60 hover:text-amber-400 transition-colors">☕ Support VerifAI</a>
             </div>
           </div>
 

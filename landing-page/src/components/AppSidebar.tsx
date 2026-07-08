@@ -121,7 +121,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
 
         {/* Donate */}
         <a
-          href="https://razorpay.me/imkoushal"
+          href="https://razorpay.me/@koushalkishorray"
           target="_blank"
           rel="noreferrer"
           className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-400 transition-all"
