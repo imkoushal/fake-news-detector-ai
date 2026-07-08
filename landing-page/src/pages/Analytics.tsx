@@ -579,6 +579,12 @@ export function AnalyticsPage() {
                     }}>
                       ­ØòÅ Tweet
                     </Button>
+                    <Button variant="outline" size="sm" className="flex-1 text-amber-400 border-amber-500/30 hover:bg-amber-500/10" onClick={() => {
+                      window.open('https://buymeacoffee.com/imkoushal', '_blank')
+                      logShare('donate')
+                    }}>
+                      ☕ Support
+                    </Button>
                   </div>
                 </div>
 

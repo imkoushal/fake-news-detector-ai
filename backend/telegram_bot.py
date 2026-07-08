@@ -25,7 +25,11 @@ BOT_API_BASE = "https://api.telegram.org/bot{token}"
 
 # Branding — every reply carries attribution (growth loop + license ethos).
 SITE_URL = "https://fake-news-detector-8djq.onrender.com"
-FOOTER = f'🔍 <b>Verified by VerifAI</b> — <a href="{SITE_URL}">verifai</a>'
+DONATE_URL = "https://buymeacoffee.com/imkoushal"
+FOOTER = (
+    f'🔍 <b>Verified by VerifAI</b> — <a href="{SITE_URL}">verifai</a>\n'
+    f'☕ <a href="{DONATE_URL}">Support this project</a>'
+)
 
 WELCOME_TEXT = (
     "👋 <b>Welcome to VerifAI</b> — your misinformation checker.\n\n"

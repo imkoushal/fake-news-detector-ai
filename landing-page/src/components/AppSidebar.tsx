@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext"
 import {
   LayoutDashboard, Search, ArrowLeftRight, Layers,
   History, Bookmark, Settings, MessageSquare,
-  Info, LogOut, Sun, Moon, ChevronLeft, ChevronRight
+  Info, LogOut, Sun, Moon, ChevronLeft, ChevronRight, Heart
 } from "lucide-react"
 import { useState, useEffect } from "react"
 
@@ -118,6 +118,18 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
           {collapsed ? <ChevronRight className="w-[18px] h-[18px] shrink-0" /> : <ChevronLeft className="w-[18px] h-[18px] shrink-0" />}
           {!collapsed && <span className="text-[13px] font-medium">Collapse</span>}
         </button>
+
+        {/* Donate */}
+        <a
+          href="https://buymeacoffee.com/imkoushal"
+          target="_blank"
+          rel="noreferrer"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-400 transition-all"
+          title={collapsed ? "Support VerifAI" : undefined}
+        >
+          <Heart className="w-[18px] h-[18px] shrink-0" />
+          {!collapsed && <span className="text-[13px] font-medium">Support VerifAI</span>}
+        </a>
 
         {/* User card */}
         <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl bg-secondary/50 border border-border/50 ${collapsed ? "justify-center" : ""}`}>
