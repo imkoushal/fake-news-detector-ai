@@ -5,7 +5,9 @@ import {
   FileText, Link as LinkIcon, Mic, Upload,
   AlertTriangle, ShieldAlert, FileAudio, Loader2, ThumbsUp,
   ThumbsDown, Sparkles, ExternalLink, ChevronDown, Download,
-  GraduationCap, Globe, Search, ShieldCheck, Share2
+  GraduationCap, Globe, Search, ShieldCheck, Share2,
+  Bookmark, RefreshCw, Copy, Printer, FileDown,
+  Ban, Landmark, MessageCircle, Heart, CircleAlert
 } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { addBookmark } from "./Bookmarks"
@@ -30,24 +32,8 @@ function SkeletonCard() {
   )
 }
 
-/* ÔöÇÔöÇ tiny SVG ring component ÔöÇÔöÇ */
-function Ring({ pct, color, label, detail }: { pct: number; color: string; label: string; detail: string }) {
-  const r = 34, c = 2 * Math.PI * r
-  return (
-    <div className="flex flex-col items-center gap-2 p-4 bg-background rounded-xl border border-border">
-      <svg viewBox="0 0 80 80" className="w-16 h-16">
-        <circle cx="40" cy="40" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="5" />
-        <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="5"
-          strokeDasharray={`${c}`} strokeDashoffset={`${c - (c * pct) / 100}`}
-          strokeLinecap="round" className="transition-all duration-700"
-          style={{ transform: "rotate(-90deg)", transformOrigin: "center" }} />
-      </svg>
-      <span className="text-lg font-bold" style={{ color }}>{pct}%</span>
-      <span className="text-xs font-medium text-foreground">{label}</span>
-      <span className="text-[10px] text-muted-foreground text-center leading-tight">{detail}</span>
-    </div>
-  )
-}
+
+
 
 export function AnalyticsPage() {
   const { token } = useAuth()
@@ -264,11 +250,6 @@ export function AnalyticsPage() {
     const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='verifai-report.txt'; a.click()
   }
 
-  /* ÔöÇÔöÇÔöÇ ring data helpers ÔöÇÔöÇÔöÇ */
-  const mlPct = result ? Math.round(result.confidence) : 0
-  const aiPct = aiResult?.confidence ?? 0
-  const gnewsPct = gnewsResult?.articles?.length > 0 ? Math.min(90, gnewsResult.articles.length * 15) : 0
-  const factPct = factResult?.claims?.length > 0 ? 85 : (factResult ? 40 : 0)
 
 
 
@@ -319,7 +300,7 @@ export function AnalyticsPage() {
                     <div className="flex items-center justify-between mt-2 mb-4 gap-3 flex-wrap">
                       <span className="text-xs text-muted-foreground">
                         {inputText.length} / 5,000 chars
-                        {inputText.trim() && <> ┬À {inputText.trim().split(/\s+/).length} words ┬À ~{Math.max(1, Math.ceil(inputText.trim().split(/\s+/).length / 200))} min read</>}
+                        {inputText.trim() && <> · {inputText.trim().split(/\s+/).length} words · ~{Math.max(1, Math.ceil(inputText.trim().split(/\s+/).length / 200))} min read</>}
                       </span>
                       <div className="flex items-center gap-4">
                         <label className="flex items-center gap-1.5 cursor-pointer">
@@ -341,17 +322,17 @@ export function AnalyticsPage() {
                     {inputText.trim().length > 0 && (() => {
                       const txt = inputText.trim()
                       const warns: { icon: string; msg: string; level: 'warn' | 'error' }[] = []
-                      if (txt.length < 50) warns.push({ icon: 'ÔÜá´©Å', msg: 'Very short text ÔÇö results may be unreliable', level: 'warn' })
-                      else if (txt.length < 150) warns.push({ icon: '­ƒÆí', msg: 'Short text ÔÇö longer articles yield better accuracy', level: 'warn' })
+                      if (txt.length < 50) warns.push({ icon: '⚠️', msg: 'Very short text — results may be unreliable', level: 'warn' })
+                      else if (txt.length < 150) warns.push({ icon: '💡', msg: 'Short text — longer articles yield better accuracy', level: 'warn' })
                       const capsRatio = (txt.replace(/[^A-Z]/g, '').length) / Math.max(txt.replace(/[^a-zA-Z]/g, '').length, 1)
-                      if (capsRatio > 0.6 && txt.length > 20) warns.push({ icon: '­ƒöá', msg: 'Excessive caps detected ÔÇö common in clickbait', level: 'warn' })
+                      if (capsRatio > 0.6 && txt.length > 20) warns.push({ icon: '🔡', msg: 'Excessive caps detected — common in clickbait', level: 'warn' })
                       const urlCount = (txt.match(/https?:\/\//g) || []).length
-                      if (urlCount > 3) warns.push({ icon: '­ƒöù', msg: `${urlCount} URLs found ÔÇö consider using the URL tab instead`, level: 'warn' })
+                      if (urlCount > 3) warns.push({ icon: '🔙', msg: `${urlCount} URLs found — consider using the URL tab instead`, level: 'warn' })
                       const words = txt.split(/\s+/)
                       const unique = new Set(words.map(w => w.toLowerCase()))
-                      if (words.length > 20 && unique.size / words.length < 0.4) warns.push({ icon: '­ƒöü', msg: 'Repetitive text detected ÔÇö may skew analysis', level: 'warn' })
+                      if (words.length > 20 && unique.size / words.length < 0.4) warns.push({ icon: '🔜', msg: 'Repetitive text detected — may skew analysis', level: 'warn' })
                       if (/[\u0900-\u097F\u0980-\u09FF\u0600-\u06FF\u4E00-\u9FFF\u3040-\u309F]/.test(txt) && !translateEnabled)
-                        warns.push({ icon: '­ƒîÉ', msg: 'Non-English script detected ÔÇö enable "Translate" for better results', level: 'error' })
+                        warns.push({ icon: '🌐', msg: 'Non-English script detected — enable "Translate" for better results', level: 'error' })
                       return warns.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5 mb-3">
                           {warns.map((w, i) => (
@@ -365,7 +346,7 @@ export function AnalyticsPage() {
                     })()}
 
                     <button className="w-full btn-gradient rounded-xl py-3.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleAnalyzeText} disabled={loading}>
-                      {loading ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</span> : "Analyze Content ÔåÆ"}
+                      {loading ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</span> : "Analyze Content →"}
                     </button>
                   </div>
                 )}
@@ -446,7 +427,7 @@ export function AnalyticsPage() {
                     </div>
                     <div>
                       <h2 className="text-xl font-heading font-extrabold uppercase tracking-wide">{result.prediction}</h2>
-                      <p className="text-xs text-muted-foreground font-mono">{result.confidence_tier} ┬À {result.confidence.toFixed(1)}%</p>
+                      <p className="text-xs text-muted-foreground font-mono">{result.confidence_tier} · {result.confidence.toFixed(1)}%</p>
                     </div>
                   </div>
 
@@ -487,33 +468,27 @@ export function AnalyticsPage() {
                   {result.input_quality !== "sufficient" && (
                     <div className="mt-4 p-3 bg-accent/10 border border-accent/30 rounded-lg">
                       <p className="text-xs text-accent font-medium">
-                        ÔÜá´©Å {result.input_quality === "short_claim" ? "Very short input ÔÇö confidence capped at 60%." : "Short headline ÔÇö confidence capped at 80%."} Paste the full article for best results.
+                        <AlertTriangle className="w-3.5 h-3.5 inline mr-1" /> {result.input_quality === "short_claim" ? "Very short input — confidence capped at 60%." : "Short headline — confidence capped at 80%."} Paste the full article for best results.
                       </p>
                     </div>
                   )}
 
                   <div className="mt-3 flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground/50">Model v{result.model_version} ┬À {result.timestamp?.split("T")[0]} ┬À {processingMs < 1000 ? `${processingMs}ms` : `${(processingMs / 1000).toFixed(1)}s`}</span>
+                    <span className="text-[11px] text-muted-foreground/50">Model v{result.model_version} · {result.timestamp?.split("T")[0]} · {processingMs < 1000 ? `${processingMs}ms` : `${(processingMs / 1000).toFixed(1)}s`}</span>
                     <div className="flex items-center gap-3">
                       <button onClick={() => { addBookmark(result, inputText); toast('Bookmarked!', 'success') }}
                         className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
-                        ­ƒöû Save
+                        <Bookmark className="w-3 h-3" /> Save
                       </button>
                       <button onClick={() => analyzeData(inputText)}
                         className="text-[11px] text-primary hover:underline flex items-center gap-1">
-                        Ôå╗ Re-analyze
+                        <RefreshCw className="w-3 h-3" /> Re-analyze
                       </button>
                     </div>
                   </div>
                 </div>
 
-                {/* 4-source verification rings */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-up" style={{ animationDelay: "0.15s" }}>
-                  <Ring pct={mlPct} color="hsl(var(--primary))" label="ML Model" detail="5-model ensemble" />
-                  <Ring pct={aiPct} color="#a78bfa" label="AI Analysis" detail={aiResult ? (aiResult.verdict || "Done") : "Loading..."} />
-                  <Ring pct={gnewsPct} color="#38bdf8" label="GNews" detail={gnewsResult ? `${gnewsResult.articles?.length ?? 0} sources` : "Searching..."} />
-                  <Ring pct={factPct} color="#facc15" label="Fact Check" detail={factResult ? `${factResult.claims?.length ?? 0} claims found` : "Checking..."} />
-                </div>
+
 
                 {/* Secondary panels in 2-column grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -538,7 +513,7 @@ export function AnalyticsPage() {
                 <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.3s" }}>
                   <h3 className="text-sm font-semibold mb-2">Was this prediction correct?</h3>
                   {feedbackSent ? (
-                    <p className="text-xs text-[#4ADE80]">Ô£ô Thank you for your feedback!</p>
+                    <p className="text-xs text-[#4ADE80]">✓ Thank you for your feedback!</p>
                   ) : (
                     <div className="flex gap-3">
                       <Button variant="outline" size="sm" onClick={() => sendFeedback(true)}>
@@ -558,12 +533,10 @@ export function AnalyticsPage() {
                     <Button variant="outline" size="sm" className="flex-1 min-w-[120px]" onClick={() => {
                       const url = result.claim_hash ? `https://fake-news-detector-8djq.onrender.com/claim/${result.claim_hash}` : 'https://fake-news-detector-8djq.onrender.com';
                       navigator.clipboard.writeText(url).then(() => {
-                        const btn = document.getElementById('copy-link-btn');
-                        if (btn) { btn.textContent = '✅ Link Copied!'; setTimeout(() => btn.textContent = '🔗 Copy Link', 2000) }
                         logShare('copy')
                       })
                     }}>
-                      <span id="copy-link-btn">🔗 Copy Link</span>
+                      <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Link
                     </Button>
                     <Button variant="outline" size="sm" className="flex-1 min-w-[120px]" onClick={() => {
                       const url = result.claim_hash ? `https://fake-news-detector-8djq.onrender.com/claim/${result.claim_hash}` : 'https://fake-news-detector-8djq.onrender.com';
@@ -571,7 +544,8 @@ export function AnalyticsPage() {
                       window.open(`https://wa.me/?text=${text}`, '_blank')
                       logShare('whatsapp')
                     }}>
-                      📱 WhatsApp
+                      <svg className="w-3.5 h-3.5 mr-1.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                      WhatsApp
                     </Button>
                     <Button variant="outline" size="sm" className="flex-1 min-w-[120px]" onClick={() => {
                       const url = result.claim_hash ? `https://fake-news-detector-8djq.onrender.com/claim/${result.claim_hash}` : 'https://fake-news-detector-8djq.onrender.com';
@@ -579,13 +553,14 @@ export function AnalyticsPage() {
                       window.open(`https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(url)}`, '_blank')
                       logShare('twitter')
                     }}>
-                      𝕏 Tweet
+                      <svg className="w-3.5 h-3.5 mr-1.5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                      Tweet
                     </Button>
                     <Button variant="outline" size="sm" className="flex-1 text-amber-400 border-amber-500/30 hover:bg-amber-500/10" onClick={() => {
                       window.open('https://razorpay.me/@koushalkishorray', '_blank')
                       logShare('donate')
                     }}>
-                      ☕ Support
+                      <Heart className="w-3.5 h-3.5 mr-1.5" /> Support
                     </Button>
                   </div>
                 </div>
@@ -604,7 +579,7 @@ export function AnalyticsPage() {
                           <div className="space-y-1.5">
                             {result.red_flags.map((f: any, i: number) => (
                               <div key={i} className="flex items-start gap-2 text-xs">
-                                <span className="text-destructive mt-0.5">­ƒÜ®</span>
+                                <CircleAlert className="w-3.5 h-3.5 text-destructive mt-0.5 shrink-0" />
                                 <span className="text-muted-foreground">{typeof f === 'string' ? f : f.description || f.flag}</span>
                               </div>
                             ))}
@@ -642,7 +617,7 @@ export function AnalyticsPage() {
                           <ExternalLink className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0 group-hover:text-primary" />
                           <div className="min-w-0">
                             <p className="text-xs font-medium text-foreground group-hover:text-primary truncate">{a.title}</p>
-                            <p className="text-[10px] text-muted-foreground">{a.source?.name} ┬À {a.publishedAt?.split('T')[0]}</p>
+                            <p className="text-[10px] text-muted-foreground">{a.source?.name} · {a.publishedAt?.split('T')[0]}</p>
                           </div>
                         </a>
                       ))}
@@ -668,7 +643,7 @@ export function AnalyticsPage() {
                             <p className="text-xs font-medium text-foreground mb-1">{c.text}</p>
                             <p className="text-[10px] text-muted-foreground">
                               Rating: <span className="font-medium text-[#facc15]">{c.claimReview?.[0]?.textualRating || 'Unrated'}</span>
-                              {c.claimReview?.[0]?.publisher?.name && ` ┬À ${c.claimReview[0].publisher.name}`}
+                              {c.claimReview?.[0]?.publisher?.name && ` · ${c.claimReview[0].publisher.name}`}
                             </p>
                           </div>
                         ))}
@@ -718,9 +693,9 @@ export function AnalyticsPage() {
                         }`} style={{ width: `${credibility.score ?? 50}%` }} />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {credibility.domain && <><span className="font-medium text-foreground">{credibility.domain}</span> ┬À </>}
+                        {credibility.domain && <><span className="font-medium text-foreground">{credibility.domain}</span> · </>}
                         {credibility.category || 'Unknown category'}
-                        {credibility.description && ` ┬À ${credibility.description}`}
+                        {credibility.description && ` · ${credibility.description}`}
                       </p>
                     </div>
                   </div>
@@ -731,10 +706,10 @@ export function AnalyticsPage() {
                   <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Download className="w-4 h-4" /> Export Report</h3>
                   <div className="flex gap-3">
                     <Button variant="outline" size="sm" className="flex-1" onClick={exportText}>
-                      ­ƒôØ Export as Text
+                      <FileDown className="w-3.5 h-3.5 mr-1.5" /> Export as Text
                     </Button>
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => { window.print() }}>
-                      ­ƒôä Print / PDF
+                      <Printer className="w-3.5 h-3.5 mr-1.5" /> Print / PDF
                     </Button>
                   </div>
                 </div>
@@ -756,7 +731,7 @@ export function AnalyticsPage() {
                         { step: 3, title: 'Meta-Feature Extraction', desc: '20 handcrafted features: readability, sentiment, entity density, sentence structure.' },
                         { step: 4, title: 'ML Ensemble Voting', desc: '5 models (LR, RF, SGD, SVC, LightGBM) independently classify and vote.' },
                         { step: 5, title: 'Red Flag Scan', desc: `Heuristic scanner detected ${result.red_flag_score}/10 severity across ${result.red_flags?.length || 0} patterns.` },
-                        { step: 6, title: 'Final Verdict', desc: `Combined score: ${result.confidence.toFixed(1)}% confidence ÔåÆ ${result.prediction}.` },
+                        { step: 6, title: 'Final Verdict', desc: `Combined score: ${result.confidence.toFixed(1)}% confidence → ${result.prediction}.` },
                       ].map(s => (
                         <div key={s.step} className="flex gap-3">
                           <div className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center shrink-0">{s.step}</div>
@@ -775,24 +750,24 @@ export function AnalyticsPage() {
                   const txt = inputText.toLowerCase()
                   const threats: { type: string; label: string; desc: string }[] = []
                   if (/upi|paytm|phonepe|google\s*pay|bhim|gpay/.test(txt) && /reward|prize|won|cashback|offer|rupee|lakhs?|crore/.test(txt))
-                    threats.push({ type: "­ƒÅª", label: "UPI Fraud Alert", desc: "Contains UPI app mentions with prize/reward language ÔÇö common payment scam pattern." })
+                    threats.push({ type: "upi", label: "UPI Fraud Alert", desc: "Contains UPI app mentions with prize/reward language — common payment scam pattern." })
                   if (/government|modi|scheme|yojana|pm[\s-]kisan|aadhaar|ayushman|pradhan\s*mantri/.test(txt) && /apply|register|click|link|form|free|subsidy/.test(txt))
-                    threats.push({ type: "­ƒÅø´©Å", label: "Fake Govt Scheme", desc: "References government programs with suspicious call-to-action ÔÇö verify on official .gov.in sites." })
+                    threats.push({ type: "govt", label: "Fake Govt Scheme", desc: "References government programs with suspicious call-to-action — verify on official .gov.in sites." })
                   if (/forward|share|whatsapp|viral|send\s*to|pass\s*on|circulating/.test(txt))
-                    threats.push({ type: "­ƒô▓", label: "WhatsApp Forward", desc: "Text shows forwarded message patterns ÔÇö chain messages often contain unverified claims." })
+                    threats.push({ type: "forward", label: "WhatsApp Forward", desc: "Text shows forwarded message patterns — chain messages often contain unverified claims." })
                   if (/ayurved|desi\s*ilaj|home\s*remed|cure\s*for|miracle|100%\s*effective/.test(txt) && /cancer|diabetes|covid|corona/.test(txt))
-                    threats.push({ type: "­ƒÆè", label: "Health Misinformation", desc: "Contains miracle cure claims for serious diseases ÔÇö consult qualified medical professionals." })
+                    threats.push({ type: "health", label: "Health Misinformation", desc: "Contains miracle cure claims for serious diseases — consult qualified medical professionals." })
 
                   return threats.length > 0 ? (
                     <div className="bg-secondary rounded-xl border border-accent/30 p-5 animate-fade-up" style={{ animationDelay: "0.6s" }}>
                       <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                        ­ƒç«­ƒç│ India Threat Scanner
+                        <ShieldAlert className="w-4 h-4 text-accent" /> India Threat Scanner
                         <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-accent/15 text-accent font-medium">{threats.length} ALERT{threats.length > 1 ? 'S' : ''}</span>
                       </h3>
                       <div className="space-y-2.5">
                         {threats.map((t, i) => (
                           <div key={i} className="bg-background rounded-lg p-3 flex items-start gap-2.5">
-                            <span className="text-lg">{t.type}</span>
+                            <span className="text-lg">{t.type === 'upi' ? <Ban className="w-5 h-5 text-destructive" /> : t.type === 'govt' ? <Landmark className="w-5 h-5 text-accent" /> : t.type === 'forward' ? <MessageCircle className="w-5 h-5 text-[#38bdf8]" /> : <Heart className="w-5 h-5 text-destructive" />}</span>
                             <div>
                               <p className="text-xs font-semibold text-accent">{t.label}</p>
                               <p className="text-[11px] text-muted-foreground leading-relaxed">{t.desc}</p>
@@ -859,7 +834,7 @@ export function AnalyticsPage() {
           })
           return found.length > 0 ? (
             <div className="mt-4 bg-secondary border border-accent/30 rounded-xl p-4">
-              <h4 className="text-xs font-semibold mb-2 text-accent">ÔÜá´©Å Suspicious Keywords Found</h4>
+              <h4 className="text-xs font-semibold mb-2 text-accent"><AlertTriangle className="w-3.5 h-3.5 inline mr-1" /> Suspicious Keywords Found</h4>
               <div className="flex flex-wrap gap-1.5">
                 {found.map((f, i) => (
                   <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent rounded-full text-[10px] font-medium">
