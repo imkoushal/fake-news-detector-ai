@@ -74,6 +74,11 @@ else:
         _migrate_google_columns()
         _init_feedback_table()
         _metrics.init_metrics_db()  # §5 growth metrics (never crashes startup)
+        try:
+            from backend.claims_db import init_seo_claims_db
+            init_seo_claims_db()
+        except Exception as e:
+            logger.warning(f"seo_claims init skipped: {e}")
 
         logger.info("Server is up — loading ML model in lifespan startup...")
         _load_model()
@@ -945,8 +950,10 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 
         # Check cache first (Tier 1 Upgrade 3)
         cached = claim_cache.get(text, "smart-verify")
+        claim_hash = claim_cache._normalize_key(text, "smart-verify")
         if cached:
             cached["cache_status"] = "hit"
+            cached["claim_hash"] = claim_hash
             logger.info("Cache HIT for smart-verify")
             # Cache hit = a real check, but zero marginal LLM cost.
             _metrics.log_event(
@@ -1012,7 +1019,16 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             }
 
         response["cache_status"] = "miss"
+        response["claim_hash"] = claim_hash
         claim_cache.set(text, "smart-verify", response)
+        
+        # Save to DB for SEO pages (Phase 11.2)
+        try:
+            from backend.claims_db import save_seo_claim
+            save_seo_claim(claim_hash, text, response)
+        except Exception as e:
+            logger.error(f"Failed to save seo claim: {e}")
+
         # Cache miss = one Groq call (+ a GNews call when live context was found).
         gnews_hit = bool(gnews_result and gnews_result.get("total_articles", 0) > 0)
         _metrics.log_event(
@@ -1323,6 +1339,21 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     async def cache_stats():
         """Return claim cache hit/miss statistics for monitoring."""
         return claim_cache.stats()
+
+    @app.get("/api/v1/claim/{claim_hash}", tags=["SEO"])
+    def get_seo_claim_endpoint(claim_hash: str):
+        """Fetch a verified claim by its unique hash for public SEO pages."""
+        try:
+            from backend.claims_db import get_seo_claim
+            claim = get_seo_claim(claim_hash)
+            if not claim:
+                raise HTTPException(404, "Claim not found")
+            return claim
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error fetching claim: {e}")
+            raise HTTPException(500, "Internal server error")
 
     # ── Source Credibility Database — Tier 2 Upgrade 1 ──
     # Comprehensive domain reputation database with India-first focus.

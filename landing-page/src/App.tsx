@@ -23,6 +23,7 @@ const SettingsPage = lazy(() => import("./pages/Settings").then(m => ({ default:
 const ComparePage = lazy(() => import("./pages/Compare").then(m => ({ default: m.ComparePage })))
 const BookmarksPage = lazy(() => import("./pages/Bookmarks").then(m => ({ default: m.BookmarksPage })))
 const FeedbackPage = lazy(() => import("./pages/Feedback").then(m => ({ default: m.FeedbackPage })))
+const ClaimPage = lazy(() => import("./pages/Claim").then(m => ({ default: m.Claim })))
 
 /* ─── Skeleton fallback for lazy-loaded routes ─── */
 function PageSkeleton() {
@@ -119,6 +120,9 @@ function App() {
       <ScrollToTop />
 
       <Routes>
+        {/* Standalone routes */}
+        <Route path="/claim/:hash" element={<Suspense fallback={<PageSkeleton />}><ClaimPage /></Suspense>} />
+
         {/* Public routes */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<LandingPage />} />

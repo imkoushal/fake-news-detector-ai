@@ -554,30 +554,32 @@ export function AnalyticsPage() {
                 {/* Share Results */}
                 <div className="card-enterprise p-5 animate-fade-up" style={{ animationDelay: "0.32s" }}>
                   <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Share2 className="w-4 h-4" /> Share Results</h3>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                      const text = `VERIFAI: "${inputText.slice(0, 60)}..." ÔåÆ ${result.prediction} (${result.confidence.toFixed(1)}% confidence)`
-                      navigator.clipboard.writeText(text).then(() => {
-                        const btn = document.getElementById('copy-btn')
-                        if (btn) { btn.textContent = 'Ô£ô Copied!'; setTimeout(() => btn.textContent = '­ƒôï Copy', 2000) }
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" className="flex-1 min-w-[120px]" onClick={() => {
+                      const url = result.claim_hash ? `https://fake-news-detector-8djq.onrender.com/claim/${result.claim_hash}` : 'https://fake-news-detector-8djq.onrender.com';
+                      navigator.clipboard.writeText(url).then(() => {
+                        const btn = document.getElementById('copy-link-btn');
+                        if (btn) { btn.textContent = '✅ Link Copied!'; setTimeout(() => btn.textContent = '🔗 Copy Link', 2000) }
                         logShare('copy')
                       })
                     }}>
-                      <span id="copy-btn">­ƒôï Copy</span>
+                      <span id="copy-link-btn">🔗 Copy Link</span>
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                      const text = encodeURIComponent(`VERIFAI analysis: ${result.prediction} (${result.confidence.toFixed(1)}%) ÔÇö Try it: https://fake-news-detector-8djq.onrender.com`)
+                    <Button variant="outline" size="sm" className="flex-1 min-w-[120px]" onClick={() => {
+                      const url = result.claim_hash ? `https://fake-news-detector-8djq.onrender.com/claim/${result.claim_hash}` : 'https://fake-news-detector-8djq.onrender.com';
+                      const text = encodeURIComponent(`VERIFAI analysis: ${result.prediction} (${result.confidence.toFixed(1)}%) — See full report: ${url}`)
                       window.open(`https://wa.me/?text=${text}`, '_blank')
                       logShare('whatsapp')
                     }}>
-                      ­ƒÆ¼ WhatsApp
+                      📱 WhatsApp
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                      const text = encodeURIComponent(`Just verified a news article using @VerifAI_app ÔÇö ${result.prediction} with ${result.confidence.toFixed(1)}% confidence! Try it:`)
-                      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent('https://fake-news-detector-8djq.onrender.com')}`, '_blank')
+                    <Button variant="outline" size="sm" className="flex-1 min-w-[120px]" onClick={() => {
+                      const url = result.claim_hash ? `https://fake-news-detector-8djq.onrender.com/claim/${result.claim_hash}` : 'https://fake-news-detector-8djq.onrender.com';
+                      const text = encodeURIComponent(`Just verified a claim using @VerifAI_app — ${result.prediction} with ${result.confidence.toFixed(1)}% confidence!\n\nFull report:`)
+                      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(url)}`, '_blank')
                       logShare('twitter')
                     }}>
-                      ­ØòÅ Tweet
+                      𝕏 Tweet
                     </Button>
                     <Button variant="outline" size="sm" className="flex-1 text-amber-400 border-amber-500/30 hover:bg-amber-500/10" onClick={() => {
                       window.open('https://razorpay.me/@koushalkishorray', '_blank')
