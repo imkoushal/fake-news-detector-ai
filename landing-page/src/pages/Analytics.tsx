@@ -499,6 +499,11 @@ export function AnalyticsPage() {
                     <div className="flex items-center gap-2 mb-3">
                       <Sparkles className="w-4 h-4 text-[#a78bfa]" />
                       <h3 className="text-sm font-semibold">AI Verification</h3>
+                      {aiResult.is_indic && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium uppercase">
+                          {aiResult.detected_lang === 'hinglish' ? 'Hinglish' : aiResult.detected_lang?.toUpperCase()} detected
+                        </span>
+                      )}
                       <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
                         aiResult.verdict === "LIKELY_TRUE" ? "bg-[#4ADE80]/15 text-[#4ADE80]" :
                         aiResult.verdict === "LIKELY_FALSE" ? "bg-destructive/15 text-destructive" :

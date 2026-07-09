@@ -786,7 +786,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     class GeminiRequest(BaseModel):
         text: str
 
-    async def _run_gnews_search(text: str):
+    async def _run_gnews_search(text: str, *, lang: str | None = None):
         """Internal helper: run GNews search and return structured results."""
         gnews_key = os.getenv("GNEWS_API_KEY", "")
         if not gnews_key or len(text.strip()) < 10:
@@ -802,7 +802,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             params = {
                 "q": keywords,
                 "apikey": gnews_key,
-                "lang": "en",
+                "lang": lang or "en",
                 "max": 10,
                 "sortby": "relevance"
             }
@@ -962,8 +962,19 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             )
             return cached
 
-        # Step 1: Run GNews search for live context
-        gnews_result = await _run_gnews_search(text)
+        # Phase 10.1: Detect Indic/Hindi text for smart routing
+        try:
+            from backend.lang_detect import detect_language
+            lang_info = detect_language(text)
+        except Exception:
+            lang_info = {"script": "latin", "lang": "en", "indic_ratio": 0.0, "is_indic": False}
+
+        # Step 1: Run GNews search for live context (use detected language)
+        gnews_lang = lang_info["lang"] if lang_info["is_indic"] and lang_info["lang"] not in ("hinglish",) else "en"
+        gnews_result = await _run_gnews_search(text, lang=gnews_lang)
+        # Also try English GNews if Indic search returned nothing
+        if lang_info["is_indic"] and (not gnews_result or gnews_result.get("total_articles", 0) == 0):
+            gnews_result = await _run_gnews_search(text, lang="en")
 
         # Step 2: Build the prompt — RAG or simple depending on GNews results
         if gnews_result and gnews_result["total_articles"] > 0:
@@ -976,11 +987,22 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             live_context = "\n".join(context_lines) if context_lines else "No relevant live news found."
 
             prompt = AI_VERIFY_PROMPT_RAG.format(text=text, live_context=live_context)
-            logger.info(f"Smart verify: RAG mode with {gnews_result['total_articles']} live articles")
+            # Inject Indic instruction if needed
+            if lang_info["is_indic"]:
+                indic_prefix = (f"IMPORTANT: The article below is written in {lang_info['lang'].upper()} "
+                                f"({lang_info['script']} script). Read and understand it in its original language, "
+                                f"but ALWAYS respond in English using the exact format below.\n\n")
+                prompt = indic_prefix + prompt
+            logger.info(f"Smart verify: RAG mode with {gnews_result['total_articles']} articles (lang={lang_info['lang']})")
         else:
             # Fallback: no live context available
             prompt = AI_VERIFY_PROMPT_SIMPLE.format(text=text)
-            logger.info("Smart verify: fallback mode (no live news context)")
+            if lang_info["is_indic"]:
+                indic_prefix = (f"IMPORTANT: The article below is written in {lang_info['lang'].upper()} "
+                                f"({lang_info['script']} script). Read and understand it in its original language, "
+                                f"but ALWAYS respond in English using the exact format below.\n\n")
+                prompt = indic_prefix + prompt
+            logger.info(f"Smart verify: fallback mode (lang={lang_info['lang']})")
 
         # Step 3: Call Groq with the enriched prompt
         ai_result = await _call_groq(prompt)
@@ -996,6 +1018,8 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             **ai_result,
             "available": True,
             "mode": "rag" if (gnews_result and gnews_result["total_articles"] > 0) else "standalone",
+            "detected_lang": lang_info["lang"],
+            "is_indic": lang_info["is_indic"],
         }
 
         # Attach web search results so frontend can update both rings
