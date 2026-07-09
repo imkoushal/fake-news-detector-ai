@@ -5,7 +5,7 @@ import {
   FileText, Link as LinkIcon, Mic, Upload,
   AlertTriangle, ShieldAlert, FileAudio, Loader2, ThumbsUp,
   ThumbsDown, Sparkles, ExternalLink, ChevronDown, Download,
-  GraduationCap, Globe, Search, ShieldCheck, Share2,
+  Globe, Search, ShieldCheck, Share2,
   Bookmark, RefreshCw, Copy, Printer, FileDown,
   Ban, Landmark, MessageCircle, Heart, CircleAlert
 } from "lucide-react"
@@ -54,7 +54,7 @@ export function AnalyticsPage() {
   const [feedbackSent, setFeedbackSent] = useState(false)
 
   const [showExplain, setShowExplain] = useState(false)
-  const [showEducator, setShowEducator] = useState(false)
+
   const [translateEnabled, setTranslateEnabled] = useState(false)
   const [safeBrowsing, setSafeBrowsing] = useState<any>(null)
   const [credibility, setCredibility] = useState<any>(null)
@@ -714,36 +714,7 @@ export function AnalyticsPage() {
                   </div>
                 </div>
 
-                {/* Feature 10: Educator Mode */}
-                <div className="card-enterprise overflow-hidden animate-fade-up" style={{ animationDelay: "0.55s" }}>
-                  <div className="flex items-center justify-between p-5">
-                    <span className="text-sm font-semibold flex items-center gap-2"><GraduationCap className="w-4 h-4 text-primary" /> Educator Mode</span>
-                    <button onClick={() => setShowEducator(!showEducator)}
-                      className={`w-10 h-5 rounded-full transition-colors ${showEducator ? 'bg-primary' : 'bg-muted'} relative`}>
-                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${showEducator ? 'left-5' : 'left-0.5'}`} />
-                    </button>
-                  </div>
-                  {showEducator && (
-                    <div className="px-5 pb-5 border-t border-border pt-4 space-y-3">
-                      {[
-                        { step: 1, title: 'Text Preprocessing', desc: 'Input cleaned, normalized, and tokenized. HTML tags, special characters removed.' },
-                        { step: 2, title: 'TF-IDF Vectorization', desc: `Text converted to ${result.model_version ? '25,020' : 'N'} numerical features using term frequency-inverse document frequency.` },
-                        { step: 3, title: 'Meta-Feature Extraction', desc: '20 handcrafted features: readability, sentiment, entity density, sentence structure.' },
-                        { step: 4, title: 'ML Ensemble Voting', desc: '5 models (LR, RF, SGD, SVC, LightGBM) independently classify and vote.' },
-                        { step: 5, title: 'Red Flag Scan', desc: `Heuristic scanner detected ${result.red_flag_score}/10 severity across ${result.red_flags?.length || 0} patterns.` },
-                        { step: 6, title: 'Final Verdict', desc: `Combined score: ${result.confidence.toFixed(1)}% confidence → ${result.prediction}.` },
-                      ].map(s => (
-                        <div key={s.step} className="flex gap-3">
-                          <div className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center shrink-0">{s.step}</div>
-                          <div>
-                            <p className="text-xs font-semibold text-foreground">{s.title}</p>
-                            <p className="text-[11px] text-muted-foreground leading-relaxed">{s.desc}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+
 
                 {/* India Threat Scanner */}
                 {(() => {
