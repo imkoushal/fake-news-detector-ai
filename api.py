@@ -1379,6 +1379,125 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             logger.error(f"Error fetching claim: {e}")
             raise HTTPException(500, "Internal server error")
 
+    # ── Phase 9.2: Shareable Verdict Card (SVG) ──
+
+    @app.get("/api/v1/claim/{claim_hash}/card.svg", tags=["SEO"])
+    def get_claim_card_svg(claim_hash: str):
+        """Generate a shareable SVG verdict card for social media previews."""
+        from backend.claims_db import get_seo_claim
+        from backend.card_generator import generate_verdict_card
+        from fastapi.responses import Response
+
+        claim = get_seo_claim(claim_hash)
+        if not claim:
+            raise HTTPException(404, "Claim not found")
+
+        svg = generate_verdict_card(
+            claim_text=claim.get("claim_text", claim.get("text", "Claim text unavailable")),
+            verdict=claim.get("verdict", "UNVERIFIABLE"),
+            confidence=claim.get("confidence", 0),
+            analysis=claim.get("analysis", ""),
+        )
+        return Response(content=svg, media_type="image/svg+xml",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/claim/{claim_hash}", tags=["SEO"])
+    def claim_og_page(claim_hash: str, request: Request):
+        """Server-rendered HTML with OG meta tags for social crawlers.
+        Regular browsers get redirected to the SPA; crawlers get meta tags."""
+        from backend.claims_db import get_seo_claim
+        from fastapi.responses import HTMLResponse
+
+        ua = (request.headers.get("user-agent") or "").lower()
+        is_crawler = any(bot in ua for bot in [
+            "whatsapp", "telegrambot", "twitterbot", "facebookexternalhit",
+            "linkedinbot", "slackbot", "googlebot", "bingbot", "discordbot",
+        ])
+
+        claim = get_seo_claim(claim_hash)
+        if not claim and not is_crawler:
+            # Regular browser — let the SPA handle the 404
+            return HTMLResponse(status_code=200, content=_build_spa_redirect(claim_hash))
+
+        if not claim:
+            raise HTTPException(404, "Claim not found")
+
+        # Extract data for meta tags
+        import html as html_mod
+        verdict = claim.get("verdict", "UNVERIFIABLE").replace("_", " ")
+        confidence = claim.get("confidence", 0)
+        text = claim.get("claim_text", claim.get("text", ""))[:200]
+        analysis = claim.get("analysis", "")[:300]
+        safe_text = html_mod.escape(text)
+        safe_analysis = html_mod.escape(analysis)
+        base_url = "https://fake-news-detector-8djq.onrender.com"
+        card_url = f"{base_url}/api/v1/claim/{claim_hash}/card.svg"
+        page_url = f"{base_url}/claim/{claim_hash}"
+
+        title = f"VerifAI: {verdict} ({confidence:.0f}% confidence)"
+        description = safe_analysis if safe_analysis else f'Claim: "{safe_text[:120]}..."'
+
+        if is_crawler:
+            # Crawlers get a lightweight HTML with OG tags only
+            og_html = f"""<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<title>{title}</title>
+<meta name="description" content="{description}"/>
+<meta property="og:title" content="{title}"/>
+<meta property="og:description" content="{description}"/>
+<meta property="og:image" content="{card_url}"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta property="og:url" content="{page_url}"/>
+<meta property="og:type" content="article"/>
+<meta property="og:site_name" content="VerifAI Fact Checker"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="{title}"/>
+<meta name="twitter:description" content="{description}"/>
+<meta name="twitter:image" content="{card_url}"/>
+</head><body><h1>{title}</h1><p>{description}</p>
+<p><a href="{page_url}">View full report on VerifAI</a></p>
+</body></html>"""
+            return HTMLResponse(content=og_html)
+
+        # Regular browser — serve SPA shell with injected OG tags
+        return HTMLResponse(content=_build_spa_redirect(claim_hash, title=title,
+                            description=description, card_url=card_url, page_url=page_url))
+
+    def _build_spa_redirect(claim_hash: str, *, title: str = "VerifAI Fact Checker",
+                            description: str = "AI-powered fact checking",
+                            card_url: str = "", page_url: str = "") -> str:
+        """Build a minimal HTML page that loads the React SPA for a claim page."""
+        base_url = "https://fake-news-detector-8djq.onrender.com"
+        if not page_url:
+            page_url = f"{base_url}/claim/{claim_hash}"
+        if not card_url:
+            card_url = f"{base_url}/api/v1/claim/{claim_hash}/card.svg"
+
+        return f"""<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{title}</title>
+<meta name="description" content="{description}"/>
+<meta property="og:title" content="{title}"/>
+<meta property="og:description" content="{description}"/>
+<meta property="og:image" content="{card_url}"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta property="og:url" content="{page_url}"/>
+<meta property="og:type" content="article"/>
+<meta property="og:site_name" content="VerifAI Fact Checker"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="{title}"/>
+<meta name="twitter:description" content="{description}"/>
+<meta name="twitter:image" content="{card_url}"/>
+<script>window.location.replace('/claim/{claim_hash}');</script>
+</head><body>
+<noscript><a href="/claim/{claim_hash}">View report</a></noscript>
+</body></html>"""
+
     # ── Source Credibility Database — Tier 2 Upgrade 1 ──
     # Comprehensive domain reputation database with India-first focus.
     # Each entry: (credibility_score 0-100, category, bias, description)

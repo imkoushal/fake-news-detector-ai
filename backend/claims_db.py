@@ -45,10 +45,12 @@ def save_seo_claim(claim_hash: str, text: str, response: dict):
 
 def get_seo_claim(claim_hash: str) -> dict | None:
     try:
-        query = "SELECT response_json FROM seo_claims WHERE claim_hash = ?" if not USE_POSTGRES else "SELECT response_json FROM seo_claims WHERE claim_hash = %s"
+        query = "SELECT claim_text, response_json FROM seo_claims WHERE claim_hash = ?" if not USE_POSTGRES else "SELECT claim_text, response_json FROM seo_claims WHERE claim_hash = %s"
         row = execute_db(query, (claim_hash,), fetch="one")
         if row:
-            return json.loads(row[0])
+            data = json.loads(row[1])
+            data["claim_text"] = row[0]  # Always include original claim text
+            return data
     except Exception as e:
         logger.error(f"Failed to get seo claim: {e}")
     return None
