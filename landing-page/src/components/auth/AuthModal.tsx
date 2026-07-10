@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { API_BASE } from "../../lib/api";
 import { Button } from "../ui/button";
@@ -14,6 +14,7 @@ export function AuthModal() {
   
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     // Initialize Google Auth when modal opens
@@ -136,15 +137,26 @@ export function AuthModal() {
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Password</label>
-              <input 
-                type="password" 
-                required 
-                minLength={6}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  required 
+                  minLength={6}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="w-full bg-background border border-border rounded-md px-3 py-2 pr-10 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             
             <Button type="submit" className="w-full" disabled={loading}>
