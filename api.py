@@ -1438,12 +1438,32 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         description = safe_analysis if safe_analysis else f'Claim: "{safe_text[:120]}..."'
 
         if is_crawler:
-            # Crawlers get a lightweight HTML with OG tags only
+            # Build JSON-LD structured data for Google Fact Check
+            import json as json_mod
+            verdict_name_map = {"LIKELY_TRUE": "True", "LIKELY_FALSE": "False", "MIXED": "Mixture", "UNVERIFIABLE": "Unverifiable"}
+            rating_val_map = {"LIKELY_TRUE": 4, "LIKELY_FALSE": 1, "MIXED": 3, "UNVERIFIABLE": 3}
+            jsonld = json_mod.dumps({
+                "@context": "https://schema.org",
+                "@type": "ClaimReview",
+                "url": page_url,
+                "claimReviewed": text[:500],
+                "author": {"@type": "Organization", "name": "VerifAI", "url": base_url},
+                "reviewRating": {
+                    "@type": "Rating",
+                    "ratingValue": rating_val_map.get(claim.get("verdict", ""), 3),
+                    "bestRating": 5, "worstRating": 1,
+                    "alternateName": verdict_name_map.get(claim.get("verdict", ""), "Unverifiable"),
+                },
+                "itemReviewed": {"@type": "Claim", "name": text[:200]},
+            })
+
+            # Crawlers get a lightweight HTML with OG tags + JSON-LD
             og_html = f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <title>{title}</title>
 <meta name="description" content="{description}"/>
+<link rel="canonical" href="{page_url}"/>
 <meta property="og:title" content="{title}"/>
 <meta property="og:description" content="{description}"/>
 <meta property="og:image" content="{card_url}"/>
@@ -1456,6 +1476,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 <meta name="twitter:title" content="{title}"/>
 <meta name="twitter:description" content="{description}"/>
 <meta name="twitter:image" content="{card_url}"/>
+<script type="application/ld+json">{jsonld}</script>
 </head><body><h1>{title}</h1><p>{description}</p>
 <p><a href="{page_url}">View full report on VerifAI</a></p>
 </body></html>"""
@@ -1497,6 +1518,105 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 </head><body>
 <noscript><a href="/claim/{claim_hash}">View report</a></noscript>
 </body></html>"""
+
+    # ── Phase 11.2: SEO Infrastructure (Sitemap, Robots, JSON-LD) ──
+
+    @app.get("/sitemap.xml", tags=["SEO"])
+    def sitemap_xml():
+        """Dynamic XML sitemap listing all verified claim pages."""
+        from backend.claims_db import list_all_claim_hashes
+        from fastapi.responses import Response
+
+        base = "https://fake-news-detector-8djq.onrender.com"
+        claims = list_all_claim_hashes()
+
+        urls = [f"""  <url>
+    <loc>{base}/claim/{c['hash']}</loc>
+    <lastmod>{c['created_at'][:10] if c.get('created_at') else '2026-01-01'}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>""" for c in claims]
+
+        # Add static pages
+        static_pages = [
+            ("", "daily", "1.0"),
+            ("/about", "monthly", "0.5"),
+        ]
+        for path, freq, prio in static_pages:
+            urls.insert(0, f"""  <url>
+    <loc>{base}{path}</loc>
+    <changefreq>{freq}</changefreq>
+    <priority>{prio}</priority>
+  </url>""")
+
+        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{chr(10).join(urls)}
+</urlset>"""
+        return Response(content=xml, media_type="application/xml",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+    @app.get("/robots.txt", tags=["SEO"])
+    def robots_txt():
+        """Serve robots.txt pointing crawlers to the sitemap."""
+        from fastapi.responses import PlainTextResponse
+        base = "https://fake-news-detector-8djq.onrender.com"
+        return PlainTextResponse(
+            f"User-agent: *\nAllow: /\nAllow: /claim/\nDisallow: /api/\nDisallow: /dashboard\nDisallow: /settings\n\nSitemap: {base}/sitemap.xml\n",
+            headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/api/v1/claim/{claim_hash}/jsonld", tags=["SEO"])
+    def claim_jsonld(claim_hash: str):
+        """Return ClaimReview JSON-LD structured data for Google's fact-check panel."""
+        from backend.claims_db import get_seo_claim
+
+        claim = get_seo_claim(claim_hash)
+        if not claim:
+            raise HTTPException(404, "Claim not found")
+
+        import html as html_mod
+        verdict = claim.get("verdict", "UNVERIFIABLE")
+        confidence = claim.get("confidence", 0)
+        text = claim.get("claim_text", claim.get("text", ""))
+        analysis = claim.get("analysis", "")
+        base_url = "https://fake-news-detector-8djq.onrender.com"
+
+        # Map internal verdict to ClaimReview alternateName
+        rating_map = {
+            "LIKELY_TRUE": {"name": "True", "val": 4, "best": 5, "worst": 1},
+            "LIKELY_FALSE": {"name": "False", "val": 1, "best": 5, "worst": 1},
+            "MIXED": {"name": "Mixture", "val": 3, "best": 5, "worst": 1},
+            "UNVERIFIABLE": {"name": "Unverifiable", "val": 3, "best": 5, "worst": 1},
+        }
+        rating = rating_map.get(verdict, rating_map["UNVERIFIABLE"])
+
+        jsonld = {
+            "@context": "https://schema.org",
+            "@type": "ClaimReview",
+            "url": f"{base_url}/claim/{claim_hash}",
+            "claimReviewed": text[:500],
+            "author": {
+                "@type": "Organization",
+                "name": "VerifAI",
+                "url": base_url,
+            },
+            "reviewRating": {
+                "@type": "Rating",
+                "ratingValue": rating["val"],
+                "bestRating": rating["best"],
+                "worstRating": rating["worst"],
+                "alternateName": rating["name"],
+            },
+            "itemReviewed": {
+                "@type": "Claim",
+                "name": text[:200],
+                "appearance": {
+                    "@type": "CreativeWork",
+                    "url": f"{base_url}/claim/{claim_hash}",
+                },
+            },
+        }
+        return jsonld
 
     # ── Source Credibility Database — Tier 2 Upgrade 1 ──
     # Comprehensive domain reputation database with India-first focus.
@@ -2496,6 +2616,110 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
             raise HTTPException(403, "Admin access required")
         window_days = max(1, min(int(window_days), 365))
         return _metrics.compute_metrics(window_days=window_days)
+
+    # ── Phase 11.2: SEO — Sitemap, robots.txt, Structured Data ──
+
+    @app.get("/sitemap.xml", tags=["SEO"])
+    def sitemap_xml():
+        """Dynamic XML sitemap listing all verified claim pages for search engines."""
+        from backend.claims_db import list_all_claim_hashes
+        from fastapi.responses import Response
+
+        base = "https://fake-news-detector-8djq.onrender.com"
+        claims = list_all_claim_hashes()
+
+        urls = [
+            f'  <url><loc>{base}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>',
+            f'  <url><loc>{base}/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>',
+        ]
+        for c in claims:
+            date_tag = ""
+            if c.get("created_at"):
+                date_str = c["created_at"][:10]  # YYYY-MM-DD
+                if len(date_str) == 10:
+                    date_tag = f"<lastmod>{date_str}</lastmod>"
+            urls.append(
+                f'  <url><loc>{base}/claim/{c["hash"]}</loc>{date_tag}'
+                f'<changefreq>monthly</changefreq><priority>0.7</priority></url>'
+            )
+
+        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{chr(10).join(urls)}
+</urlset>"""
+        return Response(content=xml, media_type="application/xml",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+    @app.get("/robots.txt", tags=["SEO"])
+    def robots_txt():
+        """Serve robots.txt directing crawlers to the sitemap."""
+        from fastapi.responses import PlainTextResponse
+        base = "https://fake-news-detector-8djq.onrender.com"
+        content = f"""User-agent: *
+Allow: /
+Allow: /claim/
+Allow: /about
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /batch
+
+Sitemap: {base}/sitemap.xml
+"""
+        return PlainTextResponse(content=content,
+                                 headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/api/v1/claim/{claim_hash}/ld-json", tags=["SEO"])
+    def claim_structured_data(claim_hash: str):
+        """Return ClaimReview JSON-LD structured data for Google Fact Check Tools."""
+        from backend.claims_db import get_seo_claim
+
+        claim = get_seo_claim(claim_hash)
+        if not claim:
+            raise HTTPException(404, "Claim not found")
+
+        verdict = claim.get("verdict", "UNVERIFIABLE")
+        confidence = claim.get("confidence", 0)
+        text = claim.get("claim_text", claim.get("text", ""))
+        analysis = claim.get("analysis", "")
+        base = "https://fake-news-detector-8djq.onrender.com"
+
+        # Map verdict to ClaimReview alternateName
+        rating_map = {
+            "LIKELY_TRUE": {"name": "True", "value": 4, "best": 5, "worst": 1},
+            "LIKELY_FALSE": {"name": "False", "value": 1, "best": 5, "worst": 1},
+            "MIXED": {"name": "Mixture", "value": 3, "best": 5, "worst": 1},
+            "UNVERIFIABLE": {"name": "Unverifiable", "value": 2, "best": 5, "worst": 1},
+        }
+        rating = rating_map.get(verdict, rating_map["UNVERIFIABLE"])
+
+        ld_json = {
+            "@context": "https://schema.org",
+            "@type": "ClaimReview",
+            "url": f"{base}/claim/{claim_hash}",
+            "claimReviewed": text[:500],
+            "author": {
+                "@type": "Organization",
+                "name": "VerifAI",
+                "url": base,
+            },
+            "reviewRating": {
+                "@type": "Rating",
+                "ratingValue": rating["value"],
+                "bestRating": rating["best"],
+                "worstRating": rating["worst"],
+                "alternateName": rating["name"],
+            },
+            "itemReviewed": {
+                "@type": "Claim",
+                "name": text[:200],
+                "appearance": {
+                    "@type": "CreativeWork",
+                    "url": f"{base}/claim/{claim_hash}",
+                },
+            },
+        }
+        return ld_json
 
     # ── API catch-all: return proper 404 for unmatched /api/ paths ──
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])

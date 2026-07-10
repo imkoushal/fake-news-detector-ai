@@ -54,3 +54,17 @@ def get_seo_claim(claim_hash: str) -> dict | None:
     except Exception as e:
         logger.error(f"Failed to get seo claim: {e}")
     return None
+
+def list_all_claim_hashes() -> list[dict]:
+    """Return all claim hashes with metadata for sitemap generation.
+    Returns list of {"hash": str, "verdict": str, "created_at": str}.
+    """
+    try:
+        query = "SELECT claim_hash, verdict, created_at FROM seo_claims ORDER BY created_at DESC"
+        rows = execute_db(query, (), fetch="all")
+        if rows:
+            return [{"hash": r[0], "verdict": r[1], "created_at": str(r[2]) if r[2] else ""} for r in rows]
+    except Exception as e:
+        logger.error(f"Failed to list claim hashes: {e}")
+    return []
+

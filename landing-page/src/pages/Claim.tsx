@@ -23,6 +23,23 @@ export function Claim() {
         // Update document title dynamically
         const verdict = (data.verdict || "").replace(/_/g, " ")
         document.title = `VerifAI: ${verdict} (${data.confidence?.toFixed(0)}% confidence)`
+        // Inject JSON-LD structured data for SEO
+        const ratingMap: Record<string, {name: string, val: number}> = {
+          LIKELY_TRUE: {name: "True", val: 4}, LIKELY_FALSE: {name: "False", val: 1},
+          MIXED: {name: "Mixture", val: 3}, UNVERIFIABLE: {name: "Unverifiable", val: 3},
+        }
+        const r = ratingMap[data.verdict] || ratingMap.UNVERIFIABLE
+        const jsonLd = document.createElement("script")
+        jsonLd.type = "application/ld+json"
+        jsonLd.text = JSON.stringify({
+          "@context": "https://schema.org", "@type": "ClaimReview",
+          url: `https://fake-news-detector-8djq.onrender.com/claim/${hash}`,
+          claimReviewed: (data.claim_text || data.text || "").slice(0, 500),
+          author: {"@type": "Organization", name: "VerifAI", url: "https://fake-news-detector-8djq.onrender.com"},
+          reviewRating: {"@type": "Rating", ratingValue: r.val, bestRating: 5, worstRating: 1, alternateName: r.name},
+          itemReviewed: {"@type": "Claim", name: (data.claim_text || data.text || "").slice(0, 200)},
+        })
+        document.head.appendChild(jsonLd)
       })
       .catch(err => {
         setError(err.message)
