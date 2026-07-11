@@ -33,7 +33,7 @@ try:
     from fastapi import FastAPI, HTTPException, Request, UploadFile, File
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse, JSONResponse
-    from pydantic import BaseModel
+    from pydantic import BaseModel, ConfigDict
     from typing import Optional, List
     import joblib
     import re
@@ -103,12 +103,26 @@ else:
         from backend.http_client import close_client
         await close_client()
 
+    # ── Production detection ──
+    # Render sets RENDER=true automatically; APP_ENV=production is an explicit
+    # override (matches the existing convention in .env.example).
+    IS_PRODUCTION = os.getenv("APP_ENV", "").lower() in ("production", "prod") or bool(os.getenv("RENDER"))
+
     # ── Initialize FastAPI ──
+    # Finding #1: Disable interactive API docs (Swagger/ReDoc/OpenAPI schema) in
+    # production so the full attack surface isn't handed to anonymous callers.
+    # They stay enabled locally for development convenience.
+    _docs_kwargs = (
+        {"docs_url": None, "redoc_url": None, "openapi_url": None}
+        if IS_PRODUCTION
+        else {}
+    )
     app = FastAPI(
         title="Fake News Detector API",
         description="Hybrid ML-powered fake news detection API",
         version=APP_VERSION,
         lifespan=lifespan,
+        **_docs_kwargs,
     )
 
     # ── CORS — read allowed origins from env, default to localhost for dev ──
@@ -165,6 +179,35 @@ else:
         response.headers["X-Request-ID"] = request_id
         return response
 
+    # ── Finding #6: Security headers ──
+    # These are safe to apply globally — they harden the browser without
+    # restricting which scripts/styles/images the SPA may load, so the frontend
+    # and Google Sign-In keep working. A full `default-src 'self'` CSP is
+    # intentionally NOT set here because it would block the existing inline/CDN
+    # assets; the CSP below only restricts framing, plugins, and <base> hijacking
+    # (clickjacking + injection protection) without breaking resource loading.
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+        )
+        # X-XSS-Protection: modern guidance is to disable the legacy auditor (0).
+        response.headers.setdefault("X-XSS-Protection", "0")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+        )
+        # HSTS only in production (over HTTPS) — never force it on local http dev.
+        if IS_PRODUCTION:
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return response
+
     # ── Phase 5: Global exception handler (no raw tracebacks to client) ──
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
@@ -197,13 +240,46 @@ else:
         SESSION_TTL_DAYS,
     )
 
+    # ── Finding #3: Login brute-force lockout ──
+    # Per-email failed-attempt tracker. Complements the IP-based slowapi limit:
+    # slowapi caps request *rate*, this locks a targeted *account* after repeated
+    # failures regardless of how the attacker rotates IPs.
+    # NOTE: in-memory + per-process. Fine for the current single-instance Render
+    # deployment (resets on restart); move to Redis/DB if scaled horizontally.
+    from collections import defaultdict as _defaultdict
+    _failed_logins: dict = _defaultdict(list)  # email -> [unix_ts, ...]
+    LOGIN_MAX_FAILURES = 5      # failures within the window before lockout
+    LOGIN_FAIL_WINDOW = 900     # 15 min sliding window (seconds)
+    LOGIN_LOCKOUT_SECS = 900    # lock duration after threshold reached
+
+    def _login_locked(email: str) -> bool:
+        """True if this email is currently locked out; prunes stale entries."""
+        now = datetime.now().timestamp()
+        recent = [t for t in _failed_logins.get(email, []) if now - t < LOGIN_LOCKOUT_SECS]
+        _failed_logins[email] = recent
+        return len(recent) >= LOGIN_MAX_FAILURES
+
+    def _record_login_failure(email: str) -> None:
+        now = datetime.now().timestamp()
+        recent = [t for t in _failed_logins.get(email, []) if now - t < LOGIN_FAIL_WINDOW]
+        recent.append(now)
+        _failed_logins[email] = recent
+
+    def _clear_login_failures(email: str) -> None:
+        _failed_logins.pop(email, None)
+
     # ── Pydantic Models ──
     class SignupRequest(BaseModel):
+        # Finding #4 hardening: reject unknown fields (e.g. an injected `role`)
+        # with 422 instead of silently ignoring them. Privilege columns are never
+        # bound from the request body regardless — this just makes intent explicit.
+        model_config = ConfigDict(extra="forbid")
         name: str
         email: str
         password: str
 
     class LoginRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid")
         email: str
         password: str
 
@@ -289,22 +365,35 @@ else:
             conn.close()
 
     @app.post("/api/v1/auth/login")
-    @limiter.limit("15/minute")
+    @limiter.limit("5/minute")
     async def login(req: LoginRequest, request: Request):
+        email_key = req.email.strip().lower()
+        # Finding #3: account lockout after repeated failures for this email.
+        if _login_locked(email_key):
+            logger.warning(f"Login blocked — account locked out: {email_key}")
+            raise HTTPException(
+                429,
+                "Too many failed login attempts. Try again in 15 minutes.",
+            )
         conn = get_db()
         c = conn.cursor()
         try:
             c.execute(
                 f"SELECT id, name, email, password_hash, salt FROM users WHERE email = {ph()}",
-                (req.email.strip().lower(),)
+                (email_key,)
             )
             user = c.fetchone()
             if not user:
                 # M5 FIX: Dummy bcrypt hash to prevent timing-based user enumeration
                 _hash_password("dummy-password-for-constant-time")
+                _record_login_failure(email_key)
                 raise HTTPException(401, "Invalid email or password")
             if not _verify_password(req.password, user[3], user[4]):
+                _record_login_failure(email_key)
                 raise HTTPException(401, "Invalid email or password")
+
+            # Successful auth — clear the failure counter for this account.
+            _clear_login_failures(email_key)
 
             # Auto-upgrade legacy SHA-256 hashes to bcrypt on successful login
             # Commit upgrade immediately so it persists even if session creation fails
@@ -603,8 +692,26 @@ else:
         }
 
     @app.get("/health")
-    async def health_check():
-        """Phase 5: Tiered health check — model, DB, and cache status."""
+    async def health_check(request: Request):
+        """Phase 5: Tiered health check — model, DB, and cache status.
+
+        Finding #5: the detailed payload (db engine, model version, cache config,
+        which API keys are set) is only returned to internal callers — non-prod, or
+        a request carrying the HEALTH_DETAIL_TOKEN. Public callers get a minimal
+        liveness response so recon can't fingerprint the stack. Always HTTP 200 so
+        platform health checks (Render) still pass.
+        """
+        _detail_token = os.getenv("HEALTH_DETAIL_TOKEN", "")
+        _provided = (
+            request.headers.get("X-Health-Token", "")
+            or request.query_params.get("token", "")
+        )
+        _show_detail = (not IS_PRODUCTION) or (
+            bool(_detail_token) and secrets.compare_digest(_provided, _detail_token)
+        )
+        if not _show_detail:
+            return {"status": "ok" if MODEL_LOADED else "degraded"}
+
         # Tier 1: Basic server up
         health = {
             "status": "healthy",

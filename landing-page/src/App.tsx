@@ -16,6 +16,7 @@ const AccuracySection = lazy(() => import("./components/AccuracySection").then(m
 const Footer = lazy(() => import("./components/Footer").then(m => ({ default: m.Footer })))
 const Dashboard = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.Dashboard })))
 const AboutPage = lazy(() => import("./pages/About").then(m => ({ default: m.AboutPage })))
+const PrivacyPage = lazy(() => import("./pages/Privacy").then(m => ({ default: m.PrivacyPage })))
 const BatchPage = lazy(() => import("./pages/Batch").then(m => ({ default: m.BatchPage })))
 const AnalyticsPage = lazy(() => import("./pages/Analytics").then(m => ({ default: m.AnalyticsPage })))
 const HistoryPage = lazy(() => import("./pages/History").then(m => ({ default: m.HistoryPage })))
@@ -127,6 +128,7 @@ function App() {
         <Route element={<PublicLayout />}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/about" element={<Suspense fallback={<PageSkeleton />}><AboutPage /></Suspense>} />
+          <Route path="/privacy" element={<Suspense fallback={<PageSkeleton />}><PrivacyPage /></Suspense>} />
         </Route>
 
         {/* Authenticated routes — sidebar layout */}

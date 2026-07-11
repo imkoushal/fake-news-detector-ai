@@ -1,0 +1,41 @@
+* { box-sizing: border-box; }
+body {
+  width: 340px; margin: 0; padding: 14px;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1a1a1a; background: #fff;
+}
+.head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.head strong { color: #863bff; font-size: 16px; }
+.head .tag { margin-left: auto; color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+textarea {
+  width: 100%; resize: vertical; padding: 10px; border: 1px solid #ddd; border-radius: 10px;
+  font: inherit; color: #1a1a1a;
+}
+textarea:focus { outline: none; border-color: #863bff; }
+.row { display: flex; gap: 8px; margin-top: 10px; }
+button {
+  flex: 1; padding: 9px 12px; border: 0; border-radius: 10px; font: inherit; font-weight: 700;
+  cursor: pointer; background: #863bff; color: #fff;
+}
+button:hover { background: #7431e6; }
+button:disabled { opacity: .55; cursor: default; }
+button.ghost { background: #f2f0fb; color: #863bff; }
+button.ghost:hover { background: #e8e3fb; }
+.result { margin-top: 12px; }
+.badge { display: inline-block; color: #fff; font-weight: 700; padding: 4px 10px; border-radius: 999px; font-size: 13px; }
+.conf { color: #555; font-size: 12px; font-weight: 600; margin-left: 6px; }
+.cred { color: #777; font-size: 12px; margin: 6px 0; }
+.analysis { color: #333; margin: 8px 0; }
+.ev-title { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: #888; margin-bottom: 4px; }
+.ev { list-style: none; margin: 0 0 8px; padding: 0; }
+.ev li { margin-bottom: 6px; }
+.ev a { color: #4f46e5; text-decoration: none; display: block; font-weight: 600; }
+.ev a:hover { text-decoration: underline; }
+.ev .src { color: #999; font-size: 11px; }
+.more { display: inline-block; color: #863bff; font-weight: 700; text-decoration: none; font-size: 13px; }
+.more:hover { text-decoration: underline; }
+.loading { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.spinner { width: 16px; height: 16px; border: 2px solid #ddd; border-top-color: #863bff; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.err { color: #dc2626; font-weight: 600; }
+.foot { margin-top: 12px; padding-top: 8px; border-top: 1px solid #eee; color: #aaa; font-size: 11px; text-align: center; }

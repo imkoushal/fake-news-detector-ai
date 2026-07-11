@@ -1,0 +1,6 @@
+# Build output (regenerate with `node build.mjs`)
+dist/
+
+# Tooling installed only to rasterize icons
+node_modules/
+package-lock.json

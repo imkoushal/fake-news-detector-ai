@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="head">
+    <img src="icon.svg" alt="" width="22" height="22" />
+    <strong>VerifAI</strong>
+    <span class="tag">Fact Check</span>
+  </div>
+
+  <textarea id="text" rows="4" placeholder="Paste a claim, headline, or message to verify…"></textarea>
+
+  <div class="row">
+    <button id="useSelection" class="ghost" type="button">Use page selection</button>
+    <button id="check" type="button">Check</button>
+  </div>
+
+  <div id="result" class="result" hidden></div>
+
+  <div class="foot">🔍 Verified by VerifAI</div>
+
+  <script src="config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
