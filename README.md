@@ -356,7 +356,7 @@ See the full [LICENSE](LICENSE) file for details.
 
 <p align="center">
   <strong>Status:</strong> ✅ Production Ready &nbsp;|&nbsp;
-  <strong>Version:</strong> 8.0 &nbsp;|&nbsp;
+  <strong>Version:</strong> 8.1 &nbsp;|&nbsp;
   <strong>Endpoints:</strong> 14 &nbsp;|&nbsp;
   <strong>Rating:</strong> 8.2/10
 </p>
