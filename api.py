@@ -1648,6 +1648,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         static_pages = [
             ("", "daily", "1.0"),
             ("/about", "monthly", "0.5"),
+            ("/privacy", "yearly", "0.3"),
         ]
         for path, freq, prio in static_pages:
             urls.insert(0, f"""  <url>
@@ -1669,7 +1670,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         from fastapi.responses import PlainTextResponse
         base = "https://fake-news-detector-8djq.onrender.com"
         return PlainTextResponse(
-            f"User-agent: *\nAllow: /\nAllow: /claim/\nDisallow: /api/\nDisallow: /dashboard\nDisallow: /settings\n\nSitemap: {base}/sitemap.xml\n",
+            f"User-agent: *\nAllow: /\nAllow: /claim/\nAllow: /about\nAllow: /privacy\nDisallow: /api/\nDisallow: /dashboard\nDisallow: /settings\nDisallow: /batch\n\nSitemap: {base}/sitemap.xml\n",
             headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/api/v1/claim/{claim_hash}/jsonld", tags=["SEO"])
@@ -2724,57 +2725,10 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         window_days = max(1, min(int(window_days), 365))
         return _metrics.compute_metrics(window_days=window_days)
 
-    # ── Phase 11.2: SEO — Sitemap, robots.txt, Structured Data ──
-
-    @app.get("/sitemap.xml", tags=["SEO"])
-    def sitemap_xml():
-        """Dynamic XML sitemap listing all verified claim pages for search engines."""
-        from backend.claims_db import list_all_claim_hashes
-        from fastapi.responses import Response
-
-        base = "https://fake-news-detector-8djq.onrender.com"
-        claims = list_all_claim_hashes()
-
-        urls = [
-            f'  <url><loc>{base}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>',
-            f'  <url><loc>{base}/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>',
-        ]
-        for c in claims:
-            date_tag = ""
-            if c.get("created_at"):
-                date_str = c["created_at"][:10]  # YYYY-MM-DD
-                if len(date_str) == 10:
-                    date_tag = f"<lastmod>{date_str}</lastmod>"
-            urls.append(
-                f'  <url><loc>{base}/claim/{c["hash"]}</loc>{date_tag}'
-                f'<changefreq>monthly</changefreq><priority>0.7</priority></url>'
-            )
-
-        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-{chr(10).join(urls)}
-</urlset>"""
-        return Response(content=xml, media_type="application/xml",
-                        headers={"Cache-Control": "public, max-age=3600"})
-
-    @app.get("/robots.txt", tags=["SEO"])
-    def robots_txt():
-        """Serve robots.txt directing crawlers to the sitemap."""
-        from fastapi.responses import PlainTextResponse
-        base = "https://fake-news-detector-8djq.onrender.com"
-        content = f"""User-agent: *
-Allow: /
-Allow: /claim/
-Allow: /about
-Disallow: /api/
-Disallow: /dashboard
-Disallow: /settings
-Disallow: /batch
-
-Sitemap: {base}/sitemap.xml
-"""
-        return PlainTextResponse(content=content,
-                                 headers={"Cache-Control": "public, max-age=86400"})
+    # ── Phase 11.2: SEO — Structured Data ──
+    # NOTE: /sitemap.xml and /robots.txt are defined earlier (Phase 11.2 SEO
+    # Infrastructure block). Duplicate definitions previously here were shadowed
+    # (Starlette matches the first-registered route) and have been removed.
 
     @app.get("/api/v1/claim/{claim_hash}/ld-json", tags=["SEO"])
     def claim_structured_data(claim_hash: str):
