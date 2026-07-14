@@ -79,6 +79,11 @@ else:
             init_seo_claims_db()
         except Exception as e:
             logger.warning(f"seo_claims init skipped: {e}")
+        try:
+            from backend.api_keys import init_api_keys_db
+            init_api_keys_db()
+        except Exception as e:
+            logger.warning(f"api_keys init skipped: {e}")
 
         logger.info("Server is up — loading ML model in lifespan startup...")
         _load_model()
@@ -1470,6 +1475,113 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     async def cache_stats():
         """Return claim cache hit/miss statistics for monitoring."""
         return claim_cache.stats()
+
+    # ── Phase 11.1: Public API Key Management ──
+
+    @app.post("/api/v1/api-keys", tags=["API Keys"])
+    async def create_api_key(request: Request, body: dict | None = None):
+        """Create a new API key for the authenticated user."""
+        from backend.api_keys import generate_api_key, list_user_keys
+
+        user_id = _get_user_from_token(request)
+        if not user_id:
+            raise HTTPException(401, "Authentication required")
+
+        # Limit to 5 keys per user
+        existing = list_user_keys(user_id)
+        if len(existing) >= 5:
+            raise HTTPException(400, "Maximum of 5 API keys per account")
+
+        name = (body or {}).get("name", "Default")
+        if len(name) > 50:
+            name = name[:50]
+
+        result = generate_api_key(user_id, name)
+        return {
+            "message": "API key created. Save it now — it won't be shown again!",
+            **result,
+        }
+
+    @app.get("/api/v1/api-keys", tags=["API Keys"])
+    async def list_api_keys(request: Request):
+        """List all API keys for the authenticated user."""
+        from backend.api_keys import list_user_keys
+
+        user_id = _get_user_from_token(request)
+        if not user_id:
+            raise HTTPException(401, "Authentication required")
+
+        keys = list_user_keys(user_id)
+        return {"keys": keys, "count": len(keys)}
+
+    @app.delete("/api/v1/api-keys/{key_id}", tags=["API Keys"])
+    async def revoke_api_key_endpoint(key_id: int, request: Request):
+        """Revoke (deactivate) an API key."""
+        from backend.api_keys import revoke_api_key
+
+        user_id = _get_user_from_token(request)
+        if not user_id:
+            raise HTTPException(401, "Authentication required")
+
+        success = revoke_api_key(user_id, key_id)
+        if not success:
+            raise HTTPException(404, "API key not found")
+        return {"message": "API key revoked", "key_id": key_id}
+
+    @app.get("/api/v1/api-keys/{key_id}/usage", tags=["API Keys"])
+    async def get_api_key_usage(key_id: int, request: Request, days: int = 7):
+        """Get usage history for a specific API key."""
+        from backend.api_keys import get_key_usage, list_user_keys
+
+        user_id = _get_user_from_token(request)
+        if not user_id:
+            raise HTTPException(401, "Authentication required")
+
+        # Verify the key belongs to this user
+        user_keys = list_user_keys(user_id)
+        if not any(k["id"] == key_id for k in user_keys):
+            raise HTTPException(404, "API key not found")
+
+        usage = get_key_usage(key_id, min(days, 90))
+        return {"key_id": key_id, "days": days, "usage": usage}
+
+    # ── API Key validation helper (used by verification endpoints) ──
+
+    def _validate_api_key_header(request: Request) -> dict | None:
+        """Check X-API-Key header. Returns key info or None."""
+        api_key = request.headers.get("X-API-Key")
+        if not api_key:
+            return None
+
+        from backend.api_keys import validate_api_key
+        return validate_api_key(api_key)
+
+    def _check_api_key_or_session(request: Request) -> int | None:
+        """Allow access via session auth OR API key. Returns user_id or None.
+        Raises HTTPException if API key is present but invalid/over-quota."""
+        # Try session auth first
+        user_id = _get_user_from_token(request)
+        if user_id:
+            return user_id
+
+        # Try API key
+        key_info = _validate_api_key_header(request)
+        if key_info is None:
+            return None  # No auth at all — endpoint decides if that's ok
+
+        if not key_info["allowed"]:
+            raise HTTPException(
+                429,
+                f"API key daily limit reached ({key_info['daily_limit']} requests/day). "
+                f"Upgrade your plan or wait until tomorrow.",
+            )
+
+        # Record the usage
+        from backend.api_keys import record_usage
+        record_usage(key_info["key_id"])
+
+        return key_info["user_id"]
+
 
     @app.get("/api/v1/claim/{claim_hash}", tags=["SEO"])
     def get_seo_claim_endpoint(claim_hash: str):
