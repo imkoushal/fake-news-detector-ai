@@ -25,6 +25,7 @@ const ComparePage = lazy(() => import("./pages/Compare").then(m => ({ default: m
 const BookmarksPage = lazy(() => import("./pages/Bookmarks").then(m => ({ default: m.BookmarksPage })))
 const FeedbackPage = lazy(() => import("./pages/Feedback").then(m => ({ default: m.FeedbackPage })))
 const ClaimPage = lazy(() => import("./pages/Claim").then(m => ({ default: m.Claim })))
+const ModelMonitorPage = lazy(() => import("./pages/ModelMonitor").then(m => ({ default: m.ModelMonitorPage })))
 
 /* ─── Skeleton fallback for lazy-loaded routes ─── */
 function PageSkeleton() {
@@ -141,6 +142,7 @@ function App() {
           <Route path="/compare" element={<ComparePage />} />
           <Route path="/bookmarks" element={<BookmarksPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
+          <Route path="/monitor" element={<ModelMonitorPage />} />
         </Route>
       </Routes>
     </>

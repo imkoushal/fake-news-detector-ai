@@ -1476,6 +1476,54 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         """Return claim cache hit/miss statistics for monitoring."""
         return claim_cache.stats()
 
+    # ── Phase 11.4: Model Monitoring Endpoints ──
+
+    @app.get("/api/v1/model-health", tags=["Monitoring"])
+    async def model_health(request: Request, days: int = 7):
+        """Get comprehensive model health report with alerts."""
+        try:
+            from model_monitor import ModelMonitor
+            monitor = ModelMonitor()
+            report = monitor.get_health_report(days=min(days, 90))
+            # Add model metadata
+            report["model"] = {
+                "version": APP_VERSION,
+                "loaded": MODEL_LOADED,
+                "config": MODEL_CONFIG if MODEL_LOADED else None,
+            }
+            return report
+        except Exception as e:
+            logger.error(f"Model health check failed: {e}")
+            return {
+                "status": "ERROR",
+                "message": str(e),
+                "model": {"version": APP_VERSION, "loaded": MODEL_LOADED},
+            }
+
+    @app.get("/api/v1/model-health/trends", tags=["Monitoring"])
+    async def model_health_trends(days: int = 30):
+        """Get daily trend data for model monitoring charts."""
+        try:
+            from model_monitor import ModelMonitor
+            monitor = ModelMonitor()
+            trends = monitor.get_daily_trends(days=min(days, 90))
+            stats = monitor.get_prediction_stats(hours=24)
+            return {"trends": trends, "last_24h": stats}
+        except Exception as e:
+            logger.error(f"Model trends failed: {e}")
+            return {"trends": [], "last_24h": {}, "error": str(e)}
+
+    @app.get("/api/v1/model-health/alerts", tags=["Monitoring"])
+    async def model_health_alerts(limit: int = 20):
+        """Get recent model monitoring alerts."""
+        try:
+            from model_monitor import ModelMonitor
+            monitor = ModelMonitor()
+            return {"alerts": monitor.get_recent_alerts(limit=min(limit, 100))}
+        except Exception as e:
+            logger.error(f"Model alerts failed: {e}")
+            return {"alerts": [], "error": str(e)}
+
     # ── Phase 11.1: Public API Key Management ──
 
     @app.post("/api/v1/api-keys", tags=["API Keys"])
