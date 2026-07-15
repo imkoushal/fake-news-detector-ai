@@ -33,16 +33,18 @@ FOOTER = (
 
 WELCOME_TEXT = (
     "👋 <b>Welcome to VerifAI</b> — your misinformation checker.\n\n"
-    "Forward me any news, message, or link and I'll tell you whether it looks "
+    "Forward me any news, message, or link and I’ll tell you whether it looks "
     "<b>real</b> or <b>fake</b>, with live evidence and an India-scam check.\n\n"
-    "Just send text to get started, or /help for tips."
+    "🎤 <b>Voice notes welcome!</b> Send a voice message and I’ll transcribe & verify it.\n\n"
+    "Just send text or a voice note to get started, or /help for tips."
 )
 
 HELP_TEXT = (
     "<b>How to use VerifAI</b>\n\n"
     "• Paste or forward any claim, headline, or WhatsApp forward.\n"
+    "• 🎤 <b>Send a voice note</b> — I’ll transcribe it and check it automatically.\n"
     "• I cross-check it against live news and known Indian scam patterns.\n"
-    "• You'll get a verdict, a confidence score, and sources.\n\n"
+    "• You’ll get a verdict, a confidence score, and sources.\n\n"
     "<i>Tip:</i> the more complete the claim, the better the check.\n\n"
     + FOOTER
 )
@@ -107,7 +109,21 @@ def parse_update(update: dict) -> dict | None:
         # "/start@BotName arg" → "/start"
         command = text.split()[0].split("@")[0].lower()
 
-    return {"chat_id": chat_id, "text": text, "command": command}
+    # Voice / audio file detection (Phase 10.3)
+    voice = msg.get("voice") or msg.get("audio")
+    file_id = None
+    duration = None
+    if isinstance(voice, dict):
+        file_id = voice.get("file_id")
+        duration = voice.get("duration", 0)
+
+    return {
+        "chat_id": chat_id,
+        "text": text,
+        "command": command,
+        "voice_file_id": file_id,
+        "voice_duration": duration,
+    }
 
 
 # ── Reply formatting ─────────────────────────────────────────────────────────
@@ -234,3 +250,54 @@ async def set_webhook(base_url: str, secret: str) -> bool:
     except Exception as e:  # noqa: BLE001
         logger.error(f"Telegram setWebhook error: {e}")
         return False
+
+
+# ── Voice download (Phase 10.3) ──────────────────────────────────────────────
+async def download_voice(file_id: str) -> bytes | None:
+    """Download a voice/audio file from Telegram's servers.
+
+    Two-step process: getFile to get the file_path, then download the bytes.
+    Returns raw audio bytes or None on failure.
+    """
+    token = _token()
+    if not token or not file_id:
+        return None
+    try:
+        from backend.http_client import get_client
+        client = get_client()
+
+        # Step 1: get file_path
+        resp = await client.get(
+            BOT_API_BASE.format(token=token) + "/getFile",
+            params={"file_id": file_id},
+        )
+        if resp.status_code != 200:
+            logger.error(f"Telegram getFile failed {resp.status_code}")
+            return None
+        data = resp.json()
+        file_path = (data.get("result") or {}).get("file_path")
+        if not file_path:
+            logger.error("Telegram getFile returned no file_path")
+            return None
+
+        # Step 2: download the file
+        download_url = f"https://api.telegram.org/file/bot{token}/{file_path}"
+        file_resp = await client.get(download_url, timeout=30.0)
+        if file_resp.status_code != 200:
+            logger.error(f"Telegram file download failed {file_resp.status_code}")
+            return None
+
+        audio_bytes = file_resp.content
+        if len(audio_bytes) < 1000:
+            logger.warning("Telegram voice file too small — likely empty")
+            return None
+        if len(audio_bytes) > 25 * 1024 * 1024:
+            logger.warning("Telegram voice file too large (>25MB)")
+            return None
+
+        logger.info(f"Downloaded Telegram voice: {len(audio_bytes)} bytes, path={file_path}")
+        return audio_bytes
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Telegram download_voice error: {e}")
+        return None

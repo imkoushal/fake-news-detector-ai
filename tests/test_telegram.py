@@ -45,7 +45,15 @@ FAKE_VERIFY = {
 class TestParseUpdate:
     def test_extracts_text_message(self):
         p = tg.parse_update({"message": {"chat": {"id": 5}, "text": "hello world"}})
-        assert p == {"chat_id": 5, "text": "hello world", "command": None}
+        assert p == {"chat_id": 5, "text": "hello world", "command": None,
+                     "voice_file_id": None, "voice_duration": None}
+
+    def test_extracts_voice_message(self):
+        p = tg.parse_update({"message": {"chat": {"id": 5},
+                             "voice": {"file_id": "abc123", "duration": 10}}})
+        assert p["voice_file_id"] == "abc123"
+        assert p["voice_duration"] == 10
+        assert p["text"] is None
 
     def test_extracts_command(self):
         p = tg.parse_update({"message": {"chat": {"id": 5}, "text": "/start@VerifAIBot foo"}})
