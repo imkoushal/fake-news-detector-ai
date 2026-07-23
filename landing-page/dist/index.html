@@ -4,10 +4,18 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate icon" href="/favicon.ico" sizes="48x48" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="VERIFAI — AI-powered misinformation detection. Paste any article or URL and get instant fake news verification using a 5-model ML ensemble trained on 157K+ articles." />
     <title>VERIFAI - AI Misinformation Detection</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#7c3aed" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VerifAI" />
+    <meta name="mobile-web-app-capable" content="yes" />
     
     <!-- Enterprise Typography: Bricolage Grotesque + DM Sans + Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,5 +32,16 @@
   </head>
   <body class="font-body antialiased bg-background text-foreground">
     <div id="root"></div>
+    <script>
+      // Register Service Worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[SW] Registered:', reg.scope))
+            .catch(err => console.warn('[SW] Registration failed:', err));
+        });
+      }
+    </script>
   </body>
 </html>
+

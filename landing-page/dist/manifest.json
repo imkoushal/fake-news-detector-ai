@@ -1,0 +1,42 @@
+{
+  "name": "VerifAI — AI Misinformation Detection",
+  "short_name": "VerifAI",
+  "description": "AI-powered fake news detector. Paste any article and get instant verification using a 5-model ML ensemble.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#7c3aed",
+  "background_color": "#0a0a0f",
+  "categories": ["news", "utilities", "education"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Analyze Article",
+      "short_name": "Analyze",
+      "url": "/dashboard",
+      "description": "Open the analyzer and check a news article",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
