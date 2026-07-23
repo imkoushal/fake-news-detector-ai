@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, Outlet } from "react-router-dom"
 import { useState, lazy, Suspense } from "react"
 import { Navbar } from "./components/Navbar"
 import { AppSidebar } from "./components/AppSidebar"
+import { MobileNav } from "./components/MobileNav"
 import { TopBar } from "./components/TopBar"
 import { ScrollToTop } from "./components/ScrollToTop"
 import { TopLoadingBar } from "./components/TopLoadingBar"
@@ -102,12 +103,15 @@ function AuthLayout() {
       {/* Main content area — no margin on mobile since sidebar is a drawer */}
       <div className="flex-1 flex flex-col min-h-screen transition-all duration-300 md:ml-[var(--sidebar-w)]" style={{ "--sidebar-w": `${sidebarWidth}px` } as React.CSSProperties}>
         <TopBar onMobileMenuToggle={() => setMobileOpen(!mobileOpen)} />
-        <main id="main-content" className="flex-1 overflow-y-auto">
+        <main id="main-content" className="flex-1 overflow-y-auto pb-16 md:pb-0">
           <Suspense fallback={<PageSkeleton />}>
             <Outlet />
           </Suspense>
         </main>
       </div>
+
+      {/* Mobile bottom navigation — persistent tab bar for PWA/mobile */}
+      <MobileNav />
     </div>
   )
 }

@@ -1,13 +1,13 @@
 import { useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
-import { Home, BarChart3, History, Settings, Layers } from "lucide-react"
+import { Home, BarChart3, History, Settings, Search } from "lucide-react"
 
 const tabs = [
   { path: "/dashboard", icon: Home, label: "Home" },
-  { path: "/batch", icon: Layers, label: "Batch" },
-  { path: "/analytics", icon: BarChart3, label: "Stats" },
+  { path: "/analytics", icon: Search, label: "Analyze" },
+  { path: "/batch", icon: BarChart3, label: "Batch" },
   { path: "/history", icon: History, label: "History" },
-  { path: "/settings", icon: Settings, label: "Settings" },
+  { path: "/settings", icon: Settings, label: "More" },
 ]
 
 export function MobileNav() {
@@ -18,7 +18,8 @@ export function MobileNav() {
   if (!user) return null
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-secondary/95 backdrop-blur-lg border-t border-border safe-area-bottom">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-secondary/95 backdrop-blur-lg border-t border-border"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       <div className="flex justify-around items-center h-14">
         {tabs.map(t => {
           const active = location.pathname === t.path
@@ -34,3 +35,4 @@ export function MobileNav() {
     </nav>
   )
 }
+
