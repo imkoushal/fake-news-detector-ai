@@ -87,16 +87,16 @@ function AuthLayout() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Mobile overlay */}
+      {/* Mobile overlay — above MobileNav (z-50) */}
       {mobileOpen && (
-        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 bg-black/50 z-[55] md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Sidebar — desktop: fixed, mobile: slide-out */}
+      {/* Sidebar — desktop: fixed, mobile: slide-out drawer above overlay */}
       <div className={`hidden md:block`}>
         <AppSidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
       </div>
-      <div className={`fixed inset-y-0 left-0 z-40 md:hidden transform transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <div className={`fixed inset-y-0 left-0 z-[60] md:hidden transform transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <AppSidebar collapsed={false} onToggle={() => setMobileOpen(false)} />
       </div>
 
