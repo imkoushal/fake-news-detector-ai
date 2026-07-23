@@ -214,8 +214,14 @@ else:
         return response
 
     # ── Phase 5: Global exception handler (no raw tracebacks to client) ──
+    # FIX: Re-raise HTTPException and RateLimitExceeded so FastAPI's built-in
+    # handlers process them correctly (returns proper 401/404/429 instead of 500).
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
+        if isinstance(exc, HTTPException):
+            raise exc
+        if isinstance(exc, RateLimitExceeded):
+            raise exc
         req_id = getattr(request.state, 'request_id', 'unknown')
         logger.error(f"Unhandled exception [{req_id}]: {type(exc).__name__}: {exc}")
         return JSONResponse(
@@ -503,28 +509,15 @@ else:
                 GOOGLE_CLIENT_ID
             )
         except ImportError:
-            # Fallback if google-auth not installed — decode + verify claims manually
-            logger.warning("google-auth not installed, falling back to manual JWT decode")
-            import json as _json
-            import base64
-            try:
-                parts = req.credential.split(".")
-                if len(parts) != 3:
-                    raise ValueError("Invalid JWT format")
-                payload_b64 = parts[1] + "=" * (4 - len(parts[1]) % 4)
-                payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
-            except Exception as e:
-                logger.error(f"Google token decode failed: {e}")
-                raise HTTPException(401, "Invalid Google credential")
-
-            # Verify essential claims
-            if payload.get("aud") != GOOGLE_CLIENT_ID:
-                raise HTTPException(401, "Token audience mismatch")
-            if payload.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
-                raise HTTPException(401, "Token issuer invalid")
-            import time as _time
-            if payload.get("exp", 0) < _time.time():
-                raise HTTPException(401, "Google token has expired")
+            # SECURITY FIX: Do NOT fall back to manual base64 JWT decode without
+            # signature verification — any attacker could forge a valid-looking token.
+            # Require google-auth to be installed for Google OAuth to work.
+            logger.error("google-auth library is not installed — Google OAuth is unavailable. "
+                         "Install with: pip install google-auth")
+            raise HTTPException(
+                503,
+                "Google Sign-In is temporarily unavailable. Please use email/password login."
+            )
         except ValueError as e:
             logger.error(f"Google token verification failed: {e}")
             raise HTTPException(401, "Invalid Google credential")
@@ -606,10 +599,11 @@ else:
     model = None
     tfidf = None
     scaler = None
+    ood_detector_instance = None  # Phase 5: OOD detector for confidence calibration
 
     def _load_model():
         """Load ML model artifacts. Called during FastAPI startup event."""
-        global model, tfidf, scaler, MODEL_LOADED, MODEL_VERSION, MODEL_METRICS, MODEL_THRESHOLD
+        global model, tfidf, scaler, MODEL_LOADED, MODEL_VERSION, MODEL_METRICS, MODEL_THRESHOLD, ood_detector_instance
         try:
             model = joblib.load(MODEL_DIR / "model.joblib")
             tfidf = joblib.load(MODEL_DIR / "tfidf.joblib")
@@ -635,6 +629,17 @@ else:
                     "total_training_samples": cfg.get("total_training_samples"),
                 }
             logger.info(f"Model '{model_type_name}' v{MODEL_VERSION} loaded successfully!")
+
+            # Phase 5: Load OOD detector for confidence calibration
+            import numpy as np
+            ood_centroid_path = MODEL_DIR / "ood_centroid.npy"
+            if ood_centroid_path.exists():
+                from ood_detector import OODDetector
+                centroid = np.load(ood_centroid_path)
+                ood_detector_instance = OODDetector(tfidf, centroid)
+                logger.info(f"OOD detector loaded (centroid: {centroid.shape[0]} dims)")
+            else:
+                logger.warning("OOD centroid not found — OOD detection disabled")
         except Exception as e:
             MODEL_LOADED = False
             logger.warning(f"Model could not be loaded: {e}")
@@ -791,6 +796,16 @@ else:
         prediction = "REAL" if real_prob >= threshold else "FAKE"
         confidence = max(real_prob, fake_prob) * 100
 
+        # Phase 5: Apply OOD-based confidence calibration
+        ood_score = 0.0
+        if ood_detector_instance is not None:
+            try:
+                from ood_detector import calibrate_confidence
+                ood_score, _ood_details = ood_detector_instance.score(cleaned)
+                confidence = calibrate_confidence(confidence, ood_score)
+            except Exception as e:
+                logger.warning(f"OOD scoring failed (using raw confidence): {e}")
+
         # Dampen confidence for short inputs — not enough context
         if input_quality == "short_claim":
             confidence = min(confidence, 60.0)
@@ -898,6 +913,41 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     class GeminiRequest(BaseModel):
         text: str
 
+    # ── Shared GNews scoring helper (deduplicated from _run_gnews_search and gnews_search) ──
+    _TRUSTED_NEWS_SOURCES = [
+        'reuters', 'apnews', 'bbc', 'nytimes', 'washingtonpost',
+        'theguardian', 'bloomberg', 'wsj', 'cnn', 'npr', 'pbs',
+        'abcnews', 'cbsnews', 'nbcnews', 'usatoday', 'associated press',
+    ]
+
+    def _score_web_corroboration(articles: list) -> tuple:
+        """Score web corroboration based on trusted-source coverage.
+
+        Args:
+            articles: List of dicts, each with a 'source' key.
+
+        Returns:
+            Tuple of (web_score: float, trusted_count: int).
+        """
+        trusted_count = sum(
+            1 for a in articles
+            if any(t in a["source"].lower() for t in _TRUSTED_NEWS_SOURCES)
+        )
+        total = len(articles)
+
+        if total == 0:
+            web_score = 0.3   # No articles found — uncertain
+        elif trusted_count >= 3:
+            web_score = 0.9   # Strong corroboration
+        elif trusted_count >= 1:
+            web_score = 0.7   # Some trusted sources
+        elif total >= 3:
+            web_score = 0.5   # Articles found but not from trusted sources
+        else:
+            web_score = 0.4   # Minimal coverage
+
+        return web_score, trusted_count
+
     async def _run_gnews_search(text: str, *, lang: str | None = None):
         """Internal helper: run GNews search and return structured results."""
         gnews_key = os.getenv("GNEWS_API_KEY", "")
@@ -936,23 +986,9 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                         "description": a.get("description", ""),
                     })
 
-            # Calculate web corroboration score
-            trusted = ['reuters', 'apnews', 'bbc', 'nytimes', 'washingtonpost',
-                       'theguardian', 'bloomberg', 'wsj', 'cnn', 'npr', 'pbs',
-                       'abcnews', 'cbsnews', 'nbcnews', 'usatoday', 'associated press']
-            trusted_count = sum(1 for a in quality if any(t in a["source"].lower() for t in trusted))
+            # Calculate web corroboration score (shared helper)
+            web_score, trusted_count = _score_web_corroboration(quality)
             total = len(quality)
-
-            if total == 0:
-                web_score = 0.3
-            elif trusted_count >= 3:
-                web_score = 0.9
-            elif trusted_count >= 1:
-                web_score = 0.7
-            elif total >= 3:
-                web_score = 0.5
-            else:
-                web_score = 0.4
 
             return {
                 "web_score": web_score,
@@ -2433,23 +2469,9 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                         "publishedAt": a.get("publishedAt", ""),
                     })
 
-            # Calculate web corroboration score
-            trusted = ['reuters', 'apnews', 'bbc', 'nytimes', 'washingtonpost',
-                       'theguardian', 'bloomberg', 'wsj', 'cnn', 'npr', 'pbs',
-                       'abcnews', 'cbsnews', 'nbcnews', 'usatoday', 'associated press']
-            trusted_count = sum(1 for a in quality if any(t in a["source"].lower() for t in trusted))
+            # Calculate web corroboration score (shared helper)
+            web_score, trusted_count = _score_web_corroboration(quality)
             total = len(quality)
-
-            if total == 0:
-                web_score = 0.3  # No articles found — uncertain
-            elif trusted_count >= 3:
-                web_score = 0.9  # Strong corroboration
-            elif trusted_count >= 1:
-                web_score = 0.7  # Some trusted sources
-            elif total >= 3:
-                web_score = 0.5  # Articles found but not from trusted sources
-            else:
-                web_score = 0.4  # Minimal coverage
 
             return {
                 "web_score": web_score,
@@ -2976,57 +2998,7 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
     # Infrastructure block). Duplicate definitions previously here were shadowed
     # (Starlette matches the first-registered route) and have been removed.
 
-    @app.get("/api/v1/claim/{claim_hash}/ld-json", tags=["SEO"])
-    def claim_structured_data(claim_hash: str):
-        """Return ClaimReview JSON-LD structured data for Google Fact Check Tools."""
-        from backend.claims_db import get_seo_claim
-
-        claim = get_seo_claim(claim_hash)
-        if not claim:
-            raise HTTPException(404, "Claim not found")
-
-        verdict = claim.get("verdict", "UNVERIFIABLE")
-        confidence = claim.get("confidence", 0)
-        text = claim.get("claim_text", claim.get("text", ""))
-        analysis = claim.get("analysis", "")
-        base = "https://fake-news-detector-8djq.onrender.com"
-
-        # Map verdict to ClaimReview alternateName
-        rating_map = {
-            "LIKELY_TRUE": {"name": "True", "value": 4, "best": 5, "worst": 1},
-            "LIKELY_FALSE": {"name": "False", "value": 1, "best": 5, "worst": 1},
-            "MIXED": {"name": "Mixture", "value": 3, "best": 5, "worst": 1},
-            "UNVERIFIABLE": {"name": "Unverifiable", "value": 2, "best": 5, "worst": 1},
-        }
-        rating = rating_map.get(verdict, rating_map["UNVERIFIABLE"])
-
-        ld_json = {
-            "@context": "https://schema.org",
-            "@type": "ClaimReview",
-            "url": f"{base}/claim/{claim_hash}",
-            "claimReviewed": text[:500],
-            "author": {
-                "@type": "Organization",
-                "name": "VerifAI",
-                "url": base,
-            },
-            "reviewRating": {
-                "@type": "Rating",
-                "ratingValue": rating["value"],
-                "bestRating": rating["best"],
-                "worstRating": rating["worst"],
-                "alternateName": rating["name"],
-            },
-            "itemReviewed": {
-                "@type": "Claim",
-                "name": text[:200],
-                "appearance": {
-                    "@type": "CreativeWork",
-                    "url": f"{base}/claim/{claim_hash}",
-                },
-            },
-        }
-        return ld_json
+    # NOTE: Duplicate /ld-json endpoint removed — use /jsonld instead (defined earlier).
 
     # ── API catch-all: return proper 404 for unmatched /api/ paths ──
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
