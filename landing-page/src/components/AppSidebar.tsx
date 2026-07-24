@@ -40,7 +40,7 @@ const navGroups = [
   },
 ]
 
-export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+export function AppSidebar({ collapsed, onToggle, onNavClick }: { collapsed: boolean; onToggle: () => void; onNavClick?: () => void }) {
   const { user, logout } = useAuth()
   const location = useLocation()
   const [theme, setTheme] = useState<"dark" | "light">(
@@ -63,7 +63,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
     <aside className={`fixed top-0 left-0 h-screen bg-sidebar-bg border-r border-border z-40 flex flex-col transition-all duration-300 ${collapsed ? "w-[68px]" : "w-[240px]"}`}>
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b border-border shrink-0">
-        <Link to="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
+        <Link to="/dashboard" onClick={onNavClick} className="flex items-center gap-2.5 overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
             <span className="text-white text-sm font-bold font-heading">V</span>
           </div>
@@ -82,7 +82,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
               {group.items.map(item => {
                 const active = isActive(item.path)
                 return (
-                  <Link key={item.label} to={item.path}
+                  <Link key={item.label} to={item.path} onClick={onNavClick}
                     className={`flex items-center gap-3 px-3 py-2 rounded-[10px] transition-all duration-150 group relative
                       ${active
                         ? "bg-primary text-white shadow-sm"

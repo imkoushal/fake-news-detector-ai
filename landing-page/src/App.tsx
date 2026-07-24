@@ -76,7 +76,8 @@ function PublicLayout() {
 /* ─── Auth layout: sidebar + topbar ─── */
 function AuthLayout() {
   const { user, isLoading } = useAuth()
-  const [collapsed, setCollapsed] = useState(false)
+  // Default to collapsed (true) on mobile (<768px), or expanded (false) on desktop
+  const [collapsed, setCollapsed] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false))
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Wait for auth check to complete before deciding to redirect
@@ -86,24 +87,28 @@ function AuthLayout() {
   const sidebarWidth = collapsed ? 68 : 240
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex overflow-x-hidden w-full">
       {/* Mobile overlay — above MobileNav (z-50) */}
       {mobileOpen && (
         <div className="fixed inset-0 bg-black/50 z-[55] md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
       {/* Sidebar — desktop: fixed, mobile: slide-out drawer above overlay */}
-      <div className={`hidden md:block`}>
+      <div className="hidden md:block">
         <AppSidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
       </div>
       <div className={`fixed inset-y-0 left-0 z-[60] md:hidden transform transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <AppSidebar collapsed={false} onToggle={() => setMobileOpen(false)} />
+        <AppSidebar
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(!collapsed)}
+          onNavClick={() => setMobileOpen(false)}
+        />
       </div>
 
       {/* Main content area — no margin on mobile since sidebar is a drawer */}
-      <div className="flex-1 flex flex-col min-h-screen transition-all duration-300 md:ml-[var(--sidebar-w)]" style={{ "--sidebar-w": `${sidebarWidth}px` } as React.CSSProperties}>
+      <div className="flex-1 flex flex-col min-h-screen transition-all duration-300 md:ml-[var(--sidebar-w)] w-full max-w-full overflow-x-hidden" style={{ "--sidebar-w": `${sidebarWidth}px` } as React.CSSProperties}>
         <TopBar onMobileMenuToggle={() => setMobileOpen(!mobileOpen)} />
-        <main id="main-content" className="flex-1 overflow-y-auto pb-16 md:pb-0">
+        <main id="main-content" className="flex-1 overflow-y-auto pb-16 md:pb-0 w-full max-w-full overflow-x-hidden">
           <Suspense fallback={<PageSkeleton />}>
             <Outlet />
           </Suspense>
