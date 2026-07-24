@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext"
 import {
   LayoutDashboard, Search, ArrowLeftRight, Layers,
   History, Bookmark, Settings, MessageSquare,
-  Info, LogOut, Sun, Moon, ChevronLeft, ChevronRight, Heart, Activity
+  Info, LogOut, Sun, Moon, ChevronLeft, ChevronRight, Heart, Activity, X
 } from "lucide-react"
 import { useState, useEffect } from "react"
 
@@ -40,7 +40,17 @@ const navGroups = [
   },
 ]
 
-export function AppSidebar({ collapsed, onToggle, onNavClick }: { collapsed: boolean; onToggle: () => void; onNavClick?: () => void }) {
+export function AppSidebar({
+  collapsed,
+  onToggle,
+  onNavClick,
+  isMobile,
+}: {
+  collapsed: boolean
+  onToggle: () => void
+  onNavClick?: () => void
+  isMobile?: boolean
+}) {
   const { user, logout } = useAuth()
   const location = useLocation()
   const [theme, setTheme] = useState<"dark" | "light">(
@@ -60,22 +70,27 @@ export function AppSidebar({ collapsed, onToggle, onNavClick }: { collapsed: boo
   }
 
   return (
-    <aside className={`fixed top-0 left-0 h-screen bg-sidebar-bg border-r border-border z-40 flex flex-col transition-all duration-300 ${collapsed ? "w-[68px]" : "w-[240px]"}`}>
-      {/* Logo */}
-      <div className="h-16 flex items-center px-5 border-b border-border shrink-0">
+    <aside className={`h-full w-full bg-sidebar-bg border-r border-border flex flex-col transition-all duration-300 ${collapsed && !isMobile ? "w-[68px]" : "w-[240px]"}`}>
+      {/* Logo + Close button */}
+      <div className="h-16 flex items-center justify-between px-5 border-b border-border shrink-0">
         <Link to="/dashboard" onClick={onNavClick} className="flex items-center gap-2.5 overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
             <span className="text-white text-sm font-bold font-heading">V</span>
           </div>
-          {!collapsed && <span className="text-foreground text-lg font-bold font-heading tracking-tight whitespace-nowrap">VERIF<span className="text-primary">AI</span></span>}
+          {(!collapsed || isMobile) && <span className="text-foreground text-lg font-bold font-heading tracking-tight whitespace-nowrap">VERIF<span className="text-primary">AI</span></span>}
         </Link>
+        {isMobile && (
+          <button onClick={onNavClick} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Nav groups */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
         {navGroups.map(group => (
           <div key={group.label}>
-            {!collapsed && (
+            {(!collapsed || isMobile) && (
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-mono font-semibold px-3 mb-2">{group.label}</p>
             )}
             <div className="space-y-0.5">
@@ -88,10 +103,10 @@ export function AppSidebar({ collapsed, onToggle, onNavClick }: { collapsed: boo
                         ? "bg-primary text-white shadow-sm"
                         : "text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"
                       }`}
-                    title={collapsed ? item.label : undefined}>
+                    title={collapsed && !isMobile ? item.label : undefined}>
                     <item.icon className={`w-[18px] h-[18px] shrink-0 ${active ? "text-white" : "text-muted-foreground group-hover:text-foreground"}`} />
-                    {!collapsed && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
-                    {collapsed && (
+                    {(!collapsed || isMobile) && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
+                    {collapsed && !isMobile && (
                       <div className="absolute left-full ml-2 px-2.5 py-1 bg-foreground text-background text-xs font-medium rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
                         {item.label}
                       </div>
@@ -110,15 +125,17 @@ export function AppSidebar({ collapsed, onToggle, onNavClick }: { collapsed: boo
         <button onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-muted-foreground hover:bg-sidebar-hover hover:text-foreground transition-all">
           {theme === "dark" ? <Sun className="w-[18px] h-[18px] shrink-0" /> : <Moon className="w-[18px] h-[18px] shrink-0" />}
-          {!collapsed && <span className="text-[13px] font-medium">{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>}
+          {(!collapsed || isMobile) && <span className="text-[13px] font-medium">{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>}
         </button>
 
-        {/* Collapse toggle */}
-        <button onClick={onToggle}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-muted-foreground hover:bg-sidebar-hover hover:text-foreground transition-all">
-          {collapsed ? <ChevronRight className="w-[18px] h-[18px] shrink-0" /> : <ChevronLeft className="w-[18px] h-[18px] shrink-0" />}
-          {!collapsed && <span className="text-[13px] font-medium">Collapse</span>}
-        </button>
+        {/* Desktop Collapse toggle */}
+        {!isMobile && (
+          <button onClick={onToggle}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-muted-foreground hover:bg-sidebar-hover hover:text-foreground transition-all">
+            {collapsed ? <ChevronRight className="w-[18px] h-[18px] shrink-0" /> : <ChevronLeft className="w-[18px] h-[18px] shrink-0" />}
+            {!collapsed && <span className="text-[13px] font-medium">Collapse</span>}
+          </button>
+        )}
 
         {/* Donate */}
         <a
@@ -126,20 +143,20 @@ export function AppSidebar({ collapsed, onToggle, onNavClick }: { collapsed: boo
           target="_blank"
           rel="noreferrer"
           className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-400 transition-all"
-          title={collapsed ? "Support VerifAI" : undefined}
+          title={collapsed && !isMobile ? "Support VerifAI" : undefined}
         >
           <Heart className="w-[18px] h-[18px] shrink-0" />
-          {!collapsed && <span className="text-[13px] font-medium">Support VerifAI</span>}
+          {(!collapsed || isMobile) && <span className="text-[13px] font-medium">Support VerifAI</span>}
         </a>
 
         {/* User card */}
-        <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl bg-secondary/50 border border-border/50 ${collapsed ? "justify-center" : ""}`}>
+        <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl bg-secondary/50 border border-border/50 ${collapsed && !isMobile ? "justify-center" : ""}`}>
           {user?.avatar_url ? (
             <img src={user.avatar_url} className="w-8 h-8 rounded-full object-cover shrink-0" alt="" />
           ) : (
             <div className="w-8 h-8 rounded-full bg-primary/15 text-primary text-xs font-bold flex items-center justify-center shrink-0">{initials}</div>
           )}
-          {!collapsed && (
+          {(!collapsed || isMobile) && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">{user?.name}</p>
               <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
@@ -151,7 +168,7 @@ export function AppSidebar({ collapsed, onToggle, onNavClick }: { collapsed: boo
         <button onClick={logout}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-destructive/70 hover:bg-destructive/10 hover:text-destructive transition-all">
           <LogOut className="w-[18px] h-[18px] shrink-0" />
-          {!collapsed && <span className="text-[13px] font-medium">Sign Out</span>}
+          {(!collapsed || isMobile) && <span className="text-[13px] font-medium">Sign Out</span>}
         </button>
       </div>
     </aside>

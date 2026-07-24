@@ -76,8 +76,7 @@ function PublicLayout() {
 /* ─── Auth layout: sidebar + topbar ─── */
 function AuthLayout() {
   const { user, isLoading } = useAuth()
-  // Default to collapsed (true) on mobile (<768px), or expanded (false) on desktop
-  const [collapsed, setCollapsed] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false))
+  const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Wait for auth check to complete before deciding to redirect
@@ -87,26 +86,38 @@ function AuthLayout() {
   const sidebarWidth = collapsed ? 68 : 240
 
   return (
-    <div className="min-h-screen bg-background flex overflow-x-hidden w-full">
-      {/* Mobile overlay — above MobileNav (z-50) */}
+    <div className="min-h-screen bg-background flex w-full max-w-full overflow-x-hidden">
+      {/* Mobile Drawer Overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[55] md:hidden" onClick={() => setMobileOpen(false)} />
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55] md:hidden transition-opacity"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
 
-      {/* Sidebar — desktop: fixed, mobile: slide-out drawer above overlay */}
-      <div className="hidden md:block">
-        <AppSidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      </div>
-      <div className={`fixed inset-y-0 left-0 z-[60] md:hidden transform transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      {/* Mobile Sidebar Drawer — slides out from left when mobileOpen is true */}
+      <div className={`fixed inset-y-0 left-0 z-[60] w-72 md:hidden transform transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <AppSidebar
-          collapsed={collapsed}
-          onToggle={() => setCollapsed(!collapsed)}
+          collapsed={false}
+          isMobile={true}
+          onToggle={() => setMobileOpen(false)}
           onNavClick={() => setMobileOpen(false)}
         />
       </div>
 
-      {/* Main content area — no margin on mobile since sidebar is a drawer */}
-      <div className="flex-1 flex flex-col min-h-screen transition-all duration-300 md:ml-[var(--sidebar-w)] w-full max-w-full overflow-x-hidden" style={{ "--sidebar-w": `${sidebarWidth}px` } as React.CSSProperties}>
+      {/* Desktop Sidebar — fixed left sidebar on md+ screens */}
+      <div className="hidden md:block shrink-0">
+        <AppSidebar
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(!collapsed)}
+        />
+      </div>
+
+      {/* Main content area — 100% width on mobile (left:0), offset by sidebarWidth on desktop */}
+      <div
+        className="flex-1 flex flex-col min-h-screen transition-all duration-300 md:ml-[var(--sidebar-w)] w-full max-w-full overflow-x-hidden"
+        style={{ "--sidebar-w": `${sidebarWidth}px` } as React.CSSProperties}
+      >
         <TopBar onMobileMenuToggle={() => setMobileOpen(!mobileOpen)} />
         <main id="main-content" className="flex-1 overflow-y-auto pb-16 md:pb-0 w-full max-w-full overflow-x-hidden">
           <Suspense fallback={<PageSkeleton />}>
