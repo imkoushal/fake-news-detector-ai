@@ -22,19 +22,27 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Google Identity Services for OAuth -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script type="module" crossorigin src="/assets/index-C_wQ-PBE.js"></script>
+    <!-- Google Identity Services for OAuth (web only, not in Capacitor WebView) -->
+    <script>
+      if (!window.Capacitor) {
+        var s = document.createElement('script');
+        s.src = 'https://accounts.google.com/gsi/client';
+        s.async = true; s.defer = true;
+        document.head.appendChild(s);
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-dilkPm9F.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/chunk-Bh1tDfsg.js">
     <link rel="modulepreload" crossorigin href="/assets/preload-helper-zJ_50EbN.js">
+    <link rel="modulepreload" crossorigin href="/assets/dist-COcOCb7M.js">
     <link rel="modulepreload" crossorigin href="/assets/jsx-runtime-Br8oFsH8.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-JBeMk34T.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-3Oun83H9.css">
   </head>
   <body class="font-body antialiased bg-background text-foreground">
     <div id="root"></div>
     <script>
-      // Register Service Worker for PWA
-      if ('serviceWorker' in navigator) {
+      // Register Service Worker for PWA (skip in Capacitor WebView — SW not supported)
+      if ('serviceWorker' in navigator && !window.Capacitor) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
             .then(reg => console.log('[SW] Registered:', reg.scope))

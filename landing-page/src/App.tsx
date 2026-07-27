@@ -9,6 +9,7 @@ import { TopLoadingBar } from "./components/TopLoadingBar"
 import { ShortcutsModal } from "./components/ShortcutsModal"
 import { AuthModal } from "./components/auth/AuthModal"
 import { useAuth } from "./context/AuthContext"
+import { useNativeApp } from "./hooks/useNativeApp"
 
 /* ─── Lazy-loaded page components (code-splitting) ─── */
 const HeroSection = lazy(() => import("./components/HeroSection").then(m => ({ default: m.HeroSection })))
@@ -134,6 +135,10 @@ function AuthLayout() {
 
 /* ─── Root App ─── */
 function App() {
+  // Initialize native platform features (status bar, back button, haptics)
+  // No-op on web — safe to call unconditionally
+  useNativeApp()
+
   return (
     <>
       <a href="#main-content" className="skip-to-content">Skip to content</a>
