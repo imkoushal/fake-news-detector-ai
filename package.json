@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "pillow": "^0.0.9",
+    "python": "^0.0.4"
+  }
+}

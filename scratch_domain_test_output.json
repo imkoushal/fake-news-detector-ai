@@ -1,0 +1,122 @@
+[
+  {
+    "domain": "1. Politics & Governance (Real News)",
+    "expected": "REAL",
+    "predicted": "REAL",
+    "confidence": 73.5,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "PASS"
+  },
+  {
+    "domain": "1. Politics & Governance (Fake/Sensationalist)",
+    "expected": "FAKE",
+    "predicted": "FAKE",
+    "confidence": 69.0,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "PASS"
+  },
+  {
+    "domain": "2. Health & Medicine (Real Clinical Research)",
+    "expected": "REAL",
+    "predicted": "FAKE",
+    "confidence": 50.0,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "FAIL"
+  },
+  {
+    "domain": "2. Health & Medicine (Fake Miracle Cure)",
+    "expected": "FAKE",
+    "predicted": "FAKE",
+    "confidence": 70.8,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "PASS"
+  },
+  {
+    "domain": "3. Business & Economy (Real Market Report)",
+    "expected": "REAL",
+    "predicted": "REAL",
+    "confidence": 58.3,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "PASS"
+  },
+  {
+    "domain": "3. Finance & Crypto (Fake Investment Scam)",
+    "expected": "FAKE",
+    "predicted": "FAKE",
+    "confidence": 64.1,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "PASS"
+  },
+  {
+    "domain": "4. Science & Technology (Real Astronomy)",
+    "expected": "REAL",
+    "predicted": "FAKE",
+    "confidence": 51.5,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "FAIL"
+  },
+  {
+    "domain": "4. Science & Technology (Fake Alien Conspiracy)",
+    "expected": "FAKE",
+    "predicted": "FAKE",
+    "confidence": 69.1,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "PASS"
+  },
+  {
+    "domain": "5. Local Scams & WhatsApp Forwards (Hinglish Scam)",
+    "expected": "FAKE",
+    "predicted": "FAKE",
+    "confidence": 62.2,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "PASS"
+  },
+  {
+    "domain": "6. Entertainment & Media (Real Coverage)",
+    "expected": "REAL",
+    "predicted": "FAKE",
+    "confidence": 50.0,
+    "ood_score": 0.0,
+    "clickbait_score": 0.0,
+    "sensationalism_score": 0.0,
+    "conspiracy_score": 0.0,
+    "flags_triggered": 0,
+    "status": "FAIL"
+  }
+]
