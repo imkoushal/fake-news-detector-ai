@@ -86,11 +86,11 @@ export function AppSidebar({
       </div>
 
       {/* Nav groups */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+      <nav className="flex-1 overflow-y-auto py-3 px-2.5 space-y-4">
         {navGroups.map(group => (
           <div key={group.label}>
             {(!collapsed || isMobile) && (
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-mono font-semibold px-3 mb-2">{group.label}</p>
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-mono font-semibold px-3 mb-1.5">{group.label}</p>
             )}
             <div className="space-y-0.5">
               {group.items.map(item => {
@@ -101,12 +101,12 @@ export function AppSidebar({
                       ${active
                         ? "bg-primary text-white shadow-sm"
                         : "text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"
-                      }`}
+                      } ${collapsed && !isMobile ? "justify-center px-2" : ""}`}
                     title={collapsed && !isMobile ? item.label : undefined}>
                     <item.icon className={`w-[18px] h-[18px] shrink-0 ${active ? "text-white" : "text-muted-foreground group-hover:text-foreground"}`} />
                     {(!collapsed || isMobile) && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
                     {collapsed && !isMobile && (
-                      <div className="absolute left-full ml-2 px-2.5 py-1 bg-foreground text-background text-xs font-medium rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                      <div className="absolute left-full ml-2 px-2.5 py-1 bg-foreground text-background text-xs font-medium rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-md">
                         {item.label}
                       </div>
                     )}
@@ -119,10 +119,11 @@ export function AppSidebar({
       </nav>
 
       {/* Bottom section */}
-      <div className="border-t border-border p-3 space-y-2 shrink-0">
+      <div className="border-t border-border p-2.5 space-y-1.5 shrink-0">
         {/* Theme toggle */}
         <button onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-muted-foreground hover:bg-sidebar-hover hover:text-foreground transition-all">
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-muted-foreground hover:bg-sidebar-hover hover:text-foreground transition-all ${collapsed && !isMobile ? "justify-center px-2" : ""}`}
+          title={collapsed && !isMobile ? (theme === "dark" ? "Light Mode" : "Dark Mode") : undefined}>
           {theme === "dark" ? <Sun className="w-[18px] h-[18px] shrink-0" /> : <Moon className="w-[18px] h-[18px] shrink-0" />}
           {(!collapsed || isMobile) && <span className="text-[13px] font-medium">{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>}
         </button>
@@ -130,7 +131,8 @@ export function AppSidebar({
         {/* Desktop Collapse toggle */}
         {!isMobile && (
           <button onClick={onToggle}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-muted-foreground hover:bg-sidebar-hover hover:text-foreground transition-all">
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-muted-foreground hover:bg-sidebar-hover hover:text-foreground transition-all ${collapsed ? "justify-center px-2" : ""}`}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
             {collapsed ? <ChevronRight className="w-[18px] h-[18px] shrink-0" /> : <ChevronLeft className="w-[18px] h-[18px] shrink-0" />}
             {!collapsed && <span className="text-[13px] font-medium">Collapse</span>}
           </button>
@@ -141,7 +143,7 @@ export function AppSidebar({
           href="https://razorpay.me/@koushalkishorray"
           target="_blank"
           rel="noreferrer"
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-400 transition-all"
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-400 transition-all ${collapsed && !isMobile ? "justify-center px-2" : ""}`}
           title={collapsed && !isMobile ? "Support VerifAI" : undefined}
         >
           <Heart className="w-[18px] h-[18px] shrink-0" />
@@ -149,7 +151,7 @@ export function AppSidebar({
         </a>
 
         {/* User card */}
-        <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl bg-secondary/50 border border-border/50 ${collapsed && !isMobile ? "justify-center" : ""}`}>
+        <div className={`flex items-center gap-3 px-3 py-2 rounded-xl bg-secondary/50 border border-border/50 ${collapsed && !isMobile ? "justify-center px-2" : ""}`}>
           {user?.avatar_url ? (
             <img src={user.avatar_url} className="w-8 h-8 rounded-full object-cover shrink-0" alt="" />
           ) : (
@@ -165,7 +167,8 @@ export function AppSidebar({
 
         {/* Sign out */}
         <button onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-destructive/70 hover:bg-destructive/10 hover:text-destructive transition-all">
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-destructive/70 hover:bg-destructive/10 hover:text-destructive transition-all ${collapsed && !isMobile ? "justify-center px-2" : ""}`}
+          title={collapsed && !isMobile ? "Sign Out" : undefined}>
           <LogOut className="w-[18px] h-[18px] shrink-0" />
           {(!collapsed || isMobile) && <span className="text-[13px] font-medium">Sign Out</span>}
         </button>

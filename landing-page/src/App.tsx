@@ -106,7 +106,7 @@ function AuthLayout() {
       </div>
 
       {/* Desktop Sidebar — fixed left sidebar on md+ screens */}
-      <div className="hidden md:block shrink-0">
+      <div className={`hidden md:block fixed inset-y-0 left-0 z-40 transition-all duration-300 ${collapsed ? "w-[68px]" : "w-[240px]"}`}>
         <AppSidebar
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
