@@ -86,3 +86,4 @@ test-site*.cjs
 
 # Local planning doc — do not commit
 ROADMAP.md
+node_modules/
