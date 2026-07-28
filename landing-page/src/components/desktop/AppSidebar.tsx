@@ -3,7 +3,7 @@ import { useAuth } from "../../context/AuthContext"
 import {
   LayoutDashboard, Search, ArrowLeftRight, Layers,
   History, Bookmark, Settings, MessageSquare,
-  Info, LogOut, Sun, Moon, ChevronLeft, ChevronRight, Heart, Activity, X
+  Info, LogOut, Sun, Moon, ChevronLeft, ChevronRight, Heart, X
 } from "lucide-react"
 import { useState, useEffect } from "react"
 
@@ -33,7 +33,6 @@ const navGroups = [
     label: "System",
     items: [
       { path: "/settings", icon: Settings, label: "Settings" },
-      { path: "/monitor", icon: Activity, label: "Model Monitor" },
       { path: "/feedback", icon: MessageSquare, label: "Feedback" },
       { path: "/about", icon: Info, label: "About" },
     ],
