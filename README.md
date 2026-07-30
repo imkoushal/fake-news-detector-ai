@@ -2,23 +2,30 @@
   <img src="landing-page/public/favicon.svg" alt="VerifAI Logo" width="80" />
 </p>
 
-<h1 align="center">🔍 Fake News Detector AI</h1>
+<h1 align="center">🔍 VerifAI — Fake News Detector AI</h1>
 
 <p align="center">
-  <strong>A production-hardened, multi-layered misinformation detection system combining a high-accuracy ML ensemble with a RAG pipeline for real-time, evidence-based news verification.</strong>
+  <strong>A production-hardened, multi-layered misinformation detection system combining a high-accuracy ML ensemble with a RAG pipeline for real-time, evidence-based news verification — available as a Web App, Telegram Bot, and Android App.</strong>
 </p>
 
 <p align="center">
   <a href="https://fake-news-detector-8djq.onrender.com"><img src="https://img.shields.io/badge/🌐_Live_Demo-Try_it_now-6c5ce7?style=for-the-badge" alt="Live Demo" /></a>
+  <a href="https://t.me/verifai_bot"><img src="https://img.shields.io/badge/🤖_Telegram_Bot-@verifai__bot-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Bot" /></a>
+  <a href="#android-app"><img src="https://img.shields.io/badge/📱_Android_App-Download_APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android App" /></a>
   <a href="#license"><img src="https://img.shields.io/badge/License-Attribution_Required-ff6b6b?style=for-the-badge" alt="License" /></a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
+  <img src="https://img.shields.io/badge/Capacitor-7-119EFF?style=for-the-badge&logo=capacitor&logoColor=white" alt="Capacitor" />
   <a href="https://razorpay.me/@koushalkishorray"><img src="https://img.shields.io/badge/☕_Support-Donate-FFDD00?style=for-the-badge" alt="Support" /></a>
 </p>
 
 <p align="center">
   <a href="https://fake-news-detector-8djq.onrender.com">🌐 Live App</a> •
+  <a href="https://t.me/verifai_bot">🤖 Telegram Bot</a> •
   <a href="#key-features">✨ Features</a> •
   <a href="#architecture">🏗️ Architecture</a> •
   <a href="#installation">🚀 Setup</a> •
@@ -30,14 +37,20 @@
 
 ## 📖 Overview
 
-The **Fake News Detector AI** tackles misinformation from two complementary angles:
+The **Fake News Detector AI (VerifAI)** tackles misinformation from two complementary angles:
 
 1. **Linguistic Analysis (ML):** A 5-model Voting Ensemble trained on 100,000+ articles detects the *writing style* of fake news — sensationalism, conspiracy language, clickbait patterns, and structural anomalies.
 2. **Factual Verification (RAG):** A Retrieval-Augmented Generation pipeline queries live news via GNews, injects the results into a Groq LLM prompt, and cross-references the article's claims against real-time evidence.
 
 This dual approach catches both *stylistically* fake articles (clickbait, conspiracy blogs) and *factually* fake articles (fabricated events, outdated claims presented as new).
 
-> **🌐 Try it live:** [fake-news-detector-8djq.onrender.com](https://fake-news-detector-8djq.onrender.com)
+### 🌍 Available On Three Platforms
+
+| Platform | Access | Description |
+|----------|--------|-------------|
+| 🌐 **Web App** | [fake-news-detector-8djq.onrender.com](https://fake-news-detector-8djq.onrender.com) | Full-featured dashboard with analytics, history, batch analysis, bookmarks, and more |
+| 🤖 **Telegram Bot** | [@verifai_bot](https://t.me/verifai_bot) | Instant fact-checking in Telegram — just forward any message or send a voice note |
+| 📱 **Android App** | [Download APK](https://github.com/imkoushal/fake-news-detector-ai/actions) | Native Android app built with Capacitor — installable on any Android device |
 
 ---
 
@@ -48,6 +61,22 @@ This dual approach catches both *stylistically* fake articles (clickbait, conspi
 - Injects live news context directly into the **Groq LLM** prompt
 - Cross-references article claims against breaking news evidence
 - **Intelligent Fallback:** Automatically switches to standalone style-analysis mode if no live news is found
+
+### 🤖 Telegram Bot
+- **Instant Fact-Checking:** Forward any message, news article, or WhatsApp forward to get a verdict in seconds
+- **Voice Note Support:** Send voice messages — the bot transcribes via Groq Whisper and verifies the claim automatically
+- **India Scam Detection:** Elevated/critical risk alerts for UPI fraud, fake government schemes, and WhatsApp misinformation
+- **Evidence Links:** Every verdict includes source articles and confidence scores
+- **Per-Chat Rate Limiting:** Sliding-window throttle (5 checks/minute) to prevent abuse
+- **Webhook-Based:** Runs on the same FastAPI server — no separate hosting needed
+
+### 📱 Android App (Capacitor)
+- **Native Android Experience:** Installable `.apk` with native splash screen, status bar theming, and haptic feedback
+- **Dark Theme:** VerifAI's signature dark purple theme (`#7c3aed`) applied to status bar, navigation bar, and splash screen
+- **Responsive UI:** Dedicated mobile-optimized views for Dashboard and Analytics with a bottom tab navigation bar
+- **Hardware Back Button:** Native-feeling back navigation with double-tap to exit
+- **Cloud-Built APK:** GitHub Actions builds the APK automatically on every push — no Android Studio required
+- **Google OAuth:** Native Google Sign-In via `@capawesome/capacitor-google-sign-in`
 
 ### 🌐 Multi-Source Intelligence & Caching
 - **Google Fact Check API:** Queries Google's ClaimReview database covering 200+ fact-checking orgs (Reuters, AFP, Alt News, etc.)
@@ -60,6 +89,9 @@ This dual approach catches both *stylistically* fake articles (clickbait, conspi
 - **Voice Input (Groq Whisper):** Upload audio files or record directly from the browser — supports Hindi, English, 50+ languages
 - **India Threat Scanner:** 9-category detection engine with 150+ India-specific keywords covering UPI fraud, fake schemes, WhatsApp forward patterns, health misinfo, and more
 - **Community Dashboard:** Live platform-wide stats bar showing total analyses, fake detection rate, and average confidence
+- **Batch Analysis:** Analyze up to 50 articles simultaneously
+- **Compare Mode:** Side-by-side comparison of two articles
+- **History & Bookmarks:** Full analysis history with bookmarking support
 
 ### 🤖 5-Model Voting Ensemble
 | Model | Type | Key Config |
@@ -90,28 +122,29 @@ This dual approach catches both *stylistically* fake articles (clickbait, conspi
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   User Input (Article Text)          │
-└──────────────────────────┬──────────────────────────┘
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-          ▼                ▼                ▼
-  ┌──────────────┐  ┌─────────────┐  ┌──────────────────┐
-  │  ML Pipeline │  │ RAG Pipeline│  │ Threat Scanner   │
-  │              │  │ (Smart      │  │                  │
-  │ TF-IDF +    │  │  Verify)    │  │ • India Scams    │
-  │ 20 Meta     │  │             │  │ • Safe Browsing  │
-  │ Features    │  │ GNews ─►    │  │ • Source Cred.   │
-  │      │      │  │ Groq LLM   │  │ • Fact Check API │
-  │      ▼      │  │      │      │  └──────────────────┘
-  │ 5-Model     │  │      ▼      │
-  │ Ensemble    │  │ VERDICT +   │
-  │      │      │  │ Evidence    │
-  │      ▼      │  └─────────────┘
-  │ REAL/FAKE   │
-  │ + Confidence│
-  └──────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                       User Input (3 Channels)                       │
+│  🌐 Web App  •  🤖 Telegram Bot  •  📱 Android App (Capacitor)    │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            │
+            ┌───────────────┼───────────────┐
+            │               │               │
+            ▼               ▼               ▼
+    ┌──────────────┐  ┌─────────────┐  ┌──────────────────┐
+    │  ML Pipeline │  │ RAG Pipeline│  │ Threat Scanner   │
+    │              │  │ (Smart      │  │                  │
+    │ TF-IDF +    │  │  Verify)    │  │ • India Scams    │
+    │ 20 Meta     │  │             │  │ • Safe Browsing  │
+    │ Features    │  │ GNews ──►   │  │ • Source Cred.   │
+    │      │      │  │ Groq LLM   │  │ • Fact Check API │
+    │      ▼      │  │      │      │  └──────────────────┘
+    │ 5-Model     │  │      ▼      │
+    │ Ensemble    │  │ VERDICT +   │
+    │      │      │  │ Evidence    │
+    │      ▼      │  └─────────────┘
+    │ REAL/FAKE   │
+    │ + Confidence│
+    └──────────────┘
 ```
 
 ### Backend Modules
@@ -124,6 +157,7 @@ This dual approach catches both *stylistically* fake articles (clickbait, conspi
 | `backend/http_client.py` | Shared `httpx.AsyncClient` with connection pooling |
 | `backend/credibility_db.py` | Domain reputation database (80+ sources) |
 | `backend/threat_patterns.py` | India-specific scam/misinfo pattern detection |
+| `backend/telegram_bot.py` | Telegram webhook handler, reply formatting, voice download |
 
 ---
 
@@ -174,9 +208,14 @@ python -m spacy download en_core_web_sm
 ### Configure API Keys
 Create a `.env` file (or copy `.env.example`):
 ```env
+# Core API keys
 GROQ_API_KEY=your_groq_api_key       # https://console.groq.com/
 GNEWS_API_KEY=your_gnews_api_key     # https://gnews.io/
 GOOGLE_CLIENT_ID=your_client_id      # https://console.cloud.google.com/
+
+# Telegram Bot (optional — omit to disable bot)
+TELEGRAM_BOT_TOKEN=your_bot_token            # from @BotFather
+TELEGRAM_WEBHOOK_SECRET=your_random_secret   # any random string
 ```
 
 ### Run Locally
@@ -192,6 +231,29 @@ uvicorn api:app --port 8000
 cd landing-page
 npm install
 npm run build
+```
+
+### Telegram Bot Setup
+1. Create a bot via [@BotFather](https://t.me/BotFather) on Telegram
+2. Copy the bot token to `TELEGRAM_BOT_TOKEN` in your `.env`
+3. Generate a random secret string for `TELEGRAM_WEBHOOK_SECRET`
+4. Start the server — the webhook is registered automatically on startup
+5. The bot will respond to text messages and voice notes with fact-check verdicts
+
+### Android App Build
+The APK is built automatically via GitHub Actions on every push to `main`:
+1. Push your code to GitHub
+2. Go to the **Actions** tab → download `VerifAI-debug-apk`
+3. Install the `.apk` on any Android device
+
+To build locally (requires Android SDK):
+```bash
+cd landing-page
+npm run build
+npx cap sync android
+cd android
+./gradlew assembleDebug
+# APK: android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ---
@@ -212,6 +274,7 @@ npm run build
 | `/api/v1/community-stats` | GET | Platform-wide anonymized analysis stats |
 | `/api/v1/health` | GET | Tiered health check (model, DB, cache, API keys) |
 | `/api/v1/model-info` | GET | Current model version and metadata |
+| `/api/v1/telegram/webhook/{secret}` | POST | Telegram bot webhook endpoint |
 
 ### Example: Smart Verify Request
 ```bash
@@ -249,10 +312,13 @@ curl -X POST https://fake-news-detector-8djq.onrender.com/api/v1/smart-verify \
 | **HTTP** | httpx (async) | Non-blocking external API calls |
 | **External APIs** | GNews, Google Fact Check, Safe Browsing | Live verification & threat detection |
 | **Frontend** | React 18, TypeScript, Vite | Modern responsive SPA |
+| **Mobile** | Capacitor 7, Android SDK 36 | Native Android app wrapper |
+| **Telegram** | python-telegram-bot (webhook) | Bot interface for instant fact-checking |
 | **Auth** | bcrypt, Google OAuth (JWT verified) | Secure session management |
 | **Database** | PostgreSQL (prod) / SQLite (dev) | Connection-pooled data layer |
 | **Caching** | Thread-safe in-memory LRU | TTL-based claim deduplication |
 | **Security** | SSRF protection, CORS whitelist, rate limiting | Production hardening |
+| **CI/CD** | GitHub Actions | Automated APK builds in the cloud |
 | **Deployment** | Docker (multi-stage), Render | Containerized cloud deployment |
 
 ---
@@ -275,14 +341,30 @@ fake-news-detector-ai/
 │   ├── ssrf.py                     # SSRF protection module
 │   ├── http_client.py              # Shared async HTTP client
 │   ├── credibility_db.py           # Domain reputation database
-│   └── threat_patterns.py          # India-specific threat scanner
+│   ├── threat_patterns.py          # India-specific threat scanner
+│   └── telegram_bot.py             # Telegram bot: webhooks, formatting, voice
 │
 ├── landing-page/                   # React SPA frontend
 │   ├── src/
-│   │   ├── pages/                  # Analytics, Dashboard, History, etc.
-│   │   ├── components/             # ErrorBoundary, Sidebar, Navbar, etc.
+│   │   ├── pages/                  # Dashboard, Analytics, History, etc.
+│   │   │   ├── desktop/            # Desktop-optimized page variants
+│   │   │   └── mobile/             # Mobile-optimized page variants
+│   │   ├── components/
+│   │   │   ├── desktop/            # AppSidebar (desktop sidebar navigation)
+│   │   │   └── mobile/             # MobileNav (bottom tab bar)
+│   │   ├── hooks/
+│   │   │   ├── useIsMobile.ts      # Responsive breakpoint hook
+│   │   │   └── useNativeApp.ts     # Capacitor platform detection & setup
 │   │   ├── context/                # AuthContext, ToastContext
-│   │   └── lib/api.ts              # API client config
+│   │   └── lib/api.ts              # API client (Capacitor-aware base URL)
+│   ├── android/                    # Capacitor Android project
+│   │   ├── app/src/main/
+│   │   │   ├── java/.../MainActivity.java
+│   │   │   ├── res/values/colors.xml    # VerifAI brand colors
+│   │   │   ├── res/values/styles.xml    # Dark splash screen theme
+│   │   │   └── res/mipmap-*/            # Launcher icons (all densities)
+│   │   └── build.gradle
+│   ├── capacitor.config.ts         # Capacitor configuration
 │   └── dist/                       # Production build
 │
 ├── models/                         # Trained model artifacts
@@ -292,6 +374,13 @@ fake-news-detector-ai/
 │   └── config.json                 # Model metadata & threshold
 │
 ├── tests/                          # Test suite
+│   ├── test_metrics.py             # Model evaluation tests
+│   └── test_telegram.py            # Telegram bot tests
+│
+├── .github/
+│   └── workflows/
+│       └── build-apk.yml           # GitHub Actions: cloud APK build
+│
 ├── Dockerfile                      # Multi-stage Docker build
 ├── docker-compose.yml              # Multi-service orchestration
 ├── requirements.txt                # Development dependencies
@@ -356,9 +445,9 @@ See the full [LICENSE](LICENSE) file for details.
 
 <p align="center">
   <strong>Status:</strong> ✅ Production Ready &nbsp;|&nbsp;
-  <strong>Version:</strong> 8.1 &nbsp;|&nbsp;
-  <strong>Endpoints:</strong> 14 &nbsp;|&nbsp;
-  <strong>Rating:</strong> 8.2/10
+  <strong>Version:</strong> 9.0 &nbsp;|&nbsp;
+  <strong>Platforms:</strong> Web • Telegram • Android &nbsp;|&nbsp;
+  <strong>Endpoints:</strong> 15
 </p>
 
 <p align="center">
