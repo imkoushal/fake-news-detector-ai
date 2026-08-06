@@ -41,6 +41,7 @@ try:
     import httpx
     from datetime import datetime, timedelta
     from contextlib import asynccontextmanager
+    from functools import lru_cache
     import bcrypt
     import secrets
     import sqlite3
@@ -1697,12 +1698,74 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 
         svg = generate_verdict_card(
             claim_text=claim.get("claim_text", claim.get("text", "Claim text unavailable")),
-            verdict=claim.get("verdict", "UNVERIFIABLE"),
-            confidence=claim.get("confidence", 0),
+            verdict=_safe_verdict(claim.get("verdict")),
+            confidence=_safe_confidence(claim.get("confidence")),
             analysis=claim.get("analysis", ""),
         )
+        # An SVG served as image/svg+xml is an active document on direct
+        # navigation, so it gets the same locked-down policy as the claim pages.
         return Response(content=svg, media_type="image/svg+xml",
-                        headers={"Cache-Control": "public, max-age=86400"})
+                        headers={"Cache-Control": "public, max-age=86400",
+                                 **_CLAIM_PAGE_CSP})
+
+    # ── Claim-page rendering safety helpers ──
+    # These pages are the only server-rendered HTML in the app, and every value
+    # in them originates from user-submitted article text. Treat all of it as
+    # hostile at the point of interpolation.
+
+    VALID_VERDICTS = ("LIKELY_TRUE", "LIKELY_FALSE", "MIXED", "UNVERIFIABLE")
+
+    # Claim pages need no JS, no fetches and no framing, so they can carry a far
+    # stricter policy than the app-wide one in add_security_headers (which must
+    # stay permissive enough for the SPA's inline bootstrap, Google Sign-In and
+    # Google Fonts). The middleware uses setdefault, so this per-response header
+    # wins. style-src allows inline because the markup carries no stylesheet.
+    _CLAIM_PAGE_CSP = {
+        "Content-Security-Policy": (
+            "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; "
+            "base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+        )
+    }
+
+    def _safe_verdict(raw) -> str:
+        """Clamp a stored verdict to the known set.
+
+        The parser at _parse_llm_verdict only ever assigns one of VALID_VERDICTS,
+        so nothing hostile reaches here today. This clamp exists so that a future
+        change to that parser (e.g. taking the text after `VERDICT:` verbatim)
+        cannot silently reopen the three sinks that interpolate verdict into
+        markup: the page title, the <h1>, and the SVG card's verdict label.
+        """
+        v = str(raw or "").strip().upper()
+        return v if v in VALID_VERDICTS else "UNVERIFIABLE"
+
+    def _safe_confidence(raw) -> float:
+        """Coerce a stored confidence to a formattable float.
+
+        Guards `f"{confidence:.0f}"` against a non-numeric value in the stored
+        response JSON, which would otherwise raise TypeError and 500 the page.
+        """
+        try:
+            return max(0.0, min(100.0, float(raw or 0)))
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _json_ld(payload: dict) -> str:
+        """Serialise a dict for embedding inside <script type="application/ld+json">.
+
+        json.dumps escapes `"` and `\\` but NOT `/`, so a claim containing
+        `</script><script>...` would terminate the JSON-LD block and execute.
+        Escaping the three HTML-significant characters as \\uXXXX is the standard
+        defence: still valid JSON, parses to identical values, cannot close a tag.
+        """
+        import json as json_mod
+
+        return (
+            json_mod.dumps(payload, ensure_ascii=False)
+            .replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("&", "\\u0026")
+        )
 
     @app.get("/claim/{claim_hash}", tags=["SEO"])
     def claim_og_page(claim_hash: str, request: Request):
@@ -1725,10 +1788,12 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         if not claim:
             raise HTTPException(404, "Claim not found")
 
-        # Extract data for meta tags
+        # Extract data for meta tags. Everything below is derived from
+        # user-submitted text, so it is clamped or escaped before interpolation.
         import html as html_mod
-        verdict = claim.get("verdict", "UNVERIFIABLE").replace("_", " ")
-        confidence = claim.get("confidence", 0)
+        verdict_key = _safe_verdict(claim.get("verdict"))
+        verdict = verdict_key.replace("_", " ")
+        confidence = _safe_confidence(claim.get("confidence"))
         text = claim.get("claim_text", claim.get("text", ""))[:200]
         analysis = claim.get("analysis", "")[:300]
         safe_text = html_mod.escape(text)
@@ -1737,15 +1802,20 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         card_url = f"{base_url}/api/v1/claim/{claim_hash}/card.svg"
         page_url = f"{base_url}/claim/{claim_hash}"
 
-        title = f"VerifAI: {verdict} ({confidence:.0f}% confidence)"
+        # verdict is already clamped to a fixed literal, so this escape is
+        # defence in depth — title flows into 8 attributes plus <h1>.
+        title = html_mod.escape(
+            f"VerifAI: {verdict} ({confidence:.0f}% confidence)", quote=True
+        )
         description = safe_analysis if safe_analysis else f'Claim: "{safe_text[:120]}..."'
 
         if is_crawler:
-            # Build JSON-LD structured data for Google Fact Check
-            import json as json_mod
+            # Build JSON-LD structured data for Google Fact Check.
+            # Serialised via _json_ld, which neutralises the `</script>` breakout
+            # that raw json.dumps leaves open — claim text is attacker-controlled.
             verdict_name_map = {"LIKELY_TRUE": "True", "LIKELY_FALSE": "False", "MIXED": "Mixture", "UNVERIFIABLE": "Unverifiable"}
             rating_val_map = {"LIKELY_TRUE": 4, "LIKELY_FALSE": 1, "MIXED": 3, "UNVERIFIABLE": 3}
-            jsonld = json_mod.dumps({
+            jsonld = _json_ld({
                 "@context": "https://schema.org",
                 "@type": "ClaimReview",
                 "url": page_url,
@@ -1753,9 +1823,9 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
                 "author": {"@type": "Organization", "name": "VerifAI", "url": base_url},
                 "reviewRating": {
                     "@type": "Rating",
-                    "ratingValue": rating_val_map.get(claim.get("verdict", ""), 3),
+                    "ratingValue": rating_val_map.get(verdict_key, 3),
                     "bestRating": 5, "worstRating": 1,
-                    "alternateName": verdict_name_map.get(claim.get("verdict", ""), "Unverifiable"),
+                    "alternateName": verdict_name_map.get(verdict_key, "Unverifiable"),
                 },
                 "itemReviewed": {"@type": "Claim", "name": text[:200]},
             })
@@ -1783,26 +1853,46 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 </head><body><h1>{title}</h1><p>{description}</p>
 <p><a href="{page_url}">View full report on VerifAI</a></p>
 </body></html>"""
-            return HTMLResponse(content=og_html)
+            return HTMLResponse(content=og_html, headers=_CLAIM_PAGE_CSP)
 
         # Regular browser — serve SPA shell with injected OG tags
         return HTMLResponse(content=_build_spa_redirect(claim_hash, title=title,
                             description=description, card_url=card_url, page_url=page_url))
 
+    @lru_cache(maxsize=1)
+    def _spa_index_html() -> str | None:
+        """Read the built SPA shell once, or None if the frontend isn't built.
+
+        Cached because this is called from a sync handler on every claim-page
+        view; `dist/` is a build artifact and does not change at runtime.
+        """
+        try:
+            index = BASE_DIR / "landing-page" / "dist" / "index.html"
+            return index.read_text(encoding="utf-8")
+        except OSError:
+            return None
+
     def _build_spa_redirect(claim_hash: str, *, title: str = "VerifAI Fact Checker",
                             description: str = "AI-powered fact checking",
                             card_url: str = "", page_url: str = "") -> str:
-        """Build a minimal HTML page that loads the React SPA for a claim page."""
+        """Build the HTML page that loads the React SPA for a claim page.
+
+        Serves the real SPA shell with OG tags injected, so React Router's
+        /claim/:hash route renders client-side. It must NOT redirect to
+        /claim/{hash} — that is this very URL, and the previous inline
+        `location.replace` to it put browsers in an infinite reload loop.
+
+        Every interpolated value is pre-escaped by the caller.
+        """
         base_url = "https://fake-news-detector-8djq.onrender.com"
         if not page_url:
             page_url = f"{base_url}/claim/{claim_hash}"
         if not card_url:
             card_url = f"{base_url}/api/v1/claim/{claim_hash}/card.svg"
 
-        return f"""<!DOCTYPE html>
-<html lang="en"><head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        # Injected first in <head> so crawlers outside the is_crawler UA list
+        # still read our tags rather than the SPA's generic defaults.
+        og_tags = f"""
 <title>{title}</title>
 <meta name="description" content="{description}"/>
 <meta property="og:title" content="{title}"/>
@@ -1816,10 +1906,20 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="{title}"/>
 <meta name="twitter:description" content="{description}"/>
-<meta name="twitter:image" content="{card_url}"/>
-<script>window.location.replace('/claim/{claim_hash}');</script>
+<meta name="twitter:image" content="{card_url}"/>"""
+
+        shell = _spa_index_html()
+        if shell and "<head>" in shell:
+            return shell.replace("<head>", f"<head>{og_tags}", 1)
+
+        # Frontend not built (local API-only runs) — static page, no redirect.
+        return f"""<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>{og_tags}
 </head><body>
-<noscript><a href="/claim/{claim_hash}">View report</a></noscript>
+<h1>{title}</h1><p>{description}</p>
+<p><a href="{page_url}">View full report on VerifAI</a></p>
 </body></html>"""
 
     # ── Phase 11.2: SEO Infrastructure (Sitemap, Robots, JSON-LD) ──

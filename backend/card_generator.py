@@ -39,7 +39,11 @@ def generate_verdict_card(
     else:
         accent = "#F59E0B"       # amber
         accent_bg = "#2D1F04"
-        verdict_label = verdict.replace("_", " ") if verdict else "MIXED"
+        # Escaped: this is the only branch that puts caller-supplied text into
+        # the SVG. The card is served as image/svg+xml, so script in a <text>
+        # node executes on direct navigation — an unescaped verdict containing
+        # `</text><script>` would be stored XSS on the app's own origin.
+        verdict_label = html.escape(verdict.replace("_", " ")) if verdict else "MIXED"
         icon_path = "M12 9v3.75m9.303 3.376c-.866 1.5-2.217 3.374-3.948 3.374H6.645c-1.73 0-2.813-1.874-1.948-3.374L10.051 3.378c.866-1.5 3.032-1.5 3.898 0l5.354 9.748z M12 15.75h.007v.008H12v-.008z"
 
     # Safe text for SVG
