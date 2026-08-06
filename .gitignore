@@ -93,6 +93,10 @@ test-site*.cjs
 # Caches
 .ruff_cache/
 
-# Local planning doc — do not commit
+# Local planning & dev docs — do not commit
 ROADMAP.md
+FIXING_PLAN.md
+read.txt
+work.txt
 node_modules/
+
