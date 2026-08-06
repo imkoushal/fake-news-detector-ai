@@ -1,0 +1,54 @@
+# Pre-commit guards — added in Phase 0 remediation (see FIXING_PLAN.md).
+#
+# Context: .env was committed in 3b5c6b3 and 441da0f, and analysis_history.db in
+# 3b5c6b3/441da0f, on a PUBLIC repo. .gitignore alone only prevents *future* adds
+# and did not stop those. These hooks make a regression fail loudly at commit time.
+#
+# Install once:   py -m pre_commit install
+# Run manually:   py -m pre_commit run --all-files
+
+repos:
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        # Excluded: vendored/minified bundles and binary artifacts produce
+        # high-entropy false positives. Real source is still scanned.
+        exclude: |
+          (?x)^(
+            \.secrets\.baseline|
+            landing-page/dist/.*|
+            landing-page/package-lock\.json|
+            android/.*|
+            data_new/.*|
+            \.agents/.*|
+            skills-lock\.json
+          )$
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Blocks the exact class of file that leaked here.
+      - id: check-added-large-files
+        args: ['--maxkb=5000']
+      - id: detect-private-key
+      - id: check-merge-conflict
+      - id: check-json
+        exclude: '^(landing-page/tsconfig.*\.json|\.vscode/.*)$'
+      - id: check-yaml
+
+  - repo: local
+    hooks:
+      # Belt-and-braces: .gitignore can be bypassed with `git add -f`.
+      # This hook cannot be, short of --no-verify.
+      - id: block-secret-files
+        name: Block .env and database files from being committed
+        entry: python scripts/block_secret_files.py
+        # `language: python` (not `system`): pre-commit provisions its own venv and
+        # puts a real interpreter first on PATH. On Windows, `language: system`
+        # resolves `python` to the Microsoft Store alias stub and fails with 9009,
+        # and hardcoding `py` would break Linux CI.
+        language: python
+        pass_filenames: true
+        always_run: false

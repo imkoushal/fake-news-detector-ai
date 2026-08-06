@@ -12,10 +12,19 @@ ENV/
 env/
 
 # --- SECURITY: Never commit secrets ---
+# NOTE: .env was committed in 3b5c6b3/441da0f and purged in Phase 0 (see FIXING_PLAN.md).
+# Patterns below cover every variant, not just bare `.env`.
 .env
+.env.*
+!.env.example
 .secrets.toml
+.secrets.baseline.local
 *.key
 *.pem
+*.p12
+*.pfx
+credentials.json
+service-account*.json
 
 # Large data files
 data/*.csv
