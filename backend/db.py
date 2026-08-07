@@ -179,23 +179,59 @@ def init_auth_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )''')
 
+    # On PostgreSQL a failed statement aborts the whole transaction, so every
+    # subsequent statement fails with "current transaction is aborted" until a
+    # rollback. The migrations below are each expected to fail once the schema
+    # has caught up (column already exists), so each one must be isolated —
+    # without this, the first no-op migration silently disables all the rest.
+    def _migrate(sql: str, success_msg: str):
+        try:
+            c.execute(sql)
+            conn.commit()
+            logger.info(success_msg)
+        except Exception:
+            conn.rollback()  # already applied — clear the aborted transaction
+
     # Migration: add expires_at column if it doesn't exist
-    try:
-        if USE_POSTGRES:
-            c.execute("ALTER TABLE sessions ADD COLUMN expires_at TIMESTAMP")
-        else:
-            c.execute("ALTER TABLE sessions ADD COLUMN expires_at DATETIME")
-        logger.info("Migrated sessions table: added expires_at column")
-    except Exception:
-        pass  # Column already exists
+    _migrate(
+        "ALTER TABLE sessions ADD COLUMN expires_at " + ("TIMESTAMP" if USE_POSTGRES else "DATETIME"),
+        "Migrated sessions table: added expires_at column",
+    )
 
     # Migration: add google_id and avatar_url columns
     for col, col_type in [("google_id", "TEXT"), ("avatar_url", "TEXT DEFAULT ''")]:
-        try:
-            c.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
-            logger.info(f"Migrated users table: added {col} column")
-        except Exception:
-            pass  # Column already exists
+        _migrate(
+            f"ALTER TABLE users ADD COLUMN {col} {col_type}",
+            f"Migrated users table: added {col} column",
+        )
+
+    # Migration ledger — lets one-shot data migrations run exactly once instead
+    # of on every startup.
+    c.execute('''CREATE TABLE IF NOT EXISTS schema_migrations (
+        id TEXT PRIMARY KEY,
+        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    conn.commit()
+
+    # One-shot: sessions.token now stores a SHA-256 hash, not the raw token
+    # (see backend/auth.py hash_session_token). Rows written before that change
+    # hold plaintext tokens. They can no longer authenticate anything — lookups
+    # hash the presented value first — but leaving them in place would keep the
+    # exact secrets this change exists to remove sitting in the table until
+    # their 7-day TTL expires. Drop them; affected users log in again.
+    c.execute(f"SELECT 1 FROM schema_migrations WHERE id = {ph()}", ("sessions_token_hashed",))
+    if not c.fetchone():
+        c.execute("DELETE FROM sessions")
+        purged = c.rowcount if c.rowcount and c.rowcount > 0 else 0
+        c.execute(
+            f"INSERT INTO schema_migrations (id) VALUES ({ph()})",
+            ("sessions_token_hashed",),
+        )
+        conn.commit()
+        logger.info(
+            f"Migrated sessions table: purged {purged} pre-hash session row(s); "
+            "affected users must log in again"
+        )
 
     conn.commit()
     conn.close()

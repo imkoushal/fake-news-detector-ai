@@ -249,6 +249,8 @@ else:
         sanitize_preview as _sanitize_preview,
         get_user_from_token as _get_user_from_token,
         create_session as _create_session,
+        new_session_token as _new_session_token,
+        hash_session_token as _hash_session_token,
         SESSION_TTL_DAYS,
     )
 
@@ -357,9 +359,10 @@ else:
                 user_id = c.fetchone()[0]
             else:
                 user_id = c.lastrowid
-            token = secrets.token_urlsafe(32)
+            # Store the hash, hand the plaintext to the client (see backend/auth.py).
+            token, token_hash = _new_session_token()
             expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
-            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token, user_id, expires_at))
+            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token_hash, user_id, expires_at))
             conn.commit()
             _metrics.log_event(_metrics.EVENT_SIGNUP, user_id=user_id, source="web", meta={"method": "password"})
             return {
@@ -419,9 +422,9 @@ else:
                 conn.commit()  # Commit hash upgrade independently
                 logger.info(f"Auto-upgraded password hash to bcrypt for user {user[0]}")
 
-            token = secrets.token_urlsafe(32)
+            token, token_hash = _new_session_token()
             expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
-            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token, user[0], expires_at))
+            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token_hash, user[0], expires_at))
             conn.commit()
             return {"token": token, "user": {"id": user[0], "name": user[1], "email": user[2]}}
         finally:
@@ -450,13 +453,17 @@ else:
 
     @app.post("/api/v1/auth/logout")
     async def logout(request: Request):
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        # Strip the scheme prefix the same way get_user_from_token does. The two
+        # must agree exactly: the value is hashed before lookup, so any
+        # divergence turns logout into a silent no-op that leaves the session live.
+        auth_header = request.headers.get("Authorization", "").strip()
+        token = auth_header[7:].strip() if auth_header[:7].lower() == "bearer " else auth_header
         if token:
             # Codex Fix #3: Wrap in try/finally to prevent connection leak on error
             conn = get_db()
             c = conn.cursor()
             try:
-                c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (token,))
+                c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (_hash_session_token(token),))
                 conn.commit()
             except Exception as e:
                 logger.error(f"Logout session cleanup failed: {e}")
@@ -562,9 +569,9 @@ else:
                 user_email = email
 
             # Create session
-            token = secrets.token_urlsafe(32)
+            token, token_hash = _new_session_token()
             expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
-            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token, user_id, expires_at))
+            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token_hash, user_id, expires_at))
             conn.commit()
             if is_new_user:
                 _metrics.log_event(_metrics.EVENT_SIGNUP, user_id=user_id, source="web", meta={"method": "google"})
