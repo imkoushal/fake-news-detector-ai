@@ -2266,8 +2266,16 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
 
         expected = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
         header_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-        # Constant-time-ish comparison; reject silently (200 no-op) to avoid probing.
-        if not expected or secret != expected or header_secret != expected:
+        # Reject silently (200 no-op) to avoid confirming the endpoint to a prober.
+        # compare_digest, not `!=`: str comparison short-circuits on the first
+        # differing byte. Matches the existing usage at the /health detail and
+        # admin endpoints. Compared as UTF-8 bytes because compare_digest raises
+        # TypeError on non-ASCII str, and both inputs are attacker-controlled
+        # (URL path segment and request header).
+        _expected_b = expected.encode()
+        if (not expected
+                or not secrets.compare_digest(secret.encode(), _expected_b)
+                or not secrets.compare_digest(header_secret.encode(), _expected_b)):
             logger.warning("Telegram webhook: secret mismatch — ignoring")
             return {"ok": True}
 

@@ -28,9 +28,29 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
+// content.js is injected on demand rather than declared as an <all_urls>
+// content script. It is purely reactive — it does nothing until it receives a
+// message from here — so running it on every page the user visits bought
+// nothing and cost a persistent all-sites footprint (plus Web Store review
+// friction). The context-menu click is an activeTab-granting gesture, so this
+// needs no host permission for the page.
+async function ensureContentScript(tabId) {
+  // Re-injecting is safe: content.js guards on window.__verifaiInjected and
+  // returns early, leaving the already-registered message listener in place.
+  await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+}
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "verifai-check" || !info.selectionText || !tab?.id) return;
   const query = info.selectionText.trim();
+  try {
+    await ensureContentScript(tab.id);
+  } catch (e) {
+    // Restricted pages (chrome://, the Web Store, PDF viewer) reject injection.
+    // The old content script could not run there either — fail quietly.
+    console.warn("VerifAI: cannot inject into this page:", e.message || e);
+    return;
+  }
   chrome.tabs.sendMessage(tab.id, { type: "verifai_loading", query });
   try {
     const data = withPermalink(await verify(query));

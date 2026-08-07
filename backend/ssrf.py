@@ -33,6 +33,12 @@ _BLOCKED_NETWORKS = [
     ipaddress.ip_network("ff00::/8"),           # Multicast
 ]
 
+# Ports this app is ever legitimately allowed to fetch. Without this, a public
+# hostname passes every IP check above and the request still reaches an
+# arbitrary port — http://public-host:22/ turns the fetcher into a port scanner
+# and a probe for non-HTTP services that may sit on a shared host.
+_ALLOWED_PORTS = {80, 443, 8080, 8443}
+
 
 def validate_url(url: str) -> str:
     """Validate a URL is safe to fetch (not targeting internal/private IPs).
@@ -61,9 +67,23 @@ def validate_url(url: str) -> str:
     if hostname.lower() in dangerous:
         raise ValueError(f"Blocked hostname: {hostname}")
 
+    # Port must be one we actually serve traffic on. The default is scheme-aware:
+    # assuming 443 for an http:// URL would both mis-resolve below and let an
+    # implicit-port http URL sidestep the intent of this check.
+    try:
+        port = parsed.port
+    except ValueError:
+        # urlparse defers parsing the port; a non-numeric or out-of-range one
+        # (e.g. "http://host:notaport/") only raises when accessed.
+        raise ValueError("URL has an invalid port")
+    if port is None:
+        port = 443 if parsed.scheme == "https" else 80
+    if port not in _ALLOWED_PORTS:
+        raise ValueError(f"Port {port} not allowed")
+
     # Resolve DNS and check all IPs
     try:
-        addr_infos = socket.getaddrinfo(hostname, parsed.port or 443, proto=socket.IPPROTO_TCP)
+        addr_infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
         raise ValueError(f"Cannot resolve hostname: {hostname}")
 

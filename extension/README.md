@@ -13,8 +13,8 @@ A thin adapter over the existing `POST /api/v1/smart-verify` endpoint — no ser
 3. Click **Load unpacked** and select this `extension/` folder.
 4. Select any text on a page → right-click → **Check with VerifAI**.
 
-> If the extension is installed while a tab is already open, reload that tab once so the
-> content script is present.
+> No tab reload is needed after installing. `content.js` is injected on demand when you
+> use the context menu, not declared as an always-on content script.
 
 ## Point it at local dev
 

@@ -143,6 +143,141 @@ class TestSSRFProtection:
             validate_url("http://169.254.169.254/latest/meta-data/")
 
 
+class TestSSRFPortRestriction:
+    """Guards P1-4 — a public hostname on a non-web port used to pass.
+
+    These run offline: the port check is evaluated before DNS resolution, so no
+    lookup happens for a rejected port.
+    """
+
+    @pytest.mark.parametrize("url", [
+        "http://example.com:22/",       # SSH — turns the fetcher into a port scanner
+        "http://example.com:3306/",     # MySQL
+        "http://example.com:6379/",     # Redis
+        "http://example.com:25/",       # SMTP
+        "https://example.com:5432/",    # PostgreSQL
+    ])
+    def test_blocks_non_web_ports(self, url):
+        from backend.ssrf import validate_url
+        with pytest.raises(ValueError, match="not allowed"):
+            validate_url(url)
+
+    def test_blocks_malformed_port(self):
+        from backend.ssrf import validate_url
+        with pytest.raises(ValueError, match="invalid port"):
+            validate_url("http://example.com:notaport/")
+
+    def test_allows_web_ports(self):
+        """Explicit web ports must still pass the port gate.
+
+        Asserted by absence of a port error rather than overall success, so the
+        test does not depend on DNS resolving example.com.
+        """
+        from backend.ssrf import validate_url
+        for url in ["http://example.com:80/", "https://example.com:443/",
+                    "http://example.com:8080/", "https://example.com:8443/"]:
+            try:
+                validate_url(url)
+            except ValueError as e:
+                assert "not allowed" not in str(e), f"{url} rejected on port: {e}"
+
+    def test_http_url_resolves_against_port_80_not_443(self, monkeypatch):
+        """Regression: the default was a hardcoded 443 even for http:// URLs.
+
+        getaddrinfo was therefore called with the wrong port for every plain-http
+        URL — harmless for A-record lookups but wrong, and it meant the port the
+        code reasoned about was not the port the URL named.
+        """
+        import backend.ssrf as ssrf_mod
+        seen = {}
+
+        def fake_getaddrinfo(host, port, **kwargs):
+            seen["port"] = port
+            return [(2, 1, 6, "", ("93.184.216.34", port))]
+
+        monkeypatch.setattr(ssrf_mod.socket, "getaddrinfo", fake_getaddrinfo)
+        ssrf_mod.validate_url("http://example.com/article")
+        assert seen["port"] == 80
+
+        ssrf_mod.validate_url("https://example.com/article")
+        assert seen["port"] == 443
+
+
+class TestSSRFRedirectRevalidation:
+    """Guards the redirect bypass: a public URL that 30x-es to an internal one."""
+
+    @pytest.fixture(autouse=True)
+    def _stub_dns(self, monkeypatch):
+        """Resolve offline so these assert on SSRF logic, not on the network.
+
+        Literal IPs pass through unchanged (so the metadata address is still
+        judged on its real value); any hostname maps to a public IP.
+        """
+        import ipaddress as _ip
+        import backend.ssrf as ssrf_mod
+
+        def fake_getaddrinfo(host, port, **kwargs):
+            try:
+                addr = str(_ip.ip_address(host))
+            except ValueError:
+                addr = "93.184.216.34"   # public, non-blocked
+            return [(2, 1, 6, "", (addr, port))]
+
+        monkeypatch.setattr(ssrf_mod.socket, "getaddrinfo", fake_getaddrinfo)
+
+    class _FakeResponse:
+        def __init__(self, status_code, headers=None):
+            self.status_code = status_code
+            self.headers = headers or {}
+
+    class _FakeClient:
+        """Minimal stand-in for httpx.AsyncClient — no network, no DNS."""
+        def __init__(self, script):
+            self.script = script       # url -> _FakeResponse
+            self.requested = []
+
+        async def get(self, url, headers=None, follow_redirects=False):
+            self.requested.append(url)
+            return self.script[url]
+
+    def test_redirect_to_metadata_ip_is_blocked(self):
+        import asyncio
+        from backend.ssrf import safe_get
+
+        start = "https://example.com/news"
+        client = self._FakeClient({
+            start: self._FakeResponse(302, {"location": "http://169.254.169.254/latest/meta-data/"}),
+        })
+
+        with pytest.raises(ValueError, match="blocked IP range"):
+            asyncio.run(safe_get(client, start))
+
+        assert client.requested == [start], "the redirect target was fetched anyway"
+
+    def test_redirect_to_blocked_port_is_blocked(self):
+        import asyncio
+        from backend.ssrf import safe_get
+
+        start = "https://example.com/news"
+        client = self._FakeClient({
+            start: self._FakeResponse(302, {"location": "http://example.com:22/"}),
+        })
+
+        with pytest.raises(ValueError, match="not allowed"):
+            asyncio.run(safe_get(client, start))
+
+    def test_redirect_limit_enforced(self):
+        import asyncio
+        from backend.ssrf import safe_get
+
+        start = "https://example.com/a"
+        client = self._FakeClient({
+            start: self._FakeResponse(302, {"location": "https://example.com/a"}),
+        })
+        with pytest.raises(ValueError, match="Too many redirects"):
+            asyncio.run(safe_get(client, start, max_redirects=2))
+
+
 # ── Auth Helper Tests ──
 
 class TestAuthHelpers:
