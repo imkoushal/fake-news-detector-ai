@@ -1,6 +1,25 @@
 """
-WelFake Cross-Domain Evaluation — Batch Vectorized (Fast)
-Tests the production model on the WelFake dataset using batch inference.
+WelFake IN-SAMPLE Evaluation — Batch Vectorized (Fast)
+
+⚠️  THIS IS NOT A CROSS-DOMAIN OR GENERALISATION TEST. ⚠️
+
+The production model is TRAINED on data_new/WELFake_Dataset.csv — see
+train.py:316-320, which appends load_welfake_dataset() to the training pool, and
+models/config.json, which lists "WELFake" in datasets_used. This script scores
+the model on that same CSV, so every article it evaluates was seen during
+training.
+
+The numbers below are therefore an upper bound that measures memorisation, not
+generalisation. They must never be published as accuracy figures. This file was
+previously named eval_welfake.py and described itself as a "cross-domain"
+evaluation on "unseen articles"; those claims were wrong and were removed from
+the README along with the 97.72% accuracy and 99.97% high-confidence figures
+they produced.
+
+Kept because in-sample scores are still useful as a sanity check — a sharp drop
+here means something broke in the pipeline. For a real generalisation estimate,
+use a grouped or temporal split (see FIXING_PLAN.md P2-2) or a held-out set the
+model has never seen.
 """
 import sys, os, io, time, warnings
 
@@ -23,8 +42,9 @@ from utils import clean_text
 from meta_features import extract_single as compute_meta_features
 
 print("=" * 70)
-print("  WelFake Cross-Domain Evaluation (Batch Vectorized)")
-print("  Testing production model on 72,134 unseen articles")
+print("  WelFake IN-SAMPLE Evaluation (Batch Vectorized)")
+print("  !! NOT a generalisation test — the model was TRAINED on this CSV !!")
+print("  Scores below measure memorisation. Do not publish them.")
 print("=" * 70)
 
 # ── Load Dataset ──
@@ -129,9 +149,11 @@ except:
 cm = confusion_matrix(y_true, y_pred)
 
 print("\n" + "=" * 70)
-print("  WELFAKE CROSS-DOMAIN EVALUATION RESULTS")
+print("  WELFAKE IN-SAMPLE EVALUATION RESULTS (memorisation, not accuracy)")
 print("=" * 70)
-print(f"\n  Dataset:     WelFake (72,134 articles, 4 merged sources)")
+print("\n  ⚠️  These articles were in the training set. Not a generalisation")
+print("      estimate — do not quote these figures anywhere.")
+print(f"\n  Dataset:     WelFake (72,134 articles, 4 merged sources) — TRAINED ON")
 print(f"  Evaluated:   {len(y_true):,} articles (stratified sample)")
 print(f"  Inference:   {elapsed:.1f}s ({len(y_true)/elapsed:.0f} articles/sec)")
 print(f"\n  {'Metric':<20} {'Score':>10}")
@@ -185,5 +207,7 @@ print(f"    Fake articles correctly identified: {fake_acc*100:.2f}%")
 print(f"    Real articles correctly identified: {real_acc*100:.2f}%")
 
 print("\n" + "=" * 70)
-print("  Evaluation complete!")
+print("  In-sample evaluation complete.")
+print("  Reminder: the model was trained on these articles. Use a grouped or")
+print("  temporal split for any number you intend to publish.")
 print("=" * 70)

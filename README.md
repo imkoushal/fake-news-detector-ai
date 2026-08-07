@@ -173,14 +173,6 @@ This dual approach catches both *stylistically* fake articles (clickbait, conspi
 | F1-Score | 94.72% |
 | ROC-AUC | 99.09% |
 
-### Cross-Domain: WelFake Dataset (72K Articles)
-
-| Metric | Score |
-|--------|-------|
-| Accuracy | 97.72% |
-| ROC-AUC | 99.78% |
-| High-Confidence (≥90%) Accuracy | 99.97% |
-
 ---
 
 ## 🚀 Installation
@@ -398,8 +390,9 @@ fake-news-detector-ai/
 # Generate evaluation report
 python eval_report.py --save
 
-# WelFake cross-domain evaluation
-python eval_welfake.py
+# WelFake in-sample sanity check (NOT a generalisation test — the model is
+# trained on this dataset, so these scores measure memorisation)
+python eval_welfake_in_sample.py
 
 # Run test suite
 pytest tests/ -v
