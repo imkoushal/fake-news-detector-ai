@@ -16,7 +16,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install ruff
-      - run: ruff check --select E,F,W --ignore E501 api.py utils.py meta_features.py enhanced_features.py
+      # P4-5 FIX: lint the ENTIRE codebase (was only 4 files — backend/ was unlinted)
+      - run: ruff check --select E,F,W,B --ignore E501 .
 
   test:
     name: Test

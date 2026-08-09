@@ -440,7 +440,7 @@ See the full [LICENSE](LICENSE) file for details.
   <strong>Status:</strong> ✅ Production Ready &nbsp;|&nbsp;
   <strong>Version:</strong> 9.0 &nbsp;|&nbsp;
   <strong>Platforms:</strong> Web • Telegram • Android &nbsp;|&nbsp;
-  <strong>Endpoints:</strong> 15
+  <strong>Endpoints:</strong> 40+ (see <code>/docs</code>)
 </p>
 
 <p align="center">

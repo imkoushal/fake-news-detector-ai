@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fake-news-detector"
-version = "8.1.0"
+version = "9.0.0"
 description = "Industry-grade ML-powered fake news detection system"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = {file = "LICENSE"}
 
 dependencies = [
     # Core ML
@@ -35,7 +35,6 @@ dependencies = [
     "httpx>=0.27.0",
 
     # External APIs & auth
-    "requests>=2.32.0",
     "google-auth>=2.20.0",
 
     # Configuration
@@ -58,7 +57,8 @@ all = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["src*"]
+# P4-9 FIX: was "src*" but no src/ directory exists — package built empty
+include = ["backend*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
