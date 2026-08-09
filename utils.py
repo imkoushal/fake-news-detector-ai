@@ -48,7 +48,9 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\b\d+(?:[.,]\d+)*%?\b', ' NUM ', text)
 
     # Remove special characters and remaining digits (keep letters, spaces, hyphens, and NUM)
-    text = re.sub(r"[^a-z\s\-]", " ", text)
+    # P2-3 FIX: was [^a-z\s\-] which stripped uppercase NUM inserted by line 48.
+    text = re.sub(r"[^a-zA-Z\s\-]", " ", text)
+
 
     # Remove extra whitespace
     text = re.sub(r'\s+', ' ', text).strip()

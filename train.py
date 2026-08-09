@@ -35,7 +35,7 @@ if sys.platform.startswith('win'):
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV, RandomizedSearchCV
+from sklearn.model_selection import train_test_split, StratifiedKFold, StratifiedGroupKFold, GridSearchCV, RandomizedSearchCV
 from scipy.stats import loguniform, randint
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import Pipeline
@@ -446,12 +446,30 @@ def main():
     y = df["label"]
     indices = np.arange(len(df))
 
-    idx_temp, idx_test, y_temp, y_test = train_test_split(
-        indices, y, test_size=0.15, stratify=y, random_state=42
-    )
-    idx_train, idx_val, y_train, y_val = train_test_split(
-        idx_temp, y_temp, test_size=0.1765, stratify=y_temp, random_state=42
-    )
+    # P2-2 FIX: Use StratifiedGroupKFold to prevent source leakage.
+    # Random split puts articles from the same source on both sides of
+    # the split, so the model learns *which outlet wrote this* instead
+    # of veracity. Grouping by source_dataset ensures no source appears
+    # in both train and test.
+    if "source_dataset" in df.columns:
+        groups = df["source_dataset"].values
+        sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+        idx_temp, idx_test = next(sgkf.split(indices, y, groups=groups))
+        y_temp, y_test = y.iloc[idx_temp], y.iloc[idx_test]
+        # Sub-split temp → train + val (use regular stratified split within groups)
+        idx_train, idx_val, y_train, y_val = train_test_split(
+            idx_temp, y_temp, test_size=0.1765, stratify=y_temp, random_state=42
+        )
+        print(f"   ✅ Grouped split by source_dataset ({len(df['source_dataset'].unique())} groups)")
+    else:
+        # Fallback to random split if source_dataset column is missing
+        print("   ⚠️  No source_dataset column — falling back to random split")
+        idx_temp, idx_test, y_temp, y_test = train_test_split(
+            indices, y, test_size=0.15, stratify=y, random_state=42
+        )
+        idx_train, idx_val, y_train, y_val = train_test_split(
+            idx_temp, y_temp, test_size=0.1765, stratify=y_temp, random_state=42
+        )
 
     X_train = X_text.iloc[idx_train]
     X_val = X_text.iloc[idx_val]
@@ -619,6 +637,13 @@ def main():
     calibrated = voting_clf
     print("\n✅ Using averaged probabilities from all 5 models")
 
+    # P2-4 FIX: Probe assertion — catches silent ensemble breakage on sklearn upgrades
+    _probe = calibrated.predict_proba(X_val_tfidf[:5])
+    assert _probe.shape == (5, 2), f"Ensemble shape regression: {_probe.shape}"
+    assert np.allclose(_probe.sum(axis=1), 1.0), "predict_proba rows must sum to 1"
+    assert list(calibrated.classes_) == [0, 1], f"class order changed: {calibrated.classes_}"
+    print("   ✅ Ensemble probe passed (shape, sum-to-1, class order)")
+
     # ========================
     # 1️⃣2️⃣ Find optimal threshold (on clean validation data)
     # ========================
@@ -673,7 +698,7 @@ def main():
         "threshold": best_thr
     }
     params = {
-        "model": "Stacking (LR+RF+SGD+SVC+LGBM) + Meta + RandSearch + OOD",
+        "model": "Voting (LR+RF+SGD+SVC+LGBM) + Meta + RandSearch + OOD",
         "n_samples": len(df),
         "features": int(X_train_tfidf.shape[1]),
         "meta_features": N_META_FEATURES,
