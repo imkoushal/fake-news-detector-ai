@@ -1,0 +1,63 @@
+# ============================================================
+# .dockerignore — Exclude non-essential files from Docker image
+# Prevents multi-GB images from training data, git history, etc.
+# ============================================================
+
+# Version control
+.git
+.gitignore
+
+# Environment / secrets (NEVER copy into image)
+.env*
+!.env.example
+*.db
+*.key
+*.pem
+
+# Training data (large CSVs, ZIPs, HDF5)
+data_new/
+data/
+
+# Frontend dev artifacts (dist/ is needed, node_modules is not)
+landing-page/node_modules/
+
+# Android / Capacitor (not needed for API server)
+landing-page/android/
+
+# Browser extension
+extension/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Tests (not needed in production image)
+tests/
+
+# Documentation
+*.md
+!requirements*.txt
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker (avoid recursive copy)
+.docker/
+docker-compose.yml
+
+# CI/CD
+.github/
+
+# Local dev files
+scratch_*.py
+*.tmp
+*.bak
+ROADMAP.md
+FIXING_PLAN.md

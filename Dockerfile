@@ -39,9 +39,10 @@ RUN mkdir -p logs models data && \
 # Switch to non-root user
 USER appuser
 
-# Health check
+# Health check (P4-4 FIX: use stdlib — requests is not in requirements-deploy.txt)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import requests; r = requests.get('http://localhost:8000/health'); exit(0 if r.status_code == 200 else 1)" || exit 1
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"
+
 
 EXPOSE 8000
 

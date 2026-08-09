@@ -33,11 +33,11 @@ try:
     from fastapi import FastAPI, HTTPException, Request, UploadFile, File
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse, JSONResponse
+    from starlette.concurrency import run_in_threadpool
     from pydantic import BaseModel, ConfigDict
     from typing import Optional, List
     import joblib
     import re
-    import requests
     import httpx
     from datetime import datetime, timedelta
     from contextlib import asynccontextmanager
@@ -344,40 +344,45 @@ else:
         if len(req.name.strip()) < 1:
             raise HTTPException(400, "Name is required")
 
-        salt = "bcrypt"  # Marker — bcrypt embeds its own salt in the hash
-        pw_hash = _hash_password(req.password)
+        # ── P3-1 FIX: bcrypt hashing (~100ms) + DB writes off the event loop ──
+        def _signup_sync():
+            salt = "bcrypt"  # Marker — bcrypt embeds its own salt in the hash
+            pw_hash = _hash_password(req.password)
 
-        conn = get_db()
-        c = conn.cursor()
-        try:
-            c.execute(
-                f"INSERT INTO users (name, email, password_hash, salt) VALUES ({ph(4)})",
-                (req.name.strip(), req.email.strip().lower(), pw_hash, salt)
-            )
-            if USE_POSTGRES:
-                c.execute("SELECT currval(pg_get_serial_sequence('users','id'))")
-                user_id = c.fetchone()[0]
-            else:
-                user_id = c.lastrowid
-            # Store the hash, hand the plaintext to the client (see backend/auth.py).
-            token, token_hash = _new_session_token()
-            expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
-            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token_hash, user_id, expires_at))
-            conn.commit()
-            _metrics.log_event(_metrics.EVENT_SIGNUP, user_id=user_id, source="web", meta={"method": "password"})
-            return {
-                "token": token,
-                "user": {"id": user_id, "name": req.name.strip(), "email": req.email.strip().lower()}
-            }
-        except Exception as e:
-            conn.rollback()
-            err = str(e).lower()
-            if "unique" in err or "duplicate" in err:
-                raise HTTPException(409, "An account with this email already exists")
-            logger.error(f"Signup error: {e}")
-            raise HTTPException(500, "Account creation failed. Please try again.")
-        finally:
-            conn.close()
+            conn = get_db()
+            c = conn.cursor()
+            try:
+                c.execute(
+                    f"INSERT INTO users (name, email, password_hash, salt) VALUES ({ph(4)})",
+                    (req.name.strip(), req.email.strip().lower(), pw_hash, salt)
+                )
+                if USE_POSTGRES:
+                    c.execute("SELECT currval(pg_get_serial_sequence('users','id'))")
+                    user_id = c.fetchone()[0]
+                else:
+                    user_id = c.lastrowid
+                # Store the hash, hand the plaintext to the client (see backend/auth.py).
+                token, token_hash = _new_session_token()
+                expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+                c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token_hash, user_id, expires_at))
+                conn.commit()
+                _metrics.log_event(_metrics.EVENT_SIGNUP, user_id=user_id, source="web", meta={"method": "password"})
+                return {
+                    "token": token,
+                    "user": {"id": user_id, "name": req.name.strip(), "email": req.email.strip().lower()}
+                }
+            except Exception as e:
+                conn.rollback()
+                err = str(e).lower()
+                if "unique" in err or "duplicate" in err:
+                    raise HTTPException(409, "An account with this email already exists")
+                logger.error(f"Signup error: {e}")
+                raise HTTPException(500, "Account creation failed. Please try again.")
+            finally:
+                conn.close()
+
+        return await run_in_threadpool(_signup_sync)
+
 
     @app.post("/api/v1/auth/login")
     @limiter.limit("5/minute")
@@ -390,66 +395,75 @@ else:
                 429,
                 "Too many failed login attempts. Try again in 15 minutes.",
             )
-        conn = get_db()
-        c = conn.cursor()
-        try:
-            c.execute(
-                f"SELECT id, name, email, password_hash, salt FROM users WHERE email = {ph()}",
-                (email_key,)
-            )
-            user = c.fetchone()
-            if not user:
-                # M5 FIX: Dummy bcrypt hash to prevent timing-based user enumeration
-                _hash_password("dummy-password-for-constant-time")
-                _record_login_failure(email_key)
-                raise HTTPException(401, "Invalid email or password")
-            if not _verify_password(req.password, user[3], user[4]):
-                _record_login_failure(email_key)
-                raise HTTPException(401, "Invalid email or password")
-
-            # Successful auth — clear the failure counter for this account.
-            _clear_login_failures(email_key)
-
-            # Auto-upgrade legacy SHA-256 hashes to bcrypt on successful login
-            # Commit upgrade immediately so it persists even if session creation fails
-            if user[4] != "bcrypt" and not user[3].startswith("$2b$"):
-                logger.warning(f"Legacy SHA-256 hash detected for user {user[0]} — auto-upgrading to bcrypt. Consider prompting this user to change their password.")
-                new_hash = _hash_password(req.password)
+        # ── P3-1 FIX: bcrypt verify (~100ms) + DB lookups off the event loop ──
+        def _login_sync():
+            conn = get_db()
+            c = conn.cursor()
+            try:
                 c.execute(
-                    f"UPDATE users SET password_hash = {ph()}, salt = {ph()} WHERE id = {ph()}",
-                    (new_hash, "bcrypt", user[0])
+                    f"SELECT id, name, email, password_hash, salt FROM users WHERE email = {ph()}",
+                    (email_key,)
                 )
-                conn.commit()  # Commit hash upgrade independently
-                logger.info(f"Auto-upgraded password hash to bcrypt for user {user[0]}")
+                user = c.fetchone()
+                if not user:
+                    # M5 FIX: Dummy bcrypt hash to prevent timing-based user enumeration
+                    _hash_password("dummy-password-for-constant-time")
+                    _record_login_failure(email_key)
+                    raise HTTPException(401, "Invalid email or password")
+                if not _verify_password(req.password, user[3], user[4]):
+                    _record_login_failure(email_key)
+                    raise HTTPException(401, "Invalid email or password")
 
-            token, token_hash = _new_session_token()
-            expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
-            c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token_hash, user[0], expires_at))
-            conn.commit()
-            return {"token": token, "user": {"id": user[0], "name": user[1], "email": user[2]}}
-        finally:
-            conn.close()
+                # Successful auth — clear the failure counter for this account.
+                _clear_login_failures(email_key)
+
+                # Auto-upgrade legacy SHA-256 hashes to bcrypt on successful login
+                # Commit upgrade immediately so it persists even if session creation fails
+                if user[4] != "bcrypt" and not user[3].startswith("$2b$"):
+                    logger.warning(f"Legacy SHA-256 hash detected for user {user[0]} — auto-upgrading to bcrypt. Consider prompting this user to change their password.")
+                    new_hash = _hash_password(req.password)
+                    c.execute(
+                        f"UPDATE users SET password_hash = {ph()}, salt = {ph()} WHERE id = {ph()}",
+                        (new_hash, "bcrypt", user[0])
+                    )
+                    conn.commit()  # Commit hash upgrade independently
+                    logger.info(f"Auto-upgraded password hash to bcrypt for user {user[0]}")
+
+                token, token_hash = _new_session_token()
+                expires_at = (datetime.now() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+                c.execute(f"INSERT INTO sessions (token, user_id, expires_at) VALUES ({ph(3)})", (token_hash, user[0], expires_at))
+                conn.commit()
+                return {"token": token, "user": {"id": user[0], "name": user[1], "email": user[2]}}
+            finally:
+                conn.close()
+
+        return await run_in_threadpool(_login_sync)
+
 
     @app.get("/api/v1/auth/me")
     async def get_me(request: Request):
         # Resolve via the shared helper so expiry is enforced (and expired
         # sessions are purged) — consistent with every other authed endpoint.
-        user_id = _get_user_from_token(request)
-        if not user_id:
-            raise HTTPException(401, "Invalid session")
-        conn = get_db()
-        c = conn.cursor()
-        try:
-            c.execute(
-                f"SELECT id, name, email, avatar_url FROM users WHERE id = {ph()}",
-                (user_id,)
-            )
-            user = c.fetchone()
-            if not user:
+        # ── P3-1 FIX: dispatch sync auth + DB to threadpool ──
+        def _get_me_sync():
+            user_id = _get_user_from_token(request)
+            if not user_id:
                 raise HTTPException(401, "Invalid session")
-            return {"id": user[0], "name": user[1], "email": user[2], "avatar_url": user[3] or ""}
-        finally:
-            conn.close()
+            conn = get_db()
+            c = conn.cursor()
+            try:
+                c.execute(
+                    f"SELECT id, name, email, avatar_url FROM users WHERE id = {ph()}",
+                    (user_id,)
+                )
+                user = c.fetchone()
+                if not user:
+                    raise HTTPException(401, "Invalid session")
+                return {"id": user[0], "name": user[1], "email": user[2], "avatar_url": user[3] or ""}
+            finally:
+                conn.close()
+
+        return await run_in_threadpool(_get_me_sync)
 
     @app.post("/api/v1/auth/logout")
     async def logout(request: Request):
@@ -459,18 +473,21 @@ else:
         auth_header = request.headers.get("Authorization", "").strip()
         token = auth_header[7:].strip() if auth_header[:7].lower() == "bearer " else auth_header
         if token:
-            # Codex Fix #3: Wrap in try/finally to prevent connection leak on error
-            conn = get_db()
-            c = conn.cursor()
-            try:
-                c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (_hash_session_token(token),))
-                conn.commit()
-            except Exception as e:
-                logger.error(f"Logout session cleanup failed: {e}")
-                conn.rollback()
-            finally:
-                conn.close()
+            # ── P3-1 FIX: dispatch sync DB delete to threadpool ──
+            def _logout_sync():
+                conn = get_db()
+                c = conn.cursor()
+                try:
+                    c.execute(f"DELETE FROM sessions WHERE token = {ph()}", (_hash_session_token(token),))
+                    conn.commit()
+                except Exception as e:
+                    logger.error(f"Logout session cleanup failed: {e}")
+                    conn.rollback()
+                finally:
+                    conn.close()
+            await run_in_threadpool(_logout_sync)
         return {"ok": True}
+
 
     # ── Google OAuth ──
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
@@ -786,33 +803,57 @@ else:
         else:
             input_quality = "sufficient"
 
-        cleaned = clean_text(text)
-        tfidf_features = tfidf.transform([cleaned])
-
-        # ML-4 FIX: Normalize whitespace to match training preprocessing
-        text_normalized = re.sub(r'\s+', ' ', text).strip()
-        meta = compute_meta_features(text_normalized).reshape(1, -1)
-        meta_scaled = scaler.transform(meta)
-        features = hstack([tfidf_features, meta_scaled])
-
-        proba = model.predict_proba(features)[0]
-        real_prob, fake_prob = float(proba[1]), float(proba[0])
-        red_flag_score = detect_fake_news_red_flags(text)
         # Use client-supplied sensitivity as the decision threshold when provided,
         # otherwise fall back to the threshold learned on the validation set (config.json).
         threshold = max(0.0, min(1.0, article.sensitivity if article.sensitivity is not None else MODEL_THRESHOLD))
-        prediction = "REAL" if real_prob >= threshold else "FAKE"
-        confidence = max(real_prob, fake_prob) * 100
 
-        # Phase 5: Apply OOD-based confidence calibration
-        ood_score = 0.0
-        if ood_detector_instance is not None:
-            try:
-                from ood_detector import calibrate_confidence
-                ood_score, _ood_details = ood_detector_instance.score(cleaned)
-                confidence = calibrate_confidence(confidence, ood_score)
-            except Exception as e:
-                logger.warning(f"OOD scoring failed (using raw confidence): {e}")
+        # ── P3-1 FIX: dispatch all CPU-heavy ML work to threadpool ──
+        # clean_text (spaCy NLP), TF-IDF transform, 5-model predict_proba,
+        # OOD scoring, and word explainability are all blocking — running
+        # them on the event loop serialises the entire server under load.
+        def _predict_sync():
+            cleaned = clean_text(text)
+            tfidf_features = tfidf.transform([cleaned])
+            # ML-4 FIX: Normalize whitespace to match training preprocessing
+            text_normalized = re.sub(r'\s+', ' ', text).strip()
+            meta = compute_meta_features(text_normalized).reshape(1, -1)
+            meta_scaled = scaler.transform(meta)
+            features = hstack([tfidf_features, meta_scaled])
+
+            proba = model.predict_proba(features)[0]
+            real_prob, fake_prob = float(proba[1]), float(proba[0])
+            red_flag_score = detect_fake_news_red_flags(text)
+            prediction = "REAL" if real_prob >= threshold else "FAKE"
+            confidence = max(real_prob, fake_prob) * 100
+
+            # Phase 5: Apply OOD-based confidence calibration
+            ood_score = 0.0
+            if ood_detector_instance is not None:
+                try:
+                    from ood_detector import calibrate_confidence
+                    ood_score, _ood_details = ood_detector_instance.score(cleaned)
+                    confidence = calibrate_confidence(confidence, ood_score)
+                except Exception as e:
+                    logger.warning(f"OOD scoring failed (using raw confidence): {e}")
+
+            # Word explainability (3.7)
+            fake_words, real_words = _get_top_words(text)
+
+            return {
+                "prediction": prediction, "confidence": confidence,
+                "real_prob": real_prob, "fake_prob": fake_prob,
+                "red_flag_score": red_flag_score,
+                "fake_words": fake_words, "real_words": real_words,
+            }
+
+        result = await run_in_threadpool(_predict_sync)
+        prediction = result["prediction"]
+        confidence = result["confidence"]
+        real_prob = result["real_prob"]
+        fake_prob = result["fake_prob"]
+        red_flag_score = result["red_flag_score"]
+        fake_words = result["fake_words"]
+        real_words = result["real_words"]
 
         # Dampen confidence for short inputs — not enough context
         if input_quality == "short_claim":
@@ -832,37 +873,37 @@ else:
         else:
             confidence_tier = "Borderline Real" if prediction == "REAL" else "Borderline Fake"
 
-        # Save analysis to DB only if input is long enough to be reliable
-        # Short claims (< 30 words) produce dampened scores — don't pollute history
-        user_id = _get_user_from_token(request)
+        # ── P3-1 FIX: dispatch sync DB calls to threadpool ──
+        user_id = await run_in_threadpool(_get_user_from_token, request)
         # §5 metrics: every analysis is a "check" (ML path — local model, ~$0).
         _metrics.log_event(
             _metrics.EVENT_CHECK, user_id=user_id, source="web", cost_usd=0.0,
             meta={"path": "ml", "prediction": prediction, "quality": input_quality},
         )
-        if user_id and input_quality == "sufficient":
-            preview = _sanitize_preview(text, max_len=200)
-            conn = get_db()
-            c = conn.cursor()
-            try:
-                c.execute(
-                    f"INSERT INTO analyses (user_id, text_preview, prediction, confidence, real_prob, fake_prob, red_flag_score) VALUES ({ph(7)})",
-                    (user_id, preview, prediction, confidence, real_prob, fake_prob, red_flag_score)
-                )
-                conn.commit()
-                logger.info(f"Analysis saved for user {user_id}: {prediction} ({confidence_tier})")
-            except Exception as e:
-                logger.error(f"Failed to save analysis: {e}")
-                conn.rollback()
-            finally:
-                conn.close()
-        elif user_id and input_quality != "sufficient":
-            logger.info(f"Analysis NOT saved — input too short ({input_quality}), skipping DB write")
-        else:
-            logger.info("No authenticated user — analysis not saved")
 
-        # ── Word explainability (3.7) ──
-        fake_words, real_words = _get_top_words(text)
+        def _save_analysis_sync():
+            if user_id and input_quality == "sufficient":
+                preview = _sanitize_preview(text, max_len=200)
+                conn = get_db()
+                c = conn.cursor()
+                try:
+                    c.execute(
+                        f"INSERT INTO analyses (user_id, text_preview, prediction, confidence, real_prob, fake_prob, red_flag_score) VALUES ({ph(7)})",
+                        (user_id, preview, prediction, confidence, real_prob, fake_prob, red_flag_score)
+                    )
+                    conn.commit()
+                    logger.info(f"Analysis saved for user {user_id}: {prediction} ({confidence_tier})")
+                except Exception as e:
+                    logger.error(f"Failed to save analysis: {e}")
+                    conn.rollback()
+                finally:
+                    conn.close()
+            elif user_id and input_quality != "sufficient":
+                logger.info(f"Analysis NOT saved — input too short ({input_quality}), skipping DB write")
+            else:
+                logger.info("No authenticated user — analysis not saved")
+
+        await run_in_threadpool(_save_analysis_sync)
 
         return PredictionResponse(
             prediction=prediction, confidence=confidence,
@@ -874,6 +915,7 @@ else:
             model_version=MODEL_VERSION,
             timestamp=datetime.now().isoformat()
         )
+
 
     # ── AI Verification Endpoint (Groq — free, no billing required) ──
 
@@ -2610,130 +2652,150 @@ ANALYSIS: (2-3 sentence summary comparing the article against live news evidence
         if len(batch.articles) > 50:
             raise HTTPException(400, "Maximum 50 articles per batch")
 
-        results = []
-        for article in batch.articles:
-            try:
-                text = article.safe_text  # H6 FIX: bound input size
-                cleaned = clean_text(text)
-                tfidf_features = tfidf.transform([cleaned])
-                meta = compute_meta_features(re.sub(r'\s+', ' ', text).strip()).reshape(1, -1)
-                meta_scaled = scaler.transform(meta)
-                features = hstack([tfidf_features, meta_scaled])
-                proba = model.predict_proba(features)[0]
-                real_prob, fake_prob = float(proba[1]), float(proba[0])
-                results.append({
-                    "id": article.id, "prediction": "REAL" if real_prob >= MODEL_THRESHOLD else "FAKE",
-                    "confidence": max(real_prob, fake_prob) * 100,
-                    "real_probability": real_prob, "fake_probability": fake_prob,
-                    "red_flag_score": detect_fake_news_red_flags(text)
-                })
-            except Exception as e:
-                logger.error(f"Batch analysis error for article {article.id}: {e}")
-                results.append({"id": article.id, "error": "Analysis failed for this article"})
+        # ── P3-1 FIX: dispatch all batch ML work to threadpool ──
+        # Up to 50 sequential clean_text + predict_proba calls were blocking
+        # the event loop. One threadpool call handles the entire batch.
+        def _predict_batch_sync():
+            results = []
+            for article in batch.articles:
+                try:
+                    text = article.safe_text  # H6 FIX: bound input size
+                    cleaned = clean_text(text)
+                    tfidf_features = tfidf.transform([cleaned])
+                    meta = compute_meta_features(re.sub(r'\s+', ' ', text).strip()).reshape(1, -1)
+                    meta_scaled = scaler.transform(meta)
+                    features = hstack([tfidf_features, meta_scaled])
+                    proba = model.predict_proba(features)[0]
+                    real_prob, fake_prob = float(proba[1]), float(proba[0])
+                    results.append({
+                        "id": article.id, "prediction": "REAL" if real_prob >= MODEL_THRESHOLD else "FAKE",
+                        "confidence": max(real_prob, fake_prob) * 100,
+                        "real_probability": real_prob, "fake_probability": fake_prob,
+                        "red_flag_score": detect_fake_news_red_flags(text)
+                    })
+                except Exception as e:
+                    logger.error(f"Batch analysis error for article {article.id}: {e}")
+                    results.append({"id": article.id, "error": "Analysis failed for this article"})
+            return results
+
+        results = await run_in_threadpool(_predict_batch_sync)
 
         return {"total": len(batch.articles), "processed": len(results),
                 "results": results, "timestamp": datetime.now().isoformat()}
 
+
     @app.get("/api/v1/user/stats")
     async def get_user_stats(request: Request):
         """Get dashboard stats for the authenticated user."""
-        user_id = _get_user_from_token(request)
+        # ── P3-1 FIX: dispatch sync auth + DB queries to threadpool ──
+        user_id = await run_in_threadpool(_get_user_from_token, request)
         if not user_id:
             raise HTTPException(401, "Not authenticated")
-        conn = get_db()
-        c = conn.cursor()
-        try:
-            # Total analyses
-            c.execute(f"SELECT COUNT(*) FROM analyses WHERE user_id = {ph()}", (user_id,))
-            total = c.fetchone()[0]
-            # Avg confidence
-            c.execute(f"SELECT COALESCE(AVG(confidence), 0) FROM analyses WHERE user_id = {ph()}", (user_id,))
-            avg_conf = round(c.fetchone()[0], 1)
-            # Fake count
-            c.execute(f"SELECT COUNT(*) FROM analyses WHERE user_id = {ph()} AND prediction = 'FAKE'", (user_id,))
-            fake_count = c.fetchone()[0]
-            # Real count
-            real_count = total - fake_count
-            # Recent 10 analyses
-            c.execute(f"SELECT text_preview, prediction, confidence, red_flag_score, created_at FROM analyses WHERE user_id = {ph()} ORDER BY created_at DESC LIMIT 10", (user_id,))
-            recent = []
-            for row in c.fetchall():
-                recent.append({
-                    "preview": row[0], "prediction": row[1],
-                    "confidence": round(row[2], 1), "red_flags": round(row[3] * 100),
-                    "date": str(row[4])
-                })
-            # Daily trend (last 7 days)
-            if USE_POSTGRES:
-                c.execute(f"""SELECT DATE(created_at) as d, prediction, COUNT(*) FROM analyses
-                    WHERE user_id = {ph()} AND created_at >= CURRENT_DATE - INTERVAL '6 days'
-                    GROUP BY d, prediction ORDER BY d""", (user_id,))
-            else:
-                c.execute(f"""SELECT DATE(created_at) as d, prediction, COUNT(*) FROM analyses
-                    WHERE user_id = {ph()} AND created_at >= DATE('now', '-6 days')
-                    GROUP BY d, prediction ORDER BY d""", (user_id,))
-            trend_raw = c.fetchall()
-            trend = {}
-            for row in trend_raw:
-                day = str(row[0])
-                if day not in trend:
-                    trend[day] = {"real": 0, "fake": 0}
-                trend[day][row[1].lower()] = row[2]
-            # ── Global stats (all users combined) ──
-            c.execute("SELECT COUNT(*) FROM analyses")
-            global_total = c.fetchone()[0]
-            c.execute("SELECT COALESCE(AVG(confidence), 0) FROM analyses")
-            global_avg_conf = round(c.fetchone()[0], 1)
-            c.execute("SELECT COUNT(*) FROM analyses WHERE prediction = 'FAKE'")
-            global_fake = c.fetchone()[0]
 
-            return {
-                "total": total, "avg_confidence": avg_conf,
-                "fake_count": fake_count, "real_count": real_count,
-                "recent": recent, "trend": trend,
-                "global_total": global_total, "global_avg_confidence": global_avg_conf,
-                "global_fake_count": global_fake, "global_real_count": global_total - global_fake
-            }
-        finally:
-            conn.close()
+        def _fetch_stats_sync():
+            conn = get_db()
+            c = conn.cursor()
+            try:
+                # Total analyses
+                c.execute(f"SELECT COUNT(*) FROM analyses WHERE user_id = {ph()}", (user_id,))
+                total = c.fetchone()[0]
+                # Avg confidence
+                c.execute(f"SELECT COALESCE(AVG(confidence), 0) FROM analyses WHERE user_id = {ph()}", (user_id,))
+                avg_conf = round(c.fetchone()[0], 1)
+                # Fake count
+                c.execute(f"SELECT COUNT(*) FROM analyses WHERE user_id = {ph()} AND prediction = 'FAKE'", (user_id,))
+                fake_count = c.fetchone()[0]
+                # Real count
+                real_count = total - fake_count
+                # Recent 10 analyses
+                c.execute(f"SELECT text_preview, prediction, confidence, red_flag_score, created_at FROM analyses WHERE user_id = {ph()} ORDER BY created_at DESC LIMIT 10", (user_id,))
+                recent = []
+                for row in c.fetchall():
+                    recent.append({
+                        "preview": row[0], "prediction": row[1],
+                        "confidence": round(row[2], 1), "red_flags": round(row[3] * 100),
+                        "date": str(row[4])
+                    })
+                # Daily trend (last 7 days)
+                if USE_POSTGRES:
+                    c.execute(f"""SELECT DATE(created_at) as d, prediction, COUNT(*) FROM analyses
+                        WHERE user_id = {ph()} AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+                        GROUP BY d, prediction ORDER BY d""", (user_id,))
+                else:
+                    c.execute(f"""SELECT DATE(created_at) as d, prediction, COUNT(*) FROM analyses
+                        WHERE user_id = {ph()} AND created_at >= DATE('now', '-6 days')
+                        GROUP BY d, prediction ORDER BY d""", (user_id,))
+                trend_raw = c.fetchall()
+                trend = {}
+                for row in trend_raw:
+                    day = str(row[0])
+                    if day not in trend:
+                        trend[day] = {"real": 0, "fake": 0}
+                    trend[day][row[1].lower()] = row[2]
+                # ── Global stats (all users combined) ──
+                c.execute("SELECT COUNT(*) FROM analyses")
+                global_total = c.fetchone()[0]
+                c.execute("SELECT COALESCE(AVG(confidence), 0) FROM analyses")
+                global_avg_conf = round(c.fetchone()[0], 1)
+                c.execute("SELECT COUNT(*) FROM analyses WHERE prediction = 'FAKE'")
+                global_fake = c.fetchone()[0]
+
+                return {
+                    "total": total, "avg_confidence": avg_conf,
+                    "fake_count": fake_count, "real_count": real_count,
+                    "recent": recent, "trend": trend,
+                    "global_total": global_total, "global_avg_confidence": global_avg_conf,
+                    "global_fake_count": global_fake, "global_real_count": global_total - global_fake
+                }
+            finally:
+                conn.close()
+
+        return await run_in_threadpool(_fetch_stats_sync)
+
 
     @app.get("/api/v1/user/history")
     async def get_user_history(request: Request, page: int = 1, limit: int = 25, filter: str = "all"):
         """Get paginated analysis history for the authenticated user."""
-        user_id = _get_user_from_token(request)
+        # ── P3-1 FIX: dispatch sync auth + DB queries to threadpool ──
+        user_id = await run_in_threadpool(_get_user_from_token, request)
         if not user_id:
             raise HTTPException(401, "Not authenticated")
-        conn = get_db()
-        c = conn.cursor()
-        try:
-            where = f"user_id = {ph()}"
-            params = [user_id]
-            if filter == "real":
-                where += f" AND prediction = {ph()}"
-                params.append("REAL")
-            elif filter == "fake":
-                where += f" AND prediction = {ph()}"
-                params.append("FAKE")
-            # Count
-            c.execute(f"SELECT COUNT(*) FROM analyses WHERE {where}", tuple(params))
-            total_count = c.fetchone()[0]
-            # Paginated results
-            offset = (page - 1) * limit
-            c.execute(f"SELECT id, text_preview, prediction, confidence, real_prob, fake_prob, red_flag_score, created_at FROM analyses WHERE {where} ORDER BY created_at DESC LIMIT {ph()} OFFSET {ph()}", tuple(params + [limit, offset]))
-            rows = []
-            for row in c.fetchall():
-                rows.append({
-                    "id": row[0], "preview": row[1], "prediction": row[2],
-                    "confidence": round(row[3], 1), "real_prob": round(row[4], 3),
-                    "fake_prob": round(row[5], 3), "red_flags": round(row[6] * 100),
-                    "date": str(row[7])
-                })
-            return {
-                "items": rows, "total": total_count,
-                "page": page, "limit": limit, "pages": max(1, -(-total_count // limit))
-            }
-        finally:
-            conn.close()
+
+        def _fetch_history_sync():
+            conn = get_db()
+            c = conn.cursor()
+            try:
+                where = f"user_id = {ph()}"
+                params = [user_id]
+                if filter == "real":
+                    where += f" AND prediction = {ph()}"
+                    params.append("REAL")
+                elif filter == "fake":
+                    where += f" AND prediction = {ph()}"
+                    params.append("FAKE")
+                # Count
+                c.execute(f"SELECT COUNT(*) FROM analyses WHERE {where}", tuple(params))
+                total_count = c.fetchone()[0]
+                # Paginated results
+                offset = (page - 1) * limit
+                c.execute(f"SELECT id, text_preview, prediction, confidence, real_prob, fake_prob, red_flag_score, created_at FROM analyses WHERE {where} ORDER BY created_at DESC LIMIT {ph()} OFFSET {ph()}", tuple(params + [limit, offset]))
+                rows = []
+                for row in c.fetchall():
+                    rows.append({
+                        "id": row[0], "preview": row[1], "prediction": row[2],
+                        "confidence": round(row[3], 1), "real_prob": round(row[4], 3),
+                        "fake_prob": round(row[5], 3), "red_flags": round(row[6] * 100),
+                        "date": str(row[7])
+                    })
+                return {
+                    "items": rows, "total": total_count,
+                    "page": page, "limit": limit, "pages": max(1, -(-total_count // limit))
+                }
+            finally:
+                conn.close()
+
+        return await run_in_threadpool(_fetch_history_sync)
+
 
     # ── URL Fetch Endpoint (Tier 2.2) — 3-Tier Extraction ──
     class FetchUrlRequest(BaseModel):
