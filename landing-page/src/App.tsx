@@ -115,8 +115,8 @@ function AuthLayout() {
 
       {/* Main content area — 100% width on mobile (left:0), offset by sidebarWidth on desktop */}
       <div
-        className="flex-1 flex flex-col min-h-screen transition-all duration-300 md:ml-[var(--sidebar-w)] w-full max-w-full overflow-x-hidden"
-        style={{ "--sidebar-w": `${sidebarWidth}px` } as React.CSSProperties}
+        className="flex-1 flex flex-col min-h-screen transition-all duration-300 w-full max-w-full overflow-x-hidden"
+        style={{ marginLeft: typeof window !== "undefined" && window.innerWidth >= 768 ? sidebarWidth : 0 }}
       >
         <TopBar onMobileMenuToggle={() => setMobileOpen(!mobileOpen)} />
         <main id="main-content" className="flex-1 overflow-y-auto pb-16 md:pb-0 w-full max-w-full overflow-x-hidden">
