@@ -163,15 +163,33 @@ This dual approach catches both *stylistically* fake articles (clickbait, conspi
 
 ## 📈 Model Performance
 
-### ML Ensemble (v6.0)
+### ML Ensemble (v9.0 — Voting: LR + RF + SGD + SVC + LGBM)
+
+#### In-Distribution (random split, same sources in train & test)
 
 | Metric | Score |
 |--------|-------|
-| **Accuracy** | **94.77%** |
+| Accuracy | 94.77% |
 | Precision | 95.81% |
 | Recall | 93.66% |
 | F1-Score | 94.72% |
 | ROC-AUC | 99.09% |
+
+> ⚠️ **These numbers are inflated.** The random split puts articles from the same
+> source on both sides, so the model partially learns *which outlet wrote this*
+> rather than veracity. A grouped-split retrain (by source dataset) is pending —
+> expect accuracy to drop to ~75–80%.
+
+#### Fresh-Text Evaluation (10 hand-written unseen samples)
+
+| Metric | Score | Notes |
+|--------|-------|-------|
+| Accuracy | ~70% | `scratch_domain_test_output.json` |
+| Known weakness | False-positive bias | Real science/entertainment articles flagged FAKE at ~50% confidence |
+
+When the model has near-zero signal (real probability 0.45–0.60), it now returns
+**UNCERTAIN** instead of defaulting to FAKE.
+
 
 ---
 
