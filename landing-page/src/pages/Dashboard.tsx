@@ -3,8 +3,7 @@ import { useAuth } from "../context/AuthContext"
 import { API_BASE, getAuthHeaders } from "../lib/api"
 import { Loader2 } from "lucide-react"
 import { useIsMobile } from "../hooks/useIsMobile"
-import { DashboardDesktop } from "./desktop/DashboardDesktop"
-import { DashboardMobile } from "./mobile/DashboardMobile"
+import { DashboardView } from "./DashboardView"
 
 /** Shared prop interface for desktop/mobile dashboard views */
 export interface DashboardViewProps {
@@ -125,5 +124,5 @@ export function Dashboard() {
     allHistory, filtered, range, setRange, community
   }
 
-  return isMobile ? <DashboardMobile {...viewProps} /> : <DashboardDesktop {...viewProps} />
+  return <DashboardView {...viewProps} isMobile={isMobile} />
 }
