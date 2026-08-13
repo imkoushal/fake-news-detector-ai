@@ -156,3 +156,54 @@ async def admin_metrics(request: Request, window_days: int = 30):
         raise HTTPException(403, "Admin access required")
     window_days = max(1, min(int(window_days), 365))
     return _metrics.compute_metrics(window_days=window_days)
+
+
+# ── Model Monitoring Endpoints ──
+
+@router.get("/api/v1/model-health")
+async def model_health(request: Request, days: int = 7):
+    """Get comprehensive model health report with alerts."""
+    try:
+        from model_monitor import ModelMonitor
+        monitor = ModelMonitor()
+        report = monitor.get_health_report(days=min(days, 90))
+        report["model"] = {
+            "version": _state.APP_VERSION,
+            "loaded": _state.MODEL_LOADED,
+            "metrics": _state.MODEL_METRICS,
+        }
+        return report
+    except Exception as e:
+        logger.error(f"Model health check failed: {e}")
+        return {
+            "status": "ERROR",
+            "message": str(e),
+            "model": {"version": _state.APP_VERSION, "loaded": _state.MODEL_LOADED},
+        }
+
+
+@router.get("/api/v1/model-health/trends")
+async def model_health_trends(days: int = 30):
+    """Get daily trend data for model monitoring charts."""
+    try:
+        from model_monitor import ModelMonitor
+        monitor = ModelMonitor()
+        trends = monitor.get_daily_trends(days=min(days, 90))
+        stats = monitor.get_prediction_stats(hours=24)
+        return {"trends": trends, "last_24h": stats}
+    except Exception as e:
+        logger.error(f"Model trends failed: {e}")
+        return {"trends": [], "last_24h": {}, "error": str(e)}
+
+
+@router.get("/api/v1/model-health/alerts")
+async def model_health_alerts(limit: int = 20):
+    """Get recent model monitoring alerts."""
+    try:
+        from model_monitor import ModelMonitor
+        monitor = ModelMonitor()
+        return {"alerts": monitor.get_recent_alerts(limit=min(limit, 100))}
+    except Exception as e:
+        logger.error(f"Model alerts failed: {e}")
+        return {"alerts": [], "error": str(e)}
+

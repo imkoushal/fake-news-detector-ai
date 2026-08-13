@@ -11,7 +11,8 @@ import os
 import logging
 from pathlib import Path
 
-logger = logging.getLogger("fake_news_api")
+# ── Base Directory ──
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ── Version ──
 APP_VERSION = "9.0"
