@@ -62,11 +62,39 @@ class _PooledConnection:
 
 
 def get_db():
-    """Get a database connection (pooled for PostgreSQL)."""
+    """Get a database connection (pooled for PostgreSQL).
+
+    For pooled connections, a lightweight ``SELECT 1`` health-check is executed
+    before the connection is returned.  Render's free-tier PostgreSQL closes
+    idle connections after ~5 min; without this probe the *first* query after
+    idle time hits a stale socket and raises ``OperationalError`` (the classic
+    "internal error on first try" bug).  On failure the dead connection is
+    discarded and a fresh one is obtained from the pool.
+    """
     if USE_POSTGRES:
         if _pg_pool:
             conn = _pg_pool.getconn()
             conn.autocommit = False
+            # ── Health-check: discard stale connections ──
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT 1")
+                cur.close()
+                # Clear any implicit transaction opened by the probe so the
+                # caller starts with a clean transaction slate.
+                conn.rollback()
+            except Exception:
+                # Connection is dead — throw it away and get a new one.
+                logger.warning("Stale PostgreSQL connection detected — discarding and retrying")
+                try:
+                    _pg_pool.putconn(conn, close=True)
+                except Exception:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                conn = _pg_pool.getconn()
+                conn.autocommit = False
             return _PooledConnection(conn, _pg_pool)
         else:
             url = DATABASE_URL.replace("postgres://", "postgresql://", 1)

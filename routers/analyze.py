@@ -694,9 +694,10 @@ async def fetch_url(req: FetchUrlRequest, request: Request):
     # Tier 1: newspaper4k
     try:
         from backend.ssrf import safe_get
+        from backend.http_client import get_client
         from newspaper import Article as NewspaperArticle
 
-        resp = await safe_get(url, timeout=12.0)
+        resp = await safe_get(get_client(), url)
         if resp.status_code == 200 and len(resp.text) > 200:
             article = NewspaperArticle(url=url)
             article.set_html(resp.text)
@@ -718,7 +719,8 @@ async def fetch_url(req: FetchUrlRequest, request: Request):
     # Tier 2: BeautifulSoup
     try:
         from backend.ssrf import safe_get
-        resp = await safe_get(url, timeout=10.0)
+        from backend.http_client import get_client
+        resp = await safe_get(get_client(), url)
         if resp.status_code == 200:
             result = _extract_article_from_html(resp.text)
             if result["word_count"] >= 20:
